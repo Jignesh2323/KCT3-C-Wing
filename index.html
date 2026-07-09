@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C-Wing — Maintenance Khata</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ============================================================
+   SHARED STYLES — used by both c_wing_app.html (admin) and
+   c_wing_public.html (member view). Edit here once, both pick
+   it up automatically since both load this same file.
+   ============================================================ */
+:root{
+  --paper:#ECE4CF;
+  --paper-dark:#DED2AF;
+  --ink:#2B2620;
+  --ink-soft:#5B5546;
+  --maroon:#8B3A3A;
+  --maroon-dark:#6E2C2C;
+  --ledger-green:#3F6B4A;
+  --rule:#C9BB93;
+  --white-card:#F7F2E4;
+  --danger:#A33;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:'Source Serif 4', serif; font-size:15px; line-height:1.5;
+}
+h1,h2,h3{font-family:'Fraunces',serif; font-weight:700; margin:0 0 .3em;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.app{max-width:1100px; margin:0 auto; padding:20px;}
+.topbar{
+  display:flex; justify-content:space-between; align-items:center;
+  border-bottom:3px double var(--ink); padding-bottom:12px; margin-bottom:20px;
+}
+.topbar .brand{display:flex; flex-direction:column;}
+.topbar .brand small{color:var(--ink-soft); letter-spacing:.08em; text-transform:uppercase; font-size:11px;}
+.topbar .who{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-soft);}
+button, .btn{
+  font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:.02em;
+  border:1.5px solid var(--ink); background:var(--white-card); color:var(--ink);
+  padding:7px 14px; border-radius:2px; cursor:pointer; transition:.15s;
+}
+button:hover{background:var(--ink); color:var(--paper);}
+button.primary{background:var(--maroon); color:var(--white-card); border-color:var(--maroon-dark);}
+button.primary:hover{background:var(--maroon-dark);}
+button.danger{border-color:var(--danger); color:var(--danger); background:transparent;}
+button.danger:hover{background:var(--danger); color:#fff;}
+input, select, textarea{
+  font-family:'Source Serif 4',serif; font-size:14px; padding:7px 9px;
+  border:1px solid var(--ink-soft); border-radius:2px; background:#fffdf7; color:var(--ink);
+}
+label{font-size:12px; color:var(--ink-soft); display:block; margin-bottom:3px; text-transform:uppercase; letter-spacing:.04em;}
+.field{margin-bottom:10px;}
+.card{
+  background:var(--white-card); border:1px solid var(--rule); border-radius:3px;
+  padding:18px; margin-bottom:18px; box-shadow:0 1px 0 var(--rule);
+}
+.grid-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;}
+.stat{border-left:3px solid var(--maroon); padding:6px 12px; background:var(--paper-dark);}
+.stat .num{font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:var(--ink);}
+.stat .lbl{font-size:11px; text-transform:uppercase; color:var(--ink-soft); letter-spacing:.05em;}
+.stat-good{border-left-color:#2E7D4F;} .stat-good .num{color:#2E7D4F;}
+.stat-bad{border-left-color:#A33A2E;} .stat-bad .num{color:#A33A2E;}
+.stat-neutral{border-left-color:#1F3864;} .stat-neutral .num{color:#1F3864;}
+.stat-info{border-left-color:#5C6B73;} .stat-info .num{color:#5C6B73;}
+.stat-warning{border-left-color:#B8860B;} .stat-warning .num{color:#B8860B;}
+.stat-two{border-left-color:#0D7377;}
+.stat-four{border-left-color:#A33A2E;}
+table{width:100%; border-collapse:collapse; font-size:13.5px;}
+th{
+  text-align:left; padding:7px 8px;
+  font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+  background:#1F3864; color:#fff; font-weight:600;
+}
+td{padding:6px 8px; border-bottom:1px solid var(--rule);}
+tr:hover td{background:var(--paper-dark);}
+.v-input{color:#0000FF;}
+.v-formula{color:#000;}
+.floor-1{background:#F2DCDB;} .floor-1 .contact{color:#8F0600;}
+.floor-2{background:#DCE6F1;} .floor-2 .contact{color:#00448F;}
+.floor-3{background:#E2EFDA;} .floor-3 .contact{color:#368F00;}
+.floor-4{background:#FCE4D6;} .floor-4 .contact{color:#8F3500;}
+.floor-5{background:#D9D2E9;} .floor-5 .contact{color:#2E0788;}
+.floor-6{background:#FFF2CC;} .floor-6 .contact{color:#8F6A00;}
+.floor-7{background:#D0E0E3;} .floor-7 .contact{color:#156A7A;}
+.floor-8{background:#F4CCCC;} .floor-8 .contact{color:#8F0000;}
+.floor-9{background:#CFE2F3;} .floor-9 .contact{color:#004B8F;}
+.floor-10{background:#D9EAD3;} .floor-10 .contact{color:#288A05;}
+.floor-11{background:#FFE5D9;} .floor-11 .contact{color:#8F2D00;}
+.floor-12{background:#EAD1DC;} .floor-12 .contact{color:#8D023F;}
+.floor-13{background:#D5E8D4;} .floor-13 .contact{color:#13820D;}
+.floor-x:hover td,[class*="floor-"]:hover td{filter:brightness(0.95);}
+.veh-two{background:#D9F2F2;}
+.veh-four{background:#F9D5D3;}
+.mobile{font-weight:700; font-size:16px; letter-spacing:.02em;}
+.type-two{color:#0D7377; font-weight:600;}
+.type-four{color:#A33A2E; font-weight:600;}
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(43,38,32,0.55); display:flex; align-items:center; justify-content:center; z-index:1000;
+}
+.modal-box{
+  background:var(--white-card); border:1px solid var(--rule); border-radius:4px; padding:22px 24px;
+  max-width:360px; box-shadow:0 6px 24px rgba(0,0,0,.25);
+}
+.modal-box h3{margin-bottom:10px;}
+.modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:16px;}
+.tabs{display:flex; gap:2px; flex-wrap:wrap; margin-bottom:14px; border-bottom:1px solid var(--rule);}
+.tab{
+  padding:8px 14px; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+  color:var(--ink-soft); border-bottom:3px solid transparent;
+}
+.tab.active{color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600;}
+.form-row{display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:16px;}
+.form-row .field{flex:1; min-width:140px; margin-bottom:0;}
+.login-wrap{max-width:380px; margin:80px auto; text-align:center;}
+.login-wrap .card{text-align:left;}
+.msg{padding:10px 14px; border-radius:2px; margin-bottom:14px; font-size:13.5px;}
+.msg.error{background:#F5DEDE; border:1px solid var(--danger); color:var(--danger);}
+.msg.ok{background:#E1EBE4; border:1px solid var(--ledger-green); color:var(--ledger-green);}
+.empty{color:var(--ink-soft); font-style:italic; padding:14px 0;}
+.pill{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 8px; border-radius:20px;
+  border:1px solid currentColor; display:inline-block;
+}
+.pill.sold{color:var(--ledger-green);}
+.pill.unsold{color:var(--ink-soft);}
+.pill-select{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 6px; border-radius:20px;
+  border:1px solid currentColor; background:transparent; cursor:pointer;
+}
+.pill-select.sold{color:var(--ledger-green);}
+.pill-select.unsold{color:var(--ink-soft);}
+.config-note{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+a{color:var(--maroon);}
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* ============================================================
+   SHARED LOGIC — used by both c_wing_app.html (admin) and
+   c_wing_public.html (member view). Edit here once, both pick
+   it up automatically since both load this same file at runtime.
+
+   Contains: Supabase connection, money formatting, the common
+   expense categories + ÷52 split calculation, and vehicle search.
+   Both HTML files must keep these element IDs for this to work:
+     cx_month, cx_year, cx_result   (Monthly Common Expense Split card)
+     q_vnum, q_flat, vehicle-results (Vehicle Search card)
+   ============================================================ */
+
+const SUPABASE_URL = "https://deyetzwxatogmdmjacvo.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRleWV0end4YXRvZ21kbWphY3ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0MDUzNjcsImV4cCI6MjA5ODk4MTM2N30.wbdWs_Y0YvFOsQWjjodqPRuWS1H1Dx57jjb8GQtrkA0";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function fmtMoney(n){ n = Number(n||0); return '₹' + n.toLocaleString('en-IN'); }
+
+/* ---- Monthly Common Expense Split ---- */
+const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery'];
+const TOTAL_FLATS_FIXED = 52;
+let cxMonth = new Date().getMonth()+1;
+let cxYear = new Date().getFullYear();
+
+function cxMonthOptionsHtml(){
+  return ['January','February','March','April','May','June','July','August','September','October','November','December']
+    .map((name,i)=>`<option value="${i+1}" ${i+1===cxMonth?'selected':''}>${name}</option>`).join('');
+}
+function cxYearOptionsHtml(){
+  const curYear = new Date().getFullYear();
+  const opts = [];
+  for(let y=curYear-3; y<=curYear+1; y++) opts.push(`<option value="${y}" ${y===cxYear?'selected':''}>${y}</option>`);
+  return opts.join('');
+}
+function onCxDateChange(){
+  cxMonth = Number(document.getElementById('cx_month').value);
+  cxYear = Number(document.getElementById('cx_year').value);
+  renderCommonExpenseSplit();
+}
+async function renderCommonExpenseSplit(){
+  const resultBox = document.getElementById('cx_result');
+  if(!resultBox) return;
+  resultBox.innerHTML = 'Loading...';
+  const startDate = `${cxYear}-${String(cxMonth).padStart(2,'0')}-01`;
+  const endDate = cxMonth===12 ? `${cxYear+1}-01-01` : `${cxYear}-${String(cxMonth+1).padStart(2,'0')}-01`;
+  const [{data:exp, error:expErr}, {data:flats, error:flatsErr}] = await Promise.all([
+    sb.from('expenses').select('amount').in('category', COMMON_EXPENSE_CATEGORIES).gte('expense_date', startDate).lt('expense_date', endDate),
+    sb.from('v_flats').select('status')
+  ]);
+  if(expErr || flatsErr){
+    resultBox.innerHTML = `<div class="msg error">${(expErr||flatsErr).message}</div>`;
+    return;
+  }
+  const total = (exp||[]).reduce((sum,e)=>sum+Number(e.amount||0),0);
+  const perFlat = total / TOTAL_FLATS_FIXED;
+  const soldCount = (flats||[]).filter(f=>f.status==='Sold').length;
+  const unsoldCount = (flats||[]).filter(f=>f.status==='Unsold').length;
+  const soldTotal = perFlat * soldCount;
+  const unsoldTotal = perFlat * unsoldCount;
+  resultBox.innerHTML = `
+    <div class="grid-stats">
+      <div class="stat stat-bad"><div class="num mono">${fmtMoney(total)}</div><div class="lbl">Month Total (Common Categories)</div></div>
+      <div class="stat stat-neutral"><div class="num mono">${fmtMoney(perFlat)}</div><div class="lbl">Per Flat (÷${TOTAL_FLATS_FIXED})</div></div>
+      <div class="stat stat-good"><div class="num mono">${soldCount}</div><div class="lbl">Sold Flats Count</div></div>
+      <div class="stat stat-good"><div class="num mono">${fmtMoney(soldTotal)}</div><div class="lbl">Sold Flats Total</div></div>
+      <div class="stat stat-warning"><div class="num mono">${unsoldCount}</div><div class="lbl">Unsold Flats Count</div></div>
+      <div class="stat stat-warning"><div class="num mono">${fmtMoney(unsoldTotal)}</div><div class="lbl">Unsold Flats Total (Builder Share)</div></div>
+    </div>`;
+}
+
+/* ---- Vehicle Search ---- */
+function clearVehicleSearch(){
+  document.getElementById('q_vnum').value = '';
+  document.getElementById('q_flat').value = '';
+  document.getElementById('vehicle-results').innerHTML = '';
+}
+async function searchVehicles(){
+  const vnum = document.getElementById('q_vnum').value.trim();
+  const flat = document.getElementById('q_flat').value.trim();
+  let q = sb.from('v_vehicles').select('*');
+  if(vnum) q = q.ilike('vehicle_number', `%${vnum}%`);
+  if(flat) q = q.eq('flat_no', flat);
+  const {data, error} = await q;
+  const box = document.getElementById('vehicle-results');
+  if(error){ box.innerHTML = `<div class="msg error">${error.message}</div>`; return; }
+  if(!data.length){ box.innerHTML = `<div class="empty">No matches.</div>`; return; }
+  box.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Type</th><th>Number</th><th>Sticker</th></tr></thead><tbody>
+    ${data.map(v=>`<tr class="floor-${Math.floor(v.flat_no/100)}"><td>${v.flat_no}</td><td>${v.owner_name||''}</td><td class="mono mobile">${v.mobile_no||''}</td>
+      <td class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</td>
+      <td class="mono ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_number}</td><td>${v.sticker_allotted}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+</script>
+<script>
+/* ============================================================
+   ADMIN APP — PIN-gated admin panel. Everything is in this
+   single file (styles + logic), nothing else to download.
+   ============================================================ */
+const root = document.getElementById('root');
+let state = { user:null, profile:null, tab:'dashboard', msg:null };
+
+function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+
+/* ---------------- PIN-gated WRITE access ----------------
+   Viewing (dashboard, flats, expenses, vehicle search) never
+   needs a PIN — it's open to everyone, same as before.
+   Only when someone tries to Add/Edit/Delete/change status,
+   a PIN prompt appears. Correct PIN signs into one shared
+   hidden admin account behind the scenes, unlocking writes
+   ON THIS DEVICE until the "Lock" button is pressed manually. */
+const HIDDEN_ADMIN_EMAIL = "cwing-admin@internal.local";
+const HIDDEN_ADMIN_PASSWORD = "CwingAdmin2026";
+const ADMIN_PIN = "1201";
+const PIN_UNLOCK_KEY = "cwing_pin_unlocked";
+
+function pinStillValid(){
+  return localStorage.getItem(PIN_UNLOCK_KEY) === "true";
+}
+
+/* Call this from any Add/Edit/Delete/status-change handler:
+     withPin(async () => { ...the actual write... });
+   If already unlocked (and not expired), the action runs immediately.
+   Otherwise a PIN modal appears; the action only runs after the
+   correct PIN is entered and the hidden account signs in. */
+async function withPin(action){
+  if(pinStillValid() && state.user){ await action(); return; }
+  if(state.user && !pinStillValid()){ await sb.auth.signOut(); state.user = null; }
+  showPinModal(action);
+}
+
+function showPinModal(action){
+  const old = document.getElementById('pin-modal');
+  if(old) old.remove();
+  const overlay = el(`<div class="modal-backdrop" id="pin-modal">
+    <div class="modal-box">
+      <h3>Enter PIN</h3>
+      <p class="config-note">Needed to make changes. Stays unlocked on this device until you press Lock.</p>
+      <div id="pin-modal-msg"></div>
+      <input id="pin-modal-input" type="password" inputmode="numeric" maxlength="6" style="width:100%; letter-spacing:.3em; text-align:center; font-size:20px" autofocus>
+      <div class="modal-actions">
+        <button onclick="document.getElementById('pin-modal').remove(); refreshTab();">Cancel</button>
+        <button class="primary" id="pin-modal-submit">Unlock</button>
+      </div>
+    </div>
+  </div>`);
+  document.body.appendChild(overlay);
+  const submit = async ()=>{
+    const pin = document.getElementById('pin-modal-input').value.trim();
+    const msgBox = document.getElementById('pin-modal-msg');
+    if(pin !== ADMIN_PIN){
+      msgBox.innerHTML = `<div class="msg error">Wrong PIN.</div>`;
+      return;
+    }
+    const {error} = await sb.auth.signInWithPassword({email: HIDDEN_ADMIN_EMAIL, password: HIDDEN_ADMIN_PASSWORD});
+    if(error){ msgBox.innerHTML = `<div class="msg error">${error.message}</div>`; return; }
+    localStorage.setItem(PIN_UNLOCK_KEY, "true");
+    const {data:{session}} = await sb.auth.getSession();
+    state.user = session ? session.user : null;
+    overlay.remove();
+    await action();
+  };
+  document.getElementById('pin-modal-submit').onclick = submit;
+  document.getElementById('pin-modal-input').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+}
+async function lockNow(){
+  await sb.auth.signOut();
+  localStorage.removeItem(PIN_UNLOCK_KEY);
+  state.user = null;
+  render();
+}
+
+/* ---------------- render root — always shows the app, no view-lock ---------------- */
+async function render(){
+  renderAdmin();
+}
+
+/* ---------------- shared topbar ---------------- */
+function topbar(title){
+  const unlocked = pinStillValid() && state.user;
+  return `<div class="topbar">
+    <div class="brand"><h1>${title}</h1><small>C-Wing Society Maintenance Fund</small></div>
+    <div class="who">${unlocked
+        ? `<span class="pill sold">Unlocked</span> <button onclick="lockNow()">Lock</button>`
+        : `<span class="pill unsold">View Only</span> <button class="primary" onclick="unlockOnly()">Unlock</button>`}
+    </div>
+  </div>`;
+}
+async function unlockOnly(){
+  await withPin(async ()=>{ render(); });
+}
+
+/* ============================================================
+   ADMIN VIEW — tabs with list + simple add form per table
+   ============================================================ */
+const ADMIN_TABS = [
+  ['dashboard','Dashboard'],
+  ['flats','Flats'],
+  ['collections','Collections'],
+  ['expenses','Expenses'],
+  ['vehicles','Vehicles'],
+  ['charges','Charges'],
+  ['stickerlog','Sticker Log'],
+  ['dues','Dues Summary'],
+];
+
+async function renderAdmin(){
+  root.innerHTML = `<div class="app">
+    ${topbar('Admin')}
+    <div class="tabs">
+      ${ADMIN_TABS.map(([k,label])=>`<div class="tab ${state.tab===k?'active':''}" onclick="setTab('${k}')">${label}</div>`).join('')}
+    </div>
+    <div id="tab-content"><div class="empty">Loading…</div></div>
+  </div>`;
+  renderTabContent();
+}
+function setTab(k){ state.tab = k; render(); }
+
+async function renderTabContent(){
+  const box = document.getElementById('tab-content');
+  if(!box) return;
+  try{
+    if(state.tab==='dashboard') return await renderDashboardTab(box);
+    if(state.tab==='flats') return await renderFlatsTab(box);
+    if(state.tab==='collections') return await renderCollectionsTab(box);
+    if(state.tab==='expenses') return await renderExpensesTab(box);
+    if(state.tab==='vehicles') return await renderVehiclesTab(box);
+    if(state.tab==='charges') return await renderChargesTab(box);
+    if(state.tab==='stickerlog') return await renderStickerLogTab(box);
+    if(state.tab==='dues') return await renderDuesTab(box);
+  }catch(err){
+    console.error(err);
+    box.innerHTML = `<div class="msg error"><b>Something broke:</b> ${err.message || err}</div>`;
+  }
+}
+
+/* ---- Dashboard tab ---- */
+async function renderDashboardTab(box){
+  const [{data:s}, {data:byMode}, {data:byCat}] = await Promise.all([
+    sb.from('v_dashboard_summary').select('*').maybeSingle(),
+    sb.from('v_fund_by_mode').select('*'),
+    sb.from('v_expense_by_category').select('*')
+  ]);
+  box.innerHTML = `
+    <div class="card"><h3>Summary</h3>
+      <div class="grid-stats">
+        <div class="stat stat-good"><div class="num mono">${fmtMoney(s?.total_collected)}</div><div class="lbl">Collected</div></div>
+        <div class="stat stat-bad"><div class="num mono">${fmtMoney(s?.total_expense)}</div><div class="lbl">Expense</div></div>
+        <div class="stat stat-neutral"><div class="num mono">${fmtMoney(s?.balance_in_hand)}</div><div class="lbl">Balance</div></div>
+        <div class="stat stat-info"><div class="num mono">${s?.total_flats??'-'}</div><div class="lbl">Total Flats</div></div>
+        <div class="stat stat-warning"><div class="num mono">${s?.unsold_flats??'-'}</div><div class="lbl">Unsold Flats</div></div>
+        <div class="stat stat-bad"><div class="num mono">${s?.flats_zero_collection??'-'}</div><div class="lbl">Zero Collection</div></div>
+        <div class="stat stat-two"><div class="num mono type-two">${s?.total_two_wheelers??'-'}</div><div class="lbl">2-Wheelers</div></div>
+        <div class="stat stat-four"><div class="num mono type-four">${s?.total_four_wheelers??'-'}</div><div class="lbl">4-Wheelers</div></div>
+      </div>
+    </div>
+    <div class="card"><h3>By Payment Mode</h3>
+      <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
+      ${(byMode||[]).map(m=>`<tr><td>${m.mode}</td><td class="mono stat-good" style="border:none">${fmtMoney(m.collected)}</td><td class="mono stat-bad" style="border:none">${fmtMoney(m.spent)}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+    <div class="card"><h3>Expense by Category</h3>
+      <table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>
+      ${(byCat||[]).map(c=>`<tr><td>${c.category}</td><td class="mono">${fmtMoney(c.total_amount)}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+    <div class="card">
+      <h3>Monthly Common Expense Split</h3>
+      <div class="form-row">
+        <div class="field"><label>Month</label><select id="cx_month" onchange="onCxDateChange()">${cxMonthOptionsHtml()}</select></div>
+        <div class="field"><label>Year</label><select id="cx_year" onchange="onCxDateChange()">${cxYearOptionsHtml()}</select></div>
+      </div>
+      <p class="config-note" style="margin-bottom:8px">Categories included: ${COMMON_EXPENSE_CATEGORIES.join(', ')}. Flat Expense, Event, Festival excluded. Total flats fixed at ${TOTAL_FLATS_FIXED}.</p>
+      <div id="cx_result">Loading...</div>
+    </div>`;
+  renderCommonExpenseSplit();
+}
+
+/* ---- generic helpers ---- */
+async function refreshTab(){ renderTabContent(); }
+
+/* ---- Flats tab ---- */
+let flatsCache = [];
+async function renderFlatsTab(box){
+  const {data, error} = await sb.from('v_flats').select('*').order('flat_no');
+  flatsCache = data || [];
+  box.innerHTML = `
+    <div class="card">
+      <h3 id="flats-form-title">Add / Update Flat</h3>
+      <div class="form-row">
+        <div class="field"><label>Flat No</label><input id="f_no" type="number"></div>
+        <div class="field"><label>Floor</label><input id="f_floor" type="number"></div>
+        <div class="field"><label>Owner Name</label><input id="f_owner"></div>
+        <div class="field"><label>Contact No</label><input id="f_contact"></div>
+        <div class="field"><label>Status</label>
+          <select id="f_status"><option value="">Auto (based on Owner Name)</option><option value="Sold">Force: Sold</option><option value="Unsold">Force: Unsold</option></select>
+        </div>
+        <div class="field"><label>Remarks</label><input id="f_remarks"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="upsertFlat()">Save</button></div>
+        <div class="field" style="flex:0"><button onclick="resetFlatForm()">Clear</button></div>
+      </div>
+      ${error?`<div class="msg error">${error.message}</div>`:''}
+      <table><thead><tr><th>Flat</th><th>Floor</th><th>Owner</th><th>Contact</th><th>Status</th><th>Vehicle?</th><th></th></tr></thead><tbody>
+      ${(data||[]).map(f=>`<tr class="floor-${f.floor||'x'}">
+        <td class="mono v-input">${f.flat_no}</td><td class="v-input">${f.floor??''}</td><td class="v-input">${f.owner_name||''}</td><td class="mono v-input contact mobile">${f.contact_no||''}</td>
+        <td class="v-formula">
+          <select onchange="updateFlatStatusInline(${f.flat_no}, this.value)" class="pill-select ${f.status==='Sold'?'sold':'unsold'}">
+            <option value="Sold" ${f.status==='Sold'?'selected':''}>Sold</option>
+            <option value="Unsold" ${f.status==='Unsold'?'selected':''}>Unsold</option>
+          </select>
+        </td><td class="v-formula">${f.has_vehicle?'Yes':'No'}</td>
+        <td style="white-space:nowrap"><button onclick="editFlat(${f.flat_no})">Edit</button> <button class="danger" onclick="deleteRow('flats','flat_no',${f.flat_no})">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="7" class="empty">No flats yet.</td></tr>`}
+      </tbody></table>
+      <p class="config-note" style="margin-top:8px"><span class="v-input" style="font-weight:600">■</span> blue = entered directly &nbsp; <span class="v-formula" style="font-weight:600">■</span> black = auto-calculated &nbsp; · row color = floor group (like the old sheet)</p>
+    </div>`;
+}
+async function updateFlatStatusInline(flatNo, value){
+  await withPin(async ()=>{
+    const {error} = await sb.from('flats').update({status_override: value}).eq('flat_no', flatNo);
+    if(error) alert(error.message);
+    refreshTab();
+  });
+}
+function editFlat(flatNo){
+  const f = flatsCache.find(x=>x.flat_no===flatNo);
+  if(!f) return;
+  document.getElementById('f_no').value = f.flat_no;
+  document.getElementById('f_floor').value = f.floor ?? '';
+  document.getElementById('f_owner').value = f.owner_name || '';
+  document.getElementById('f_contact').value = f.contact_no || '';
+  document.getElementById('f_status').value = f.status_override || '';
+  document.getElementById('f_remarks').value = f.remarks || '';
+  document.getElementById('flats-form-title').textContent = `Editing Flat ${f.flat_no}`;
+  document.getElementById('f_no').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function resetFlatForm(){
+  ['f_no','f_floor','f_owner','f_contact','f_remarks'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f_status').value='';
+  document.getElementById('flats-form-title').textContent = 'Add / Update Flat';
+}
+async function upsertFlat(){
+  await withPin(async ()=>{
+    const payload = {
+      flat_no: Number(document.getElementById('f_no').value),
+      floor: document.getElementById('f_floor').value || null,
+      owner_name: document.getElementById('f_owner').value || null,
+      contact_no: document.getElementById('f_contact').value || null,
+      status_override: document.getElementById('f_status').value || null,
+      remarks: document.getElementById('f_remarks').value || null,
+    };
+    const {error} = await sb.from('flats').upsert(payload);
+    if(error) alert(error.message); else refreshTab();
+  });
+}
+
+/* ---- Collections tab ---- */
+async function renderCollectionsTab(box){
+  const [{data, error}, {data:charges}, {data:flats}] = await Promise.all([
+    sb.from('collections').select('*, flats(owner_name)').order('collection_date',{ascending:false}).limit(100),
+    sb.from('charges').select('round_name'),
+    sb.from('flats').select('flat_no, owner_name').order('flat_no')
+  ]);
+  box.innerHTML = `
+    <div class="card">
+      <h3>Add Collection</h3>
+      <div class="form-row">
+        <div class="field"><label>Flat No</label>
+          <select id="c_flat">${(flats||[]).map(f=>`<option value="${f.flat_no}">${f.flat_no}${f.owner_name?' — '+f.owner_name:''}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Date</label><input id="c_date" type="date"></div>
+        <div class="field"><label>Amount</label><input id="c_amount" type="number"></div>
+        <div class="field"><label>Mode</label>
+          <select id="c_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
+        </div>
+        <div class="field"><label>Purpose (Round)</label>
+          <select id="c_purpose">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Remarks</label><input id="c_remarks"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addCollection()">Add</button></div>
+      </div>
+      ${error?`<div class="msg error">${error.message}</div>`:''}
+      <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead><tbody>
+      ${(data||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
+        <td class="mono v-input">${c.collection_date}</td><td class="mono v-input">${c.flat_no}</td><td class="v-formula">${c.flats?.owner_name||''}</td>
+        <td class="mono v-input">${fmtMoney(c.amount)}</td><td class="v-input">${c.mode}</td><td class="v-input">${c.purpose||''}</td>
+        <td><button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`}
+      </tbody></table>
+    </div>`;
+}
+async function addCollection(){
+  await withPin(async ()=>{
+    const payload = {
+      flat_no: Number(document.getElementById('c_flat').value),
+      collection_date: document.getElementById('c_date').value || new Date().toISOString().slice(0,10),
+      amount: Number(document.getElementById('c_amount').value),
+      mode: document.getElementById('c_mode').value,
+      purpose: document.getElementById('c_purpose').value,
+      remarks: document.getElementById('c_remarks').value || null,
+    };
+    const {error} = await sb.from('collections').insert(payload);
+    if(error) alert(error.message); else refreshTab();
+  });
+}
+
+/* ---- Expenses tab ---- */
+async function renderExpensesTab(box){
+  const {data, error} = await sb.from('expenses').select('*').order('expense_date',{ascending:false}).limit(100);
+  box.innerHTML = `
+    <div class="card">
+      <h3>Add Expense</h3>
+      <div class="form-row">
+        <div class="field"><label>Date</label><input id="e_date" type="date"></div>
+        <div class="field"><label>Category</label>
+          <select id="e_cat">
+            <option>Flat Expense</option><option>Security</option><option>Housekeeping</option>
+            <option>Electricity</option><option>Water</option><option>Lift Maintenance</option>
+            <option>Repair & Maintenance</option><option>Gardening</option><option>Pest Control</option>
+            <option>Event</option><option>Admin/Stationery</option><option>Festival</option>
+          </select>
+        </div>
+        <div class="field"><label>Description</label><input id="e_desc"></div>
+        <div class="field"><label>Amount</label><input id="e_amount" type="number"></div>
+        <div class="field"><label>Paid To</label><input id="e_paidto"></div>
+        <div class="field"><label>Mode</label>
+          <select id="e_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
+        </div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addExpense()">Add</button></div>
+      </div>
+      ${error?`<div class="msg error">${error.message}</div>`:''}
+      <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Paid To</th><th></th></tr></thead><tbody>
+      ${(data||[]).map(e=>`<tr>
+        <td class="mono v-input">${e.expense_date}</td><td class="v-input">${e.category}</td><td class="v-input">${e.description||''}</td>
+        <td class="mono v-input">${fmtMoney(e.amount)}</td><td class="v-input">${e.paid_to||''}</td>
+        <td><button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
+      </tbody></table>
+    </div>`;
+}
+async function addExpense(){
+  await withPin(async ()=>{
+    const payload = {
+      expense_date: document.getElementById('e_date').value || new Date().toISOString().slice(0,10),
+      category: document.getElementById('e_cat').value,
+      description: document.getElementById('e_desc').value || null,
+      amount: Number(document.getElementById('e_amount').value),
+      paid_to: document.getElementById('e_paidto').value || null,
+      mode: document.getElementById('e_mode').value,
+    };
+    const {error} = await sb.from('expenses').insert(payload);
+    if(error) alert(error.message); else refreshTab();
+  });
+}
+
+/* ---- Vehicles tab ---- */
+let vehiclesCache = [];
+async function renderVehiclesTab(box){
+  const [{data, error}, {data:flats}] = await Promise.all([
+    sb.from('v_vehicles').select('*').order('flat_no'),
+    sb.from('flats').select('flat_no, owner_name').order('flat_no')
+  ]);
+  vehiclesCache = data || [];
+  box.innerHTML = `
+    <div class="card">
+      <h3>Add Vehicle</h3>
+      <div class="form-row">
+        <div class="field"><label>Flat No</label>
+          <select id="v_flat">${(flats||[]).map(f=>`<option value="${f.flat_no}">${f.flat_no}${f.owner_name?' — '+f.owner_name:''}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Type</label><select id="v_type"><option>Two Wheeler</option><option>Four Wheeler</option></select></div>
+        <div class="field"><label>Vehicle Number</label><input id="v_num" placeholder="GJ05XX0000"></div>
+        <div class="field"><label>Remarks</label><input id="v_remarks"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addVehicle()">Add</button></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Filter by Vehicle No / Flat No</label><input id="v_search" placeholder="type to filter"></div>
+      </div>
+      ${error?`<div class="msg error">${error.message}</div>`:''}
+      <div id="vehicles-results-wrap"></div>
+    </div>`;
+  document.getElementById('v_search').addEventListener('input', filterVehicleResults);
+  filterVehicleResults();
+}
+function filterVehicleResults(){
+  const raw = (document.getElementById('v_search')?.value || '').trim().toUpperCase();
+  const list = raw
+    ? vehiclesCache.filter(v =>
+        (v.vehicle_number||'').toUpperCase().includes(raw) ||
+        String(v.flat_no).includes(raw))
+    : vehiclesCache;
+  const wrap = document.getElementById('vehicles-results-wrap');
+  if(!wrap) return;
+  wrap.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Type</th><th>Number</th><th>Sticker</th><th></th></tr></thead><tbody>
+    ${list.map(v=>`<tr class="floor-${Math.floor(v.flat_no/100)}">
+      <td class="mono v-input">${v.flat_no}</td><td class="v-formula">${v.owner_name||''}</td><td class="mono mobile v-formula">${v.mobile_no||''}</td>
+      <td class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</td>
+      <td class="mono v-input ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_number}</td><td class="v-formula">${v.sticker_allotted}</td>
+      <td><button class="danger" onclick="deleteRow('vehicles','id',${v.id})">Delete</button></td>
+    </tr>`).join('') || `<tr><td colspan="7" class="empty">No vehicles found.</td></tr>`}
+    </tbody></table>`;
+}
+async function addVehicle(){
+  await withPin(async ()=>{
+    const payload = {
+      flat_no: Number(document.getElementById('v_flat').value),
+      vehicle_type: document.getElementById('v_type').value,
+      vehicle_number: document.getElementById('v_num').value.toUpperCase().trim(),
+      remarks: document.getElementById('v_remarks').value || null,
+    };
+    const {error} = await sb.from('vehicles').insert(payload);
+    if(error) alert(error.message); else refreshTab();
+  });
+}
+
+/* ---- Charges tab ---- */
+async function renderChargesTab(box){
+  const {data, error} = await sb.from('charges').select('*').order('date_started',{ascending:false});
+  box.innerHTML = `
+    <div class="card">
+      <h3>Add Charge Round</h3>
+      <div class="form-row">
+        <div class="field"><label>Round Name</label><input id="ch_name" placeholder="e.g. Diwali Fund"></div>
+        <div class="field"><label>Amount per Flat</label><input id="ch_amount" type="number"></div>
+        <div class="field"><label>Applies To</label><select id="ch_applies"><option>All Flats</option><option>Sold Flats Only</option></select></div>
+        <div class="field"><label>Date Started</label><input id="ch_date" type="date"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addCharge()">Add</button></div>
+      </div>
+      ${error?`<div class="msg error">${error.message}</div>`:''}
+      <table><thead><tr><th>Round</th><th>Amount/Flat</th><th>Applies To</th><th>Started</th><th></th></tr></thead><tbody>
+      ${(data||[]).map(c=>`<tr>
+        <td>${c.round_name}</td><td class="mono">${fmtMoney(c.amount_per_flat)}</td><td>${c.applies_to}</td><td class="mono">${c.date_started||''}</td>
+        <td><button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="5" class="empty">No charge rounds yet.</td></tr>`}
+      </tbody></table>
+    </div>`;
+}
+async function addCharge(){
+  await withPin(async ()=>{
+    const payload = {
+      round_name: document.getElementById('ch_name').value,
+      amount_per_flat: Number(document.getElementById('ch_amount').value),
+      applies_to: document.getElementById('ch_applies').value,
+      date_started: document.getElementById('ch_date').value || null,
+    };
+    const {error} = await sb.from('charges').insert(payload);
+    if(error) alert(error.message); else refreshTab();
+  });
+}
+
+/* ---- Sticker Log tab ---- */
+let vehiclesByFlatCache = [];
+async function renderStickerLogTab(box){
+  const [{data, error}, {data:flats}, {data:allVehicles}] = await Promise.all([
+    sb.from('sticker_log').select('*').order('log_date',{ascending:false}).limit(100),
+    sb.from('flats').select('flat_no, owner_name').order('flat_no'),
+    sb.from('vehicles').select('flat_no, vehicle_number, vehicle_type').order('flat_no')
+  ]);
+  vehiclesByFlatCache = allVehicles || [];
+  box.innerHTML = `
+    <div class="card">
+      <h3>Add Sticker Log Entry</h3>
+      <div class="form-row">
+        <div class="field"><label>Date</label><input id="s_date" type="date"></div>
+        <div class="field"><label>Flat No</label>
+          <select id="s_flat" onchange="onStickerFlatChange()">${(flats||[]).map(f=>`<option value="${f.flat_no}">${f.flat_no}${f.owner_name?' — '+f.owner_name:''}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Vehicle Number</label><select id="s_vnum"></select></div>
+        <div class="field"><label>Reason</label>
+          <select id="s_reason">
+            <option>First Issue</option><option>Replacement - Lost</option>
+            <option>Replacement - Damaged</option><option>Other</option>
+          </select>
+        </div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addStickerLog()">Add</button></div>
+      </div>
+      ${error?`<div class="msg error">${error.message}</div>`:''}
+      <table><thead><tr><th>Date</th><th>Flat</th><th>Vehicle</th><th>Reason</th><th></th></tr></thead><tbody>
+      ${(data||[]).map(s=>`<tr>
+        <td class="mono v-input">${s.log_date}</td><td class="mono v-input">${s.flat_no}</td><td class="mono v-input">${s.vehicle_number}</td><td class="v-input">${s.reason||''}</td>
+        <td><button class="danger" onclick="deleteRow('sticker_log','id',${s.id})">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="5" class="empty">No entries yet.</td></tr>`}
+      </tbody></table>
+    </div>`;
+  onStickerFlatChange();
+}
+function onStickerFlatChange(){
+  const flatSel = document.getElementById('s_flat');
+  const vnumSel = document.getElementById('s_vnum');
+  if(!flatSel || !vnumSel) return;
+  const flatNo = Number(flatSel.value);
+  const matches = vehiclesByFlatCache.filter(v => v.flat_no === flatNo);
+  vnumSel.innerHTML = matches.length
+    ? matches.map(v=>`<option value="${v.vehicle_number}">${v.vehicle_number} — ${v.vehicle_type==='Two Wheeler'?'2-Wheeler':'4-Wheeler'}</option>`).join('')
+    : `<option value="">No vehicle on record for this flat</option>`;
+}
+async function addStickerLog(){
+  await withPin(async ()=>{
+    const payload = {
+      log_date: document.getElementById('s_date').value || new Date().toISOString().slice(0,10),
+      flat_no: Number(document.getElementById('s_flat').value),
+      vehicle_number: document.getElementById('s_vnum').value.toUpperCase().trim(),
+      reason: document.getElementById('s_reason').value || null,
+    };
+    const {error} = await sb.from('sticker_log').insert(payload);
+    if(error) alert(error.message); else refreshTab();
+  });
+}
+
+/* ---- Dues Summary tab (pivot: flat x charge round, with total) ---- */
+async function renderDuesTab(box){
+  const [{data:rounds, error:e1}, {data:rows, error:e2}] = await Promise.all([
+    sb.from('charges').select('round_name').order('round_name'),
+    sb.from('v_dues_summary').select('*')
+  ]);
+  const roundNames = (rounds||[]).map(r=>r.round_name);
+  const byFlat = {};
+  (rows||[]).forEach(r=>{
+    if(!byFlat[r.flat_no]) byFlat[r.flat_no] = { owner_name:r.owner_name, status:r.status, perRound:{}, total:0 };
+    byFlat[r.flat_no].perRound[r.round_name] = r.pending_amount;
+    byFlat[r.flat_no].total += Number(r.pending_amount||0);
+  });
+  const flatNos = Object.keys(byFlat).map(Number).sort((a,b)=>a-b);
+  box.innerHTML = `
+    <div class="card">
+      <h3>Dues Summary</h3>
+      <p class="config-note">Adding a new round in the "Charges" tab automatically adds a column here and folds it into each flat's total — nothing else to configure.</p>
+      ${e1||e2?`<div class="msg error">${(e1||e2).message}</div>`:''}
+      <table><thead><tr>
+        <th>Flat</th><th>Owner</th>
+        ${roundNames.map(r=>`<th>${r}</th>`).join('')}
+        <th>Total Pending</th>
+      </tr></thead><tbody>
+      ${flatNos.map(fn=>{
+        const f = byFlat[fn];
+        return `<tr class="floor-${Math.floor(fn/100)}">
+          <td class="mono v-input">${fn}</td><td class="v-input">${f.owner_name||''}</td>
+          ${roundNames.map(r=>`<td class="mono v-formula">${fmtMoney(f.perRound[r]||0)}</td>`).join('')}
+          <td class="mono v-formula" style="font-weight:600">${fmtMoney(f.total)}</td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="${2+roundNames.length+1}" class="empty">No charge rounds set up yet — add one in the Charges tab.</td></tr>`}
+      </tbody></table>
+    </div>`;
+}
+
+/* ---- generic delete (with a proper styled confirm popup) ---- */
+function showConfirmModal(message, onYes){
+  const old = document.getElementById('confirm-modal');
+  if(old) old.remove();
+  const overlay = el(`<div class="modal-backdrop" id="confirm-modal">
+    <div class="modal-box">
+      <h3>Are you sure?</h3>
+      <p>${message}</p>
+      <div class="modal-actions">
+        <button onclick="document.getElementById('confirm-modal').remove()">Cancel</button>
+        <button class="danger" id="confirm-modal-yes">Yes, delete</button>
+      </div>
+    </div>
+  </div>`);
+  document.body.appendChild(overlay);
+  document.getElementById('confirm-modal-yes').onclick = async ()=>{
+    overlay.remove();
+    await onYes();
+  };
+}
+async function deleteRow(table, col, val, isString){
+  await withPin(async ()=>{
+    showConfirmModal('This will permanently delete this row. This cannot be undone.', async ()=>{
+      const {error} = await sb.from(table).delete().eq(col, val);
+      if(error) alert(error.message); else refreshTab();
+    });
+  });
+}
+
+/* ---------------- boot ---------------- */
+(async ()=>{
+  if(pinStillValid()){
+    const {data:{session}} = await sb.auth.getSession();
+    if(session){ state.user = session.user; }
+    else { localStorage.removeItem(PIN_UNLOCK_KEY); } // stale flag, session actually gone
+  }
+  render();
+})();
+</script>
+</body>
+</html>
