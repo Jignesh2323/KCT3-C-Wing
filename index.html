@@ -98,6 +98,8 @@ tr:hover td{background:var(--paper-dark);}
 .veh-two{background:#D9F2F2;}
 .veh-four{background:#F9D5D3;}
 .mobile{font-weight:700; font-size:16px; letter-spacing:.02em;}
+.owner-name{font-weight:700;}
+.vnum{font-weight:700; font-size:17px; letter-spacing:.04em;}
 .type-two{color:#0D7377; font-weight:600;}
 .type-four{color:#A33A2E; font-weight:600;}
 .modal-backdrop{
@@ -144,15 +146,8 @@ a{color:var(--maroon);}
 <div id="root"></div>
 <script>
 /* ============================================================
-   SHARED LOGIC — used by both c_wing_app.html (admin) and
-   c_wing_public.html (member view). Edit here once, both pick
-   it up automatically since both load this same file at runtime.
-
-   Contains: Supabase connection, money formatting, the common
-   expense categories + ÷52 split calculation, and vehicle search.
-   Both HTML files must keep these element IDs for this to work:
-     cx_month, cx_year, cx_result   (Monthly Common Expense Split card)
-     q_vnum, q_flat, vehicle-results (Vehicle Search card)
+   Supabase connection, money formatting, common expense
+   categories + ÷52 split calculation.
    ============================================================ */
 
 const SUPABASE_URL = "https://deyetzwxatogmdmjacvo.supabase.co";
@@ -160,6 +155,12 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function fmtMoney(n){ n = Number(n||0); return '₹' + n.toLocaleString('en-IN'); }
+function fmtVehicleNumber(num){
+  if(!num) return '';
+  const clean = num.toString().toUpperCase().replace(/\s|-/g,'');
+  const m = clean.match(/^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$/);
+  return m ? `${m[1]}${m[2]}${m[3]} ${m[4]}` : clean;
+}
 
 /* ---- Monthly Common Expense Split ---- */
 const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery'];
@@ -213,28 +214,7 @@ async function renderCommonExpenseSplit(){
     </div>`;
 }
 
-/* ---- Vehicle Search ---- */
-function clearVehicleSearch(){
-  document.getElementById('q_vnum').value = '';
-  document.getElementById('q_flat').value = '';
-  document.getElementById('vehicle-results').innerHTML = '';
-}
-async function searchVehicles(){
-  const vnum = document.getElementById('q_vnum').value.trim();
-  const flat = document.getElementById('q_flat').value.trim();
-  let q = sb.from('v_vehicles').select('*');
-  if(vnum) q = q.ilike('vehicle_number', `%${vnum}%`);
-  if(flat) q = q.eq('flat_no', flat);
-  const {data, error} = await q;
-  const box = document.getElementById('vehicle-results');
-  if(error){ box.innerHTML = `<div class="msg error">${error.message}</div>`; return; }
-  if(!data.length){ box.innerHTML = `<div class="empty">No matches.</div>`; return; }
-  box.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Type</th><th>Number</th><th>Sticker</th></tr></thead><tbody>
-    ${data.map(v=>`<tr class="floor-${Math.floor(v.flat_no/100)}"><td>${v.flat_no}</td><td>${v.owner_name||''}</td><td class="mono mobile">${v.mobile_no||''}</td>
-      <td class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</td>
-      <td class="mono ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_number}</td><td>${v.sticker_allotted}</td></tr>`).join('')}
-  </tbody></table>`;
-}
+
 
 </script>
 <script>
@@ -447,7 +427,7 @@ async function renderFlatsTab(box){
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Flat</th><th>Floor</th><th>Owner</th><th>Contact</th><th>Status</th><th>Vehicle?</th><th></th></tr></thead><tbody>
       ${(data||[]).map(f=>`<tr class="floor-${f.floor||'x'}">
-        <td class="mono v-input">${f.flat_no}</td><td class="v-input">${f.floor??''}</td><td class="v-input">${f.owner_name||''}</td><td class="mono v-input contact mobile">${f.contact_no||''}</td>
+        <td class="mono v-input">${f.flat_no}</td><td class="v-input">${f.floor??''}</td><td class="v-input owner-name">${f.owner_name||''}</td><td class="mono v-input contact mobile">${f.contact_no||''}</td>
         <td class="v-formula">
           <select onchange="updateFlatStatusInline(${f.flat_no}, this.value)" class="pill-select ${f.status==='Sold'?'sold':'unsold'}">
             <option value="Sold" ${f.status==='Sold'?'selected':''}>Sold</option>
@@ -508,6 +488,15 @@ async function renderCollectionsTab(box){
   ]);
   box.innerHTML = `
     <div class="card">
+      <h3>Search by Flat No — Payment History &amp; Dues</h3>
+      <p class="config-note" style="margin-top:-6px">Koi bhi flat member apna flat number daal ke apni payment history aur pending dues dekh sakta hai. No PIN needed.</p>
+      <div class="form-row">
+        <div class="field"><label>Flat No</label><input id="pay_search_flat" placeholder="e.g. 201"></div>
+        <div class="field" style="flex:0"><button onclick="document.getElementById('pay_search_flat').value=''; document.getElementById('pay_search_results').innerHTML='';">Clear</button></div>
+      </div>
+      <div id="pay_search_results"></div>
+    </div>
+    <div class="card">
       <h3>Add Collection</h3>
       <div class="form-row">
         <div class="field"><label>Flat No</label>
@@ -527,12 +516,40 @@ async function renderCollectionsTab(box){
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead><tbody>
       ${(data||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
-        <td class="mono v-input">${c.collection_date}</td><td class="mono v-input">${c.flat_no}</td><td class="v-formula">${c.flats?.owner_name||''}</td>
+        <td class="mono v-input">${c.collection_date}</td><td class="mono v-input">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
         <td class="mono v-input">${fmtMoney(c.amount)}</td><td class="v-input">${c.mode}</td><td class="v-input">${c.purpose||''}</td>
         <td><button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
       </tr>`).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`}
       </tbody></table>
     </div>`;
+  document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
+}
+async function searchFlatPayments(){
+  const flatNo = document.getElementById('pay_search_flat').value.trim();
+  const box = document.getElementById('pay_search_results');
+  if(!flatNo){ box.innerHTML=''; return; }
+  box.innerHTML = 'Searching...';
+  const [{data:payments, error:e1}, {data:dues, error:e2}] = await Promise.all([
+    sb.from('collections').select('*').eq('flat_no', flatNo).order('collection_date',{ascending:false}),
+    sb.from('v_dues_summary').select('*').eq('flat_no', flatNo)
+  ]);
+  if(e1 || e2){ box.innerHTML = `<div class="msg error">${(e1||e2).message}</div>`; return; }
+  const totalPaid = (payments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
+  const totalPending = (dues||[]).reduce((s,d)=>s+Number(d.pending_amount||0),0);
+  box.innerHTML = `
+    <div class="grid-stats" style="margin-bottom:14px">
+      <div class="stat stat-good"><div class="num mono">${(payments||[]).length}</div><div class="lbl">Payments Made</div></div>
+      <div class="stat stat-good"><div class="num mono">${fmtMoney(totalPaid)}</div><div class="lbl">Total Paid</div></div>
+      <div class="stat ${totalPending>0?'stat-bad':'stat-good'}"><div class="num mono">${fmtMoney(totalPending)}</div><div class="lbl">Total Pending</div></div>
+    </div>
+    <h4 style="margin-bottom:6px">Payment History</h4>
+    <table><thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Purpose</th><th>Remarks</th></tr></thead><tbody>
+    ${(payments||[]).map(p=>`<tr><td class="mono">${p.collection_date}</td><td class="mono">${fmtMoney(p.amount)}</td><td>${p.mode}</td><td>${p.purpose||''}</td><td>${p.remarks||''}</td></tr>`).join('') || `<tr><td colspan="5" class="empty">No payments found for this flat.</td></tr>`}
+    </tbody></table>
+    <h4 style="margin:14px 0 6px">Pending by Round</h4>
+    <table><thead><tr><th>Round</th><th>Pending</th></tr></thead><tbody>
+    ${(dues||[]).map(d=>`<tr><td>${d.round_name}</td><td class="mono">${fmtMoney(d.pending_amount)}</td></tr>`).join('') || `<tr><td colspan="2" class="empty">No dues on record.</td></tr>`}
+    </tbody></table>`;
 }
 async function addCollection(){
   await withPin(async ()=>{
@@ -636,13 +653,23 @@ function filterVehicleResults(){
     : vehiclesCache;
   const wrap = document.getElementById('vehicles-results-wrap');
   if(!wrap) return;
-  wrap.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Type</th><th>Number</th><th>Sticker</th><th></th></tr></thead><tbody>
-    ${list.map(v=>`<tr class="floor-${Math.floor(v.flat_no/100)}">
-      <td class="mono v-input">${v.flat_no}</td><td class="v-formula">${v.owner_name||''}</td><td class="mono mobile v-formula">${v.mobile_no||''}</td>
-      <td class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</td>
-      <td class="mono v-input ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_number}</td><td class="v-formula">${v.sticker_allotted}</td>
-      <td><button class="danger" onclick="deleteRow('vehicles','id',${v.id})">Delete</button></td>
-    </tr>`).join('') || `<tr><td colspan="7" class="empty">No vehicles found.</td></tr>`}
+  // group by flat so the same owner/mobile isn't repeated once per vehicle
+  const byFlat = {};
+  list.forEach(v=>{
+    if(!byFlat[v.flat_no]) byFlat[v.flat_no] = { flat_no:v.flat_no, owner_name:v.owner_name, mobile_no:v.mobile_no, vehicles:[] };
+    byFlat[v.flat_no].vehicles.push(v);
+  });
+  const groups = Object.values(byFlat).sort((a,b)=>a.flat_no-b.flat_no);
+  wrap.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Vehicles</th></tr></thead><tbody>
+    ${groups.map(g=>`<tr class="floor-${Math.floor(g.flat_no/100)}">
+      <td class="mono v-input">${g.flat_no}</td><td class="v-formula owner-name">${g.owner_name||''}</td><td class="mono mobile v-formula">${g.mobile_no||''}</td>
+      <td>${g.vehicles.map(v=>`<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+          <span class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</span>
+          <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${fmtVehicleNumber(v.vehicle_number)}</span>
+          <span class="config-note" style="margin:0">Sticker: ${v.sticker_allotted}</span>
+          <button class="danger" onclick="deleteRow('vehicles','id',${v.id})">Delete</button>
+        </div>`).join('')}</td>
+    </tr>`).join('') || `<tr><td colspan="4" class="empty">No vehicles found.</td></tr>`}
     </tbody></table>`;
 }
 async function addVehicle(){
@@ -722,7 +749,7 @@ async function renderStickerLogTab(box){
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Flat</th><th>Vehicle</th><th>Reason</th><th></th></tr></thead><tbody>
       ${(data||[]).map(s=>`<tr>
-        <td class="mono v-input">${s.log_date}</td><td class="mono v-input">${s.flat_no}</td><td class="mono v-input">${s.vehicle_number}</td><td class="v-input">${s.reason||''}</td>
+        <td class="mono v-input">${s.log_date}</td><td class="mono v-input">${s.flat_no}</td><td class="mono vnum v-input">${fmtVehicleNumber(s.vehicle_number)}</td><td class="v-input">${s.reason||''}</td>
         <td><button class="danger" onclick="deleteRow('sticker_log','id',${s.id})">Delete</button></td>
       </tr>`).join('') || `<tr><td colspan="5" class="empty">No entries yet.</td></tr>`}
       </tbody></table>
@@ -736,7 +763,7 @@ function onStickerFlatChange(){
   const flatNo = Number(flatSel.value);
   const matches = vehiclesByFlatCache.filter(v => v.flat_no === flatNo);
   vnumSel.innerHTML = matches.length
-    ? matches.map(v=>`<option value="${v.vehicle_number}">${v.vehicle_number} — ${v.vehicle_type==='Two Wheeler'?'2-Wheeler':'4-Wheeler'}</option>`).join('')
+    ? matches.map(v=>`<option value="${v.vehicle_number}">${fmtVehicleNumber(v.vehicle_number)} — ${v.vehicle_type==='Two Wheeler'?'2-Wheeler':'4-Wheeler'}</option>`).join('')
     : `<option value="">No vehicle on record for this flat</option>`;
 }
 async function addStickerLog(){
@@ -779,7 +806,7 @@ async function renderDuesTab(box){
       ${flatNos.map(fn=>{
         const f = byFlat[fn];
         return `<tr class="floor-${Math.floor(fn/100)}">
-          <td class="mono v-input">${fn}</td><td class="v-input">${f.owner_name||''}</td>
+          <td class="mono v-input">${fn}</td><td class="v-input owner-name">${f.owner_name||''}</td>
           ${roundNames.map(r=>`<td class="mono v-formula">${fmtMoney(f.perRound[r]||0)}</td>`).join('')}
           <td class="mono v-formula" style="font-weight:600">${fmtMoney(f.total)}</td>
         </tr>`;
