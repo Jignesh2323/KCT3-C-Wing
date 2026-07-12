@@ -99,6 +99,13 @@ tr:hover td{background:var(--paper-dark);}
 .veh-four{background:#F9D5D3;}
 .mobile{font-weight:700; font-size:16px; letter-spacing:.02em;}
 .owner-name{font-weight:700;}
+.search-safe{
+  background:#E8F5E9 !important;
+  border:2px solid var(--ledger-green) !important;
+  font-weight:600;
+}
+.search-safe::placeholder{color:#5B8C6A;}
+.search-safe-label{color:var(--ledger-green) !important; font-weight:700;}
 .vnum{font-weight:700; font-size:17px; letter-spacing:.04em;}
 .type-two{color:#0D7377; font-weight:600;}
 .type-four{color:#A33A2E; font-weight:600;}
@@ -294,6 +301,20 @@ async function lockNow(){
   state.user = null;
   render();
 }
+
+/* Global gate: clicking/typing into ANY input box (except the two
+   designated search boxes, which carry the .search-safe class)
+   immediately asks for the PIN before the field can be used —
+   not just when Add/Save is eventually clicked. Dropdowns
+   (<select>) are left alone since choosing a value doesn't write
+   anything by itself. */
+document.addEventListener('focusin', (e)=>{
+  const t = e.target;
+  if(t.tagName === 'INPUT' && t.id !== 'pin-modal-input' && !t.classList.contains('search-safe') && !(pinStillValid() && state.user)){
+    t.blur();
+    showPinModal(async ()=>{ render(); });
+  }
+});
 
 /* ---------------- render root — always shows the app, no view-lock ---------------- */
 async function render(){
@@ -491,7 +512,7 @@ async function renderCollectionsTab(box){
       <h3>Search by Flat No — Payment History &amp; Dues</h3>
       <p class="config-note" style="margin-top:-6px">Koi bhi flat member apna flat number daal ke apni payment history aur pending dues dekh sakta hai. No PIN needed.</p>
       <div class="form-row">
-        <div class="field"><label>Flat No</label><input id="pay_search_flat" placeholder="e.g. 201"></div>
+        <div class="field"><label class="search-safe-label">🔓 Flat No (open search, no PIN)</label><input id="pay_search_flat" class="search-safe" placeholder="e.g. 201"></div>
         <div class="field" style="flex:0"><button onclick="document.getElementById('pay_search_flat').value=''; document.getElementById('pay_search_results').innerHTML='';">Clear</button></div>
       </div>
       <div id="pay_search_results"></div>
@@ -636,7 +657,7 @@ async function renderVehiclesTab(box){
         <div class="field" style="flex:0"><button class="primary" onclick="addVehicle()">Add</button></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Filter by Vehicle No / Flat No</label><input id="v_search" placeholder="type to filter"></div>
+        <div class="field"><label class="search-safe-label">🔓 Filter by Vehicle No / Flat No (open search, no PIN)</label><input id="v_search" class="search-safe" placeholder="type to filter"></div>
       </div>
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <div id="vehicles-results-wrap"></div>
