@@ -684,9 +684,10 @@ function filterVehicleResults(){
   wrap.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Vehicles</th></tr></thead><tbody>
     ${groups.map(g=>`<tr class="floor-${Math.floor(g.flat_no/100)}">
       <td class="mono v-input">${g.flat_no}</td><td class="v-formula owner-name">${g.owner_name||''}</td><td class="mono mobile v-formula">${g.mobile_no||''}</td>
-      <td>${g.vehicles.map(v=>`<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+      <td>${g.vehicles.map(v=>`<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</span>
           <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${fmtVehicleNumber(v.vehicle_number)}</span>
+          ${v.remarks ? `<span class="pill" style="background:#B8860B; color:#fff; border-color:#B8860B; font-weight:700; font-size:12.5px;">⚠ ${v.remarks}</span>` : ''}
           <span class="config-note" style="margin:0">Sticker: ${v.sticker_allotted}</span>
           <button class="danger" onclick="deleteRow('vehicles','id',${v.id})">Delete</button>
         </div>`).join('')}</td>
@@ -743,13 +744,29 @@ async function addCharge(){
 
 /* ---- Sticker Log tab ---- */
 let vehiclesByFlatCache = [];
+let firstIssuedVehicles = new Set();
+let lastStickerFlat = null;
 async function renderStickerLogTab(box){
-  const [{data, error}, {data:flats}, {data:allVehicles}] = await Promise.all([
+  const [{data, error}, {data:flats}, {data:allVehicles}, {data:firstIssued}] = await Promise.all([
     sb.from('sticker_log').select('*').order('log_date',{ascending:false}).limit(100),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
-    sb.from('vehicles').select('flat_no, vehicle_number, vehicle_type').order('flat_no')
+    sb.from('vehicles').select('flat_no, vehicle_number, vehicle_type').order('flat_no'),
+    sb.from('sticker_log').select('vehicle_number').eq('reason','First Issue')
   ]);
   vehiclesByFlatCache = allVehicles || [];
+  firstIssuedVehicles = new Set((firstIssued||[]).map(r=>(r.vehicle_number||'').toUpperCase()));
+  const vehicleTypeFor = (vnum) => {
+    const v = vehiclesByFlatCache.find(x => (x.vehicle_number||'').toUpperCase() === (vnum||'').toUpperCase());
+    return v ? v.vehicle_type : null;
+  };
+  // group entries by flat, like the Vehicles tab, so flat/date info isn't repeated per row
+  const byFlat = {};
+  (data||[]).forEach(s=>{
+    if(!byFlat[s.flat_no]) byFlat[s.flat_no] = { flat_no:s.flat_no, entries:[] };
+    byFlat[s.flat_no].entries.push(s);
+  });
+  const groups = Object.values(byFlat).sort((a,b)=>a.flat_no-b.flat_no);
+  groups.forEach(g=> g.entries.sort((a,b)=> b.log_date.localeCompare(a.log_date)));
   box.innerHTML = `
     <div class="card">
       <h3>Add Sticker Log Entry</h3>
@@ -758,23 +775,34 @@ async function renderStickerLogTab(box){
         <div class="field"><label>Flat No</label>
           <select id="s_flat" onchange="onStickerFlatChange()">${(flats||[]).map(f=>`<option value="${f.flat_no}">${f.flat_no}${f.owner_name?' — '+f.owner_name:''}</option>`).join('')}</select>
         </div>
-        <div class="field"><label>Vehicle Number</label><select id="s_vnum"></select></div>
+        <div class="field"><label>Vehicle Number</label><select id="s_vnum" onchange="updateReasonOptions()"></select></div>
         <div class="field"><label>Reason</label>
-          <select id="s_reason">
-            <option>First Issue</option><option>Replacement - Lost</option>
-            <option>Replacement - Damaged</option><option>Other</option>
-          </select>
+          <select id="s_reason"></select>
         </div>
         <div class="field" style="flex:0"><button class="primary" onclick="addStickerLog()">Add</button></div>
       </div>
       ${error?`<div class="msg error">${error.message}</div>`:''}
-      <table><thead><tr><th>Date</th><th>Flat</th><th>Vehicle</th><th>Reason</th><th></th></tr></thead><tbody>
-      ${(data||[]).map(s=>`<tr>
-        <td class="mono v-input">${s.log_date}</td><td class="mono v-input">${s.flat_no}</td><td class="mono vnum v-input">${fmtVehicleNumber(s.vehicle_number)}</td><td class="v-input">${s.reason||''}</td>
-        <td><button class="danger" onclick="deleteRow('sticker_log','id',${s.id})">Delete</button></td>
-      </tr>`).join('') || `<tr><td colspan="5" class="empty">No entries yet.</td></tr>`}
+      <table><thead><tr><th>Flat</th><th>Entries</th></tr></thead><tbody>
+      ${groups.map(g=>`<tr class="floor-${Math.floor(g.flat_no/100)}">
+        <td class="mono v-input">${g.flat_no}</td>
+        <td>${g.entries.map(s=>{
+          const t = vehicleTypeFor(s.vehicle_number);
+          const typeClass = t==='Two Wheeler' ? 'type-two' : t==='Four Wheeler' ? 'type-four' : '';
+          return `<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+            <span class="mono v-input">${s.log_date}</span>
+            <span class="mono vnum ${typeClass}">${fmtVehicleNumber(s.vehicle_number)}</span>
+            ${(s.reason==='Shared Pass' || (s.reason||'').startsWith('No Separate Sticker'))
+              ? `<span class="pill" style="background:#B8860B; color:#fff; border-color:#B8860B; font-weight:700; font-size:12.5px;">⚠ ${s.reason}</span>`
+              : `<span class="v-input">${s.reason||''}</span>`}
+            <button class="danger" onclick="deleteRow('sticker_log','id',${s.id})">Delete</button>
+          </div>`;
+        }).join('')}</td>
+      </tr>`).join('') || `<tr><td colspan="2" class="empty">No entries yet.</td></tr>`}
       </tbody></table>
     </div>`;
+  if(lastStickerFlat && (flats||[]).some(f=>String(f.flat_no)===String(lastStickerFlat))){
+    document.getElementById('s_flat').value = lastStickerFlat;
+  }
   onStickerFlatChange();
 }
 function onStickerFlatChange(){
@@ -786,14 +814,33 @@ function onStickerFlatChange(){
   vnumSel.innerHTML = matches.length
     ? matches.map(v=>`<option value="${v.vehicle_number}">${fmtVehicleNumber(v.vehicle_number)} — ${v.vehicle_type==='Two Wheeler'?'2-Wheeler':'4-Wheeler'}</option>`).join('')
     : `<option value="">No vehicle on record for this flat</option>`;
+  updateReasonOptions();
+}
+function updateReasonOptions(){
+  const vnumSel = document.getElementById('s_vnum');
+  const reasonSel = document.getElementById('s_reason');
+  if(!vnumSel || !reasonSel) return;
+  const selectedVnum = (vnumSel.value||'').toUpperCase();
+  const alreadyIssued = selectedVnum && firstIssuedVehicles.has(selectedVnum);
+  const options = [];
+  if(!alreadyIssued) options.push('First Issue');
+  options.push('Replacement - Lost', 'Replacement - Damaged', 'Shared Pass', 'No Separate Sticker (Owns 2 Four Wheeler)', 'Other');
+  reasonSel.innerHTML = options.map(o=>`<option>${o}</option>`).join('');
 }
 async function addStickerLog(){
+  const vehicleNumber = document.getElementById('s_vnum').value.toUpperCase().trim();
+  const reason = document.getElementById('s_reason').value || null;
+  if(reason === 'First Issue' && firstIssuedVehicles.has(vehicleNumber)){
+    alert('This vehicle already has a First Issue sticker on record. Pick a Replacement reason instead.');
+    return;
+  }
   await withPin(async ()=>{
+    lastStickerFlat = document.getElementById('s_flat').value;
     const payload = {
       log_date: document.getElementById('s_date').value || new Date().toISOString().slice(0,10),
       flat_no: Number(document.getElementById('s_flat').value),
-      vehicle_number: document.getElementById('s_vnum').value.toUpperCase().trim(),
-      reason: document.getElementById('s_reason').value || null,
+      vehicle_number: vehicleNumber,
+      reason: reason,
     };
     const {error} = await sb.from('sticker_log').insert(payload);
     if(error) alert(error.message); else refreshTab();
