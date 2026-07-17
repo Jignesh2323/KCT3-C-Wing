@@ -688,7 +688,7 @@ function filterVehicleResults(){
           <span class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</span>
           <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${fmtVehicleNumber(v.vehicle_number)}</span>
           ${v.remarks ? `<span class="pill" style="background:#B8860B; color:#fff; border-color:#B8860B; font-weight:700; font-size:12.5px;">⚠ ${v.remarks}</span>` : ''}
-          <span class="config-note" style="margin:0">Sticker: ${v.sticker_allotted}</span>
+          <span style="font-weight:700; font-size:15px; color:var(--ink-soft);">Sticker: <span style="color:${v.sticker_allotted==='Yes' ? '#2E7D4F' : '#A33A2E'};">${v.sticker_allotted}</span></span>
           <button class="danger" onclick="deleteRow('vehicles','id',${v.id})">Delete</button>
         </div>`).join('')}</td>
     </tr>`).join('') || `<tr><td colspan="4" class="empty">No vehicles found.</td></tr>`}
