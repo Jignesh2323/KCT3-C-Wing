@@ -60,8 +60,8 @@ label{font-size:12px; color:var(--ink-soft); display:block; margin-bottom:3px; t
   background:var(--white-card); border:1px solid var(--rule); border-radius:3px;
   padding:18px; margin-bottom:18px; box-shadow:0 1px 0 var(--rule);
 }
-.grid-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;}
-.stat{border-left:3px solid var(--maroon); padding:6px 12px; background:var(--paper-dark);}
+.grid-stats{display:flex; flex-wrap:wrap; gap:12px;}
+.stat{border-left:3px solid var(--maroon); padding:6px 16px; background:var(--paper-dark); flex:0 0 auto;}
 .stat .num{font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:var(--ink);}
 .stat .lbl{font-size:11px; text-transform:uppercase; color:var(--ink-soft); letter-spacing:.05em;}
 .stat-good{border-left-color:#2E7D4F;} .stat-good .num{color:#2E7D4F;}
@@ -387,18 +387,31 @@ async function renderDashboardTab(box){
     sb.from('v_fund_by_mode').select('*'),
     sb.from('v_expense_by_category').select('*')
   ]);
+  const cashRow = (byMode||[]).find(m => (m.mode||'').toLowerCase() === 'cash');
+  const cashInHand = (Number(cashRow?.collected||0)) - (Number(cashRow?.spent||0));
+  const bankRows = (byMode||[]).filter(m => (m.mode||'').toLowerCase() !== 'cash');
+  const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0);
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
-      <div class="grid-stats">
+      <div class="grid-stats" style="margin-bottom:10px;">
+        <div class="stat stat-neutral"><div class="num mono">${fmtMoney(cashInHand + bankBalance)}</div><div class="lbl">Total Balance</div></div>
         <div class="stat stat-good"><div class="num mono">${fmtMoney(s?.total_collected)}</div><div class="lbl">Collected</div></div>
         <div class="stat stat-bad"><div class="num mono">${fmtMoney(s?.total_expense)}</div><div class="lbl">Expense</div></div>
-        <div class="stat stat-neutral"><div class="num mono">${fmtMoney(s?.balance_in_hand)}</div><div class="lbl">Balance</div></div>
+      </div>
+      <div class="grid-stats" style="margin-bottom:10px;">
+        <div class="stat" style="border-left-color:#B8860B;"><div class="num mono" style="color:#B8860B; font-size:28px; font-weight:800;">${fmtMoney(cashInHand)}</div><div class="lbl" style="font-size:13px; font-weight:700;">💵 Cash in Hand</div></div>
+        <div class="stat" style="border-left-color:#1F6FB2;"><div class="num mono" style="color:#1F6FB2; font-size:28px; font-weight:800;">${fmtMoney(bankBalance)}</div><div class="lbl" style="font-size:13px; font-weight:700;">🏦 Bank Balance</div></div>
+      </div>
+      <div class="grid-stats" style="margin-bottom:10px;">
         <div class="stat stat-info"><div class="num mono">${s?.total_flats??'-'}</div><div class="lbl">Total Flats</div></div>
         <div class="stat stat-warning"><div class="num mono">${s?.unsold_flats??'-'}</div><div class="lbl">Unsold Flats</div></div>
         <div class="stat stat-bad"><div class="num mono">${s?.flats_zero_collection??'-'}</div><div class="lbl">Zero Collection</div></div>
-        <div class="stat stat-two"><div class="num mono type-two">${s?.total_two_wheelers??'-'}</div><div class="lbl">2-Wheelers</div></div>
-        <div class="stat stat-four"><div class="num mono type-four">${s?.total_four_wheelers??'-'}</div><div class="lbl">4-Wheelers</div></div>
       </div>
+      <div class="grid-stats">
+        <div class="stat stat-four"><div class="num mono type-four">${s?.total_four_wheelers??'-'}</div><div class="lbl">4-Wheelers</div></div>
+        <div class="stat stat-two"><div class="num mono type-two">${s?.total_two_wheelers??'-'}</div><div class="lbl">2-Wheelers</div></div>
+      </div>
+      <p class="config-note" style="margin-top:10px">Cash in Hand = Cash collected − Cash spent. Bank Balance = everything else (UPI/Bank Transfer/Cheque) collected − spent combined.</p>
     </div>
     <div class="card"><h3>By Payment Mode</h3>
       <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
