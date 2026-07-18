@@ -630,13 +630,21 @@ async function searchFlatPayments(){
     </tbody></table>`;
 }
 async function addCollection(){
+  const flatNo = Number(document.getElementById('c_flat').value);
+  const purpose = document.getElementById('c_purpose').value;
+  const {data: existing} = await sb.from('collections').select('*').eq('flat_no', flatNo).eq('purpose', purpose);
+  if(existing && existing.length){
+    const prior = existing[0];
+    const proceed = confirm(`⚠ Flat ${flatNo} already has a collection entry for "${purpose}" — ${fmtMoney(prior.amount)} on ${prior.collection_date}.\n\nAdd another entry for this flat + purpose anyway?`);
+    if(!proceed) return;
+  }
   await withPin(async ()=>{
     const payload = {
-      flat_no: Number(document.getElementById('c_flat').value),
+      flat_no: flatNo,
       collection_date: document.getElementById('c_date').value || new Date().toISOString().slice(0,10),
       amount: Number(document.getElementById('c_amount').value),
       mode: document.getElementById('c_mode').value,
-      purpose: document.getElementById('c_purpose').value,
+      purpose: purpose,
       remarks: document.getElementById('c_remarks').value || null,
     };
     const {error} = await sb.from('collections').insert(payload);
@@ -823,7 +831,12 @@ async function renderStickerLogTab(box){
     byFlat[s.flat_no].entries.push(s);
   });
   const groups = Object.values(byFlat).sort((a,b)=>a.flat_no-b.flat_no);
-  groups.forEach(g=> g.entries.sort((a,b)=> b.log_date.localeCompare(a.log_date)));
+  groups.forEach(g=> g.entries.sort((a,b)=>{
+    const ta = vehicleTypeFor(a.vehicle_number) === 'Four Wheeler' ? 0 : 1;
+    const tb = vehicleTypeFor(b.vehicle_number) === 'Four Wheeler' ? 0 : 1;
+    if(ta !== tb) return ta - tb;
+    return b.log_date.localeCompare(a.log_date);
+  }));
   box.innerHTML = `
     <div class="card">
       <h3>Add Sticker Log Entry</h3>
