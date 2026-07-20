@@ -138,6 +138,7 @@ tr:hover td{background:var(--paper-dark);}
 .veh-four{background:#FBE9E8;}
 .mobile{font-weight:700; font-size:16px; letter-spacing:.01em;}
 .owner-name{font-weight:700;}
+.flat-no{font-weight:800; font-size:17px;}
 .search-safe{
   background:#ECFDF3 !important;
   border:1.5px solid var(--ledger-green) !important;
@@ -514,7 +515,7 @@ async function renderFlatsTab(box){
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Flat</th><th>Floor</th><th>Owner</th><th>Contact</th><th>Status</th><th>Vehicle?</th><th></th></tr></thead><tbody>
       ${(data||[]).map(f=>`<tr class="floor-${f.floor||'x'}">
-        <td class="mono v-input">${f.flat_no}</td><td class="v-input">${f.floor??''}</td><td class="v-input owner-name">${f.owner_name||''}</td><td class="mono v-input contact mobile">${f.contact_no||''}</td>
+        <td class="mono v-input flat-no">${f.flat_no}</td><td class="v-input">${f.floor??''}</td><td class="v-input owner-name">${f.owner_name||''}</td><td class="mono v-input contact mobile">${f.contact_no||''}</td>
         <td class="v-formula">
           <select onchange="updateFlatStatusInline(${f.flat_no}, this.value)" class="pill-select ${f.status==='Sold'?'sold':'unsold'}">
             <option value="Sold" ${f.status==='Sold'?'selected':''}>Sold</option>
@@ -569,7 +570,7 @@ async function upsertFlat(){
 /* ---- Collections tab ---- */
 async function renderCollectionsTab(box){
   const [{data, error}, {data:charges}, {data:flats}] = await Promise.all([
-    sb.from('collections').select('*, flats(owner_name)').order('collection_date',{ascending:false}).limit(100),
+    sb.from('collections').select('*, flats(owner_name)').order('collection_date',{ascending:false}),
     sb.from('charges').select('round_name'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no')
   ]);
@@ -603,7 +604,7 @@ async function renderCollectionsTab(box){
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead><tbody>
       ${(data||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
-        <td class="mono v-input">${c.collection_date}</td><td class="mono v-input">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
+        <td class="mono v-input">${c.collection_date}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
         <td class="mono v-input">${fmtMoney(c.amount)}</td><td class="v-input">${c.mode}</td><td class="v-input">${c.purpose||''}</td>
         <td><button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
       </tr>`).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`}
@@ -663,7 +664,7 @@ async function addCollection(){
 
 /* ---- Expenses tab ---- */
 async function renderExpensesTab(box){
-  const {data, error} = await sb.from('expenses').select('*').order('expense_date',{ascending:false}).limit(100);
+  const {data, error} = await sb.from('expenses').select('*').order('expense_date',{ascending:false});
   box.innerHTML = `
     <div class="card">
       <h3>Add Expense</h3>
@@ -757,7 +758,7 @@ function filterVehicleResults(){
   const groups = Object.values(byFlat).sort((a,b)=>a.flat_no-b.flat_no);
   wrap.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Vehicles</th></tr></thead><tbody>
     ${groups.map(g=>`<tr class="floor-${Math.floor(g.flat_no/100)}">
-      <td class="mono v-input">${g.flat_no}</td><td class="v-formula owner-name">${g.owner_name||''}</td><td class="mono mobile v-formula">${g.mobile_no||''}</td>
+      <td class="mono v-input flat-no">${g.flat_no}</td><td class="v-formula owner-name">${g.owner_name||''}</td><td class="mono mobile v-formula">${g.mobile_no||''}</td>
       <td>${g.vehicles.map(v=>`<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</span>
           <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${fmtVehicleNumber(v.vehicle_number)}</span>
@@ -822,7 +823,7 @@ let firstIssuedVehicles = new Set();
 let lastStickerFlat = null;
 async function renderStickerLogTab(box){
   const [{data, error}, {data:flats}, {data:allVehicles}, {data:firstIssued}] = await Promise.all([
-    sb.from('sticker_log').select('*').order('log_date',{ascending:false}).limit(100),
+    sb.from('sticker_log').select('*').order('log_date',{ascending:false}),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
     sb.from('vehicles').select('flat_no, vehicle_number, vehicle_type').order('flat_no'),
     sb.from('sticker_log').select('vehicle_number').eq('reason','First Issue')
@@ -863,7 +864,7 @@ async function renderStickerLogTab(box){
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Flat</th><th>Entries</th></tr></thead><tbody>
       ${groups.map(g=>`<tr class="floor-${Math.floor(g.flat_no/100)}">
-        <td class="mono v-input">${g.flat_no}</td>
+        <td class="mono v-input flat-no">${g.flat_no}</td>
         <td>${g.entries.map(s=>{
           const t = vehicleTypeFor(s.vehicle_number);
           const typeClass = t==='Two Wheeler' ? 'type-two' : t==='Four Wheeler' ? 'type-four' : '';
@@ -953,7 +954,7 @@ async function renderDuesTab(box){
       ${flatNos.map(fn=>{
         const f = byFlat[fn];
         return `<tr class="floor-${Math.floor(fn/100)}">
-          <td class="mono v-input">${fn}</td><td class="v-input owner-name">${f.owner_name||''}</td>
+          <td class="mono v-input flat-no">${fn}</td><td class="v-input owner-name">${f.owner_name||''}</td>
           ${roundNames.map(r=>`<td class="mono v-formula">${fmtMoney(f.perRound[r]||0)}</td>`).join('')}
           <td class="mono v-formula" style="font-weight:600">${fmtMoney(f.total)}</td>
         </tr>`;
