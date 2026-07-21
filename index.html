@@ -293,7 +293,7 @@ async function renderCommonExpenseSplit(){
    single file (styles + logic), nothing else to download.
    ============================================================ */
 const root = document.getElementById('root');
-let state = { user:null, profile:null, tab:'dashboard', msg:null };
+let state = { user:null, profile:null, tab:'dashboard', msg:null, showHiddenTabs:false };
 
 function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
 
@@ -362,6 +362,8 @@ async function lockNow(){
   await sb.auth.signOut();
   localStorage.removeItem(PIN_UNLOCK_KEY);
   state.user = null;
+  state.showHiddenTabs = false;
+  if(HIDDEN_TAB_KEYS.includes(state.tab)) state.tab = 'dashboard';
   render();
 }
 
@@ -409,21 +411,36 @@ const ADMIN_TABS = [
   ['flats','Flats'],
   ['collections','Collections'],
   ['expenses','Expenses'],
+  ['transfers','Fund Transfer'],
   ['vehicles','Vehicles'],
   ['charges','Charges'],
   ['stickerlog','Sticker Log'],
   ['dues','Dues Summary'],
 ];
 
+const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues'];
+
 async function renderAdmin(){
+  const visibleTabs = ADMIN_TABS.filter(([k])=> state.showHiddenTabs || !HIDDEN_TAB_KEYS.includes(k));
   root.innerHTML = `<div class="app">
     ${topbar('Admin')}
     <div class="tabs">
-      ${ADMIN_TABS.map(([k,label])=>`<div class="tab ${state.tab===k?'active':''}" onclick="setTab('${k}')">${label}</div>`).join('')}
+      ${visibleTabs.map(([k,label])=>`<div class="tab ${state.tab===k?'active':''}" onclick="setTab('${k}')">${label}</div>`).join('')}
+      ${state.showHiddenTabs
+        ? `<div class="tab" onclick="hideMoreTabs()">✕ Hide</div>`
+        : `<div class="tab" onclick="showMoreTabs()">⋯ More</div>`}
     </div>
     <div id="tab-content"><div class="empty">Loading…</div></div>
   </div>`;
   renderTabContent();
+}
+async function showMoreTabs(){
+  await withPin(async ()=>{ state.showHiddenTabs = true; render(); });
+}
+function hideMoreTabs(){
+  state.showHiddenTabs = false;
+  if(HIDDEN_TAB_KEYS.includes(state.tab)) state.tab = 'dashboard';
+  render();
 }
 function setTab(k){ state.tab = k; render(); }
 
@@ -435,6 +452,7 @@ async function renderTabContent(){
     if(state.tab==='flats') return await renderFlatsTab(box);
     if(state.tab==='collections') return await renderCollectionsTab(box);
     if(state.tab==='expenses') return await renderExpensesTab(box);
+    if(state.tab==='transfers') return await renderTransfersTab(box);
     if(state.tab==='vehicles') return await renderVehiclesTab(box);
     if(state.tab==='charges') return await renderChargesTab(box);
     if(state.tab==='stickerlog') return await renderStickerLogTab(box);
@@ -447,15 +465,17 @@ async function renderTabContent(){
 
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
-  const [{data:s}, {data:byMode}, {data:byCat}] = await Promise.all([
+  const [{data:s}, {data:byMode}, {data:byCat}, {data:transfers}] = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
     sb.from('v_fund_by_mode').select('*'),
-    sb.from('v_expense_by_category').select('*')
+    sb.from('v_expense_by_category').select('*'),
+    sb.from('fund_transfers').select('amount')
   ]);
+  const totalTransferred = (transfers||[]).reduce((s,t)=>s+Number(t.amount||0),0);
   const cashRow = (byMode||[]).find(m => (m.mode||'').toLowerCase() === 'cash');
-  const cashInHand = (Number(cashRow?.collected||0)) - (Number(cashRow?.spent||0));
+  const cashInHand = (Number(cashRow?.collected||0)) - (Number(cashRow?.spent||0)) - totalTransferred;
   const bankRows = (byMode||[]).filter(m => (m.mode||'').toLowerCase() !== 'cash');
-  const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0);
+  const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0) + totalTransferred;
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
       <div class="grid-stats" style="margin-bottom:10px;">
@@ -722,6 +742,44 @@ async function addExpense(){
   });
 }
 
+/* ---- Fund Transfer tab (Cash <-> Bank) ---- */
+async function renderTransfersTab(box){
+  const {data, error} = await sb.from('fund_transfers').select('*').order('transfer_date',{ascending:false});
+  const total = (data||[]).reduce((s,t)=>s+Number(t.amount||0),0);
+  box.innerHTML = `
+    <div class="card">
+      <h3>Fund Transfer — Cash → Bank</h3>
+      <p class="config-note" style="margin-top:-6px">Jab cash bank me deposit karo, yahan entry daalo. Cash in Hand se ghatega, Bank Balance me judega — koi expense/collection number nahi badlega.</p>
+      <div class="form-row">
+        <div class="field"><label>Date</label><input id="tr_date" type="date"></div>
+        <div class="field"><label>Amount</label><input id="tr_amount" type="number"></div>
+        <div class="field"><label>Remarks</label><input id="tr_remarks" placeholder="e.g. Cash deposit slip no."></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addFundTransfer()">Add</button></div>
+      </div>
+      ${error?`<div class="msg error">${error.message}</div>`:''}
+      <div class="grid-stats" style="margin-bottom:14px">
+        <div class="stat stat-bank"><div class="num mono">${fmtMoney(total)}</div><div class="lbl">🏦 Total Transferred to Bank</div></div>
+      </div>
+      <table><thead><tr><th>Date</th><th>Amount</th><th>Remarks</th><th></th></tr></thead><tbody>
+      ${(data||[]).map(t=>`<tr>
+        <td class="mono v-input">${t.transfer_date}</td><td class="mono v-input">${fmtMoney(t.amount)}</td><td class="v-input">${t.remarks||''}</td>
+        <td><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="4" class="empty">No transfers yet.</td></tr>`}
+      </tbody></table>
+    </div>`;
+}
+async function addFundTransfer(){
+  await withPin(async ()=>{
+    const payload = {
+      transfer_date: document.getElementById('tr_date').value || new Date().toISOString().slice(0,10),
+      amount: Number(document.getElementById('tr_amount').value),
+      remarks: document.getElementById('tr_remarks').value || null,
+    };
+    const {error} = await sb.from('fund_transfers').insert(payload);
+    if(error) alert(error.message); else refreshTab();
+  });
+}
+
 /* ---- Vehicles tab ---- */
 let vehiclesCache = [];
 async function renderVehiclesTab(box){
@@ -773,7 +831,6 @@ function filterVehicleResults(){
       <td>${g.vehicles.map(v=>`<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <img src="${v.vehicle_type==='Two Wheeler'?ICON_BIKE:ICON_CAR}" alt="" style="height:22px; vertical-align:middle;">
           <span class="pill" style="background:${flatBadgeColor(g.flat_no)}; color:#fff; border-color:${flatBadgeColor(g.flat_no)}; font-weight:700; padding:4px 12px;">Flat ${g.flat_no}</span>
-          <span class="${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${v.vehicle_type}</span>
           <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${fmtVehicleNumber(v.vehicle_number)}</span>
           ${v.remarks ? `<span class="pill" style="background:#B45309; color:#fff; border-color:#B45309; font-weight:700; font-size:12.5px;">⚠ ${v.remarks}</span>` : ''}
           <span style="font-weight:700; font-size:15px; color:var(--ink-soft);">Sticker: <span style="color:${v.sticker_allotted==='Yes' ? '#2E7D4F' : '#A33A2E'};">${v.sticker_allotted}</span></span>
