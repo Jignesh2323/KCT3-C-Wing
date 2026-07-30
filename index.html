@@ -168,6 +168,12 @@ tr:hover td{background:var(--paper-dark);}
   color:var(--ink-soft); border-radius:999px; white-space:nowrap; background:var(--white-card); border:1.5px solid var(--rule);
 }
 .tab.active{color:#fff; background:var(--maroon); border-color:var(--maroon);}
+.tab-more{
+  padding:7px 14px; cursor:pointer; font-family:'Inter',sans-serif; font-size:13px; font-weight:600;
+  color:var(--ink-soft); border-radius:999px; white-space:nowrap; background:var(--white-card); border:1.5px solid var(--rule);
+  flex-shrink:0;
+}
+.tab-more.on-secondary{color:#fff; background:var(--maroon); border-color:var(--maroon);}
 .form-row{display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:16px;}
 .form-row .field{flex:1; min-width:140px; margin-bottom:0;}
 .msg{padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:13.5px;}
@@ -293,7 +299,7 @@ async function renderCommonExpenseSplit(){
    single file (styles + logic), nothing else to download.
    ============================================================ */
 const root = document.getElementById('root');
-let state = { user:null, profile:null, tab:'dashboard', msg:null, showHiddenTabs:false };
+let state = { user:null, profile:null, tab:'dashboard', msg:null };
 
 function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
 
@@ -334,7 +340,7 @@ function showPinModal(action){
       <div id="pin-modal-msg"></div>
       <input id="pin-modal-input" type="password" inputmode="numeric" maxlength="6" style="width:100%; letter-spacing:.3em; text-align:center; font-size:20px" autofocus>
       <div class="modal-actions">
-        <button onclick="document.getElementById('pin-modal').remove(); refreshTab();">Cancel</button>
+        <button onclick="document.getElementById('pin-modal').remove(); render();">Cancel</button>
         <button class="primary" id="pin-modal-submit">Unlock</button>
       </div>
     </div>
@@ -362,7 +368,6 @@ async function lockNow(){
   await sb.auth.signOut();
   localStorage.removeItem(PIN_UNLOCK_KEY);
   state.user = null;
-  state.showHiddenTabs = false;
   if(HIDDEN_TAB_KEYS.includes(state.tab)) state.tab = 'dashboard';
   render();
 }
@@ -421,26 +426,25 @@ const ADMIN_TABS = [
 const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues'];
 
 async function renderAdmin(){
-  const visibleTabs = ADMIN_TABS.filter(([k])=> state.showHiddenTabs || !HIDDEN_TAB_KEYS.includes(k));
+  const primaryTabs = ADMIN_TABS.filter(([k])=> !HIDDEN_TAB_KEYS.includes(k));
+  const secondaryTabs = ADMIN_TABS.filter(([k])=> HIDDEN_TAB_KEYS.includes(k));
+  const onSecondary = HIDDEN_TAB_KEYS.includes(state.tab);
   root.innerHTML = `<div class="app">
     ${topbar('Admin')}
     <div class="tabs">
-      ${visibleTabs.map(([k,label])=>`<div class="tab ${state.tab===k?'active':''}" onclick="setTab('${k}')">${label}</div>`).join('')}
-      ${state.showHiddenTabs
-        ? `<div class="tab" onclick="hideMoreTabs()">✕ Hide</div>`
-        : `<div class="tab" onclick="showMoreTabs()">⋯ More</div>`}
+      ${primaryTabs.map(([k,label])=>`<div class="tab ${state.tab===k?'active':''}" onclick="setTab('${k}')">${label}</div>`).join('')}
+      <select class="tab-more ${onSecondary?'on-secondary':''}" onchange="onMoreTabSelect(this.value)">
+        <option value="">⋯ More</option>
+        ${secondaryTabs.map(([k,label])=>`<option value="${k}" ${state.tab===k?'selected':''}>${label}</option>`).join('')}
+      </select>
     </div>
     <div id="tab-content"><div class="empty">Loading…</div></div>
   </div>`;
   renderTabContent();
 }
-async function showMoreTabs(){
-  await withPin(async ()=>{ state.showHiddenTabs = true; render(); });
-}
-function hideMoreTabs(){
-  state.showHiddenTabs = false;
-  if(HIDDEN_TAB_KEYS.includes(state.tab)) state.tab = 'dashboard';
-  render();
+async function onMoreTabSelect(k){
+  if(!k) return;
+  await withPin(async ()=>{ state.tab = k; render(); });
 }
 function setTab(k){ state.tab = k; render(); }
 
@@ -632,6 +636,24 @@ async function renderCollectionsTab(box){
         <div class="field"><label>Remarks</label><input id="c_remarks"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addCollection()">Add</button></div>
       </div>
+    </div>
+    <div class="card">
+      <h3>Bulk Builder Payment (Unsold Flats)</h3>
+      <p class="config-note" style="margin-top:-6px">Ek hi entry me total amount daal — khud-ba-khud sabhi Unsold flats me equal collection entries ban jayengi. Jis flat ka is round ke liye entry pehle se hai, wo skip ho jayegi.</p>
+      <div class="form-row">
+        <div class="field"><label>Purpose (Round)</label>
+          <select id="bb_purpose">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Date</label><input id="bb_date" type="date"></div>
+        <div class="field"><label>Total Amount Received</label><input id="bb_total" type="number" placeholder="e.g. 40000"></div>
+        <div class="field"><label>Mode</label>
+          <select id="bb_mode"><option>Bank Transfer</option><option>Cheque</option><option>Cash</option><option>UPI</option></select>
+        </div>
+        <div class="field"><label>Remarks</label><input id="bb_remarks" value="Received from builder"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="bulkBuilderPayment()">Add</button></div>
+      </div>
+    </div>
+    <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead><tbody>
       ${(data||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
@@ -690,6 +712,45 @@ async function addCollection(){
     };
     const {error} = await sb.from('collections').insert(payload);
     if(error) alert(error.message); else refreshTab();
+  });
+}
+async function bulkBuilderPayment(){
+  const purpose = document.getElementById('bb_purpose').value;
+  const date = document.getElementById('bb_date').value || new Date().toISOString().slice(0,10);
+  const total = Number(document.getElementById('bb_total').value);
+  const mode = document.getElementById('bb_mode').value;
+  const remarks = document.getElementById('bb_remarks').value || null;
+  if(!purpose){ alert('Purpose (Round) select karo.'); return; }
+  if(!total || total <= 0){ alert('Valid Total Amount daalo.'); return; }
+
+  const [{data:unsoldFlats, error:e1}, {data:existing, error:e2}] = await Promise.all([
+    sb.from('v_flats').select('flat_no').eq('status','Unsold'),
+    sb.from('collections').select('flat_no').eq('purpose', purpose)
+  ]);
+  if(e1 || e2){ alert((e1||e2).message); return; }
+  if(!unsoldFlats || !unsoldFlats.length){ alert('Koi Unsold flat nahi mila.'); return; }
+
+  const alreadyDone = new Set((existing||[]).map(c=>c.flat_no));
+  const targetFlats = unsoldFlats.filter(f=>!alreadyDone.has(f.flat_no));
+  const skipped = unsoldFlats.length - targetFlats.length;
+  if(!targetFlats.length){ alert(`Sabhi ${unsoldFlats.length} Unsold flats ka "${purpose}" ke liye collection pehle se hi entered hai.`); return; }
+
+  const perFlat = total / targetFlats.length;
+  const proceed = confirm(`${targetFlats.length} Unsold flats me ${fmtMoney(perFlat)} per flat (total ${fmtMoney(total)}) ki entry banegi, purpose "${purpose}".${skipped?`\n${skipped} flat(s) already have an entry for this round — unhe skip kiya jayega.`:''}\n\nProceed?`);
+  if(!proceed) return;
+
+  await withPin(async ()=>{
+    const payload = targetFlats.map(f=>({
+      flat_no: f.flat_no,
+      collection_date: date,
+      amount: perFlat,
+      mode: mode,
+      purpose: purpose,
+      remarks: remarks,
+    }));
+    const {error} = await sb.from('collections').insert(payload);
+    if(error) alert(error.message);
+    else { alert(`${targetFlats.length} collection entries add ho gayi.${skipped?` (${skipped} already-existing flat(s) skipped.)`:''}`); refreshTab(); }
   });
 }
 
