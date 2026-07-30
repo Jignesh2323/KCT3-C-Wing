@@ -603,18 +603,26 @@ async function upsertFlat(){
 }
 
 /* ---- Collections tab ---- */
+let collectionsCache = [];
 async function renderCollectionsTab(box){
   const [{data, error}, {data:charges}, {data:flats}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name)').order('collection_date',{ascending:false}),
     sb.from('charges').select('round_name'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no')
   ]);
+  collectionsCache = data || [];
   box.innerHTML = `
     <div class="card">
       <h3>Search by Flat No — Payment History &amp; Dues</h3>
       <p class="config-note" style="margin-top:-6px">Koi bhi flat member apna flat number daal ke apni payment history aur pending dues dekh sakta hai. No PIN needed.</p>
       <div class="form-row">
         <div class="field"><label class="search-safe-label">🔓 Flat No (open search, no PIN)</label><input id="pay_search_flat" class="search-safe" placeholder="e.g. 201"></div>
+        <div class="field"><label class="search-safe-label">🔓 Filter by Purpose (Round)</label>
+          <select id="coll_purpose_filter" class="search-safe">
+            <option value="">All</option>
+            ${(charges||[]).map(c=>`<option value="${c.round_name}">${c.round_name}</option>`).join('')}
+          </select>
+        </div>
         <div class="field" style="flex:0"><button onclick="document.getElementById('pay_search_flat').value=''; document.getElementById('pay_search_results').innerHTML='';">Clear</button></div>
       </div>
       <div id="pay_search_results"></div>
@@ -655,15 +663,23 @@ async function renderCollectionsTab(box){
     </div>
     <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
-      <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead><tbody>
-      ${(data||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
+      <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead>
+      <tbody id="collections-tbody">${collectionsRowsHtml(collectionsCache)}</tbody></table>
+    </div>`;
+  document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
+  document.getElementById('coll_purpose_filter').addEventListener('change', filterCollectionsTable);
+}
+function collectionsRowsHtml(list){
+  return (list||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
         <td class="mono v-input">${c.collection_date}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
         <td class="mono v-input">${fmtMoney(c.amount)}</td><td class="v-input">${c.mode}</td><td class="v-input">${c.purpose||''}</td>
         <td><button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
-      </tr>`).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`}
-      </tbody></table>
-    </div>`;
-  document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
+      </tr>`).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`;
+}
+function filterCollectionsTable(){
+  const purpose = document.getElementById('coll_purpose_filter').value;
+  const list = purpose ? collectionsCache.filter(c=>c.purpose===purpose) : collectionsCache;
+  document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list);
 }
 async function searchFlatPayments(){
   const flatNo = document.getElementById('pay_search_flat').value.trim();
@@ -922,7 +938,7 @@ async function renderChargesTab(box){
       <div class="form-row">
         <div class="field"><label>Round Name</label><input id="ch_name" placeholder="e.g. Diwali Fund"></div>
         <div class="field"><label>Amount per Flat</label><input id="ch_amount" type="number"></div>
-        <div class="field"><label>Applies To</label><select id="ch_applies"><option>All Flats</option><option>Sold Flats Only</option></select></div>
+        <div class="field"><label>Applies To</label><select id="ch_applies"><option>All Flats</option><option>Sold Flats Only</option><option>Unsold Flats Only</option></select></div>
         <div class="field"><label>Date Started</label><input id="ch_date" type="date"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addCharge()">Add</button></div>
       </div>
