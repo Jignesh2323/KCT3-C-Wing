@@ -604,13 +604,15 @@ async function upsertFlat(){
 
 /* ---- Collections tab ---- */
 let collectionsCache = [];
+let chargesCache = [];
 async function renderCollectionsTab(box){
   const [{data, error}, {data:charges}, {data:flats}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name)').order('collection_date',{ascending:false}),
-    sb.from('charges').select('round_name'),
+    sb.from('charges').select('round_name, amount_per_flat'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no')
   ]);
   collectionsCache = data || [];
+  chargesCache = charges || [];
   box.innerHTML = `
     <div class="card">
       <h3>Search by Flat No — Payment History &amp; Dues</h3>
@@ -650,7 +652,7 @@ async function renderCollectionsTab(box){
       <p class="config-note" style="margin-top:-6px">Ek hi entry me total amount daal — khud-ba-khud sabhi Unsold flats me equal collection entries ban jayengi. Jis flat ka is round ke liye entry pehle se hai, wo skip ho jayegi.</p>
       <div class="form-row">
         <div class="field"><label>Purpose (Round)</label>
-          <select id="bb_purpose">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
+          <select id="bb_purpose" onchange="updateBulkBuilderTotal()">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Date</label><input id="bb_date" type="date"></div>
         <div class="field"><label>Total Amount Received</label><input id="bb_total" type="number" placeholder="e.g. 40000"></div>
@@ -660,6 +662,7 @@ async function renderCollectionsTab(box){
         <div class="field"><label>Remarks</label><input id="bb_remarks" value="Received from builder"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="bulkBuilderPayment()">Add</button></div>
       </div>
+      <p id="bb_calc_note" class="config-note" style="margin-top:-6px"></p>
     </div>
     <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
@@ -668,6 +671,26 @@ async function renderCollectionsTab(box){
     </div>`;
   document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
   document.getElementById('coll_purpose_filter').addEventListener('change', filterCollectionsTable);
+  if(chargesCache.length) updateBulkBuilderTotal();
+}
+async function updateBulkBuilderTotal(){
+  const purpose = document.getElementById('bb_purpose')?.value;
+  const note = document.getElementById('bb_calc_note');
+  if(!purpose || !note) return;
+  const round = chargesCache.find(c=>c.round_name===purpose);
+  const perFlat = Number(round?.amount_per_flat||0);
+  note.textContent = 'Calculating…';
+  const [{data:unsoldFlats}, {data:existing}] = await Promise.all([
+    sb.from('v_flats').select('flat_no').eq('status','Unsold'),
+    sb.from('collections').select('flat_no').eq('purpose', purpose)
+  ]);
+  const alreadyDone = new Set((existing||[]).map(c=>c.flat_no));
+  const targetCount = (unsoldFlats||[]).filter(f=>!alreadyDone.has(f.flat_no)).length;
+  const total = perFlat * targetCount;
+  document.getElementById('bb_total').value = total || '';
+  note.textContent = targetCount
+    ? `${fmtMoney(perFlat)} × ${targetCount} unsold flat(s) still due for "${purpose}" = ${fmtMoney(total)} (auto-calculated — badal sakte ho agar zaroorat ho)`
+    : `Sabhi Unsold flats ka "${purpose}" ke liye collection pehle se hi entered hai.`;
 }
 function collectionsRowsHtml(list){
   return (list||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
