@@ -264,6 +264,11 @@ function waLink(phone, message){
   if(num.length < 11) return null;
   return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
+function waShareLink(message){
+  // No phone number = WhatsApp opens its own chat/group picker so you can
+  // send the pre-filled message to any chat, e.g. your society's group.
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
 function fmtVehicleNumber(num){
   if(!num) return '';
   const clean = num.toString().toUpperCase().replace(/\s|-/g,'');
@@ -962,7 +967,10 @@ let expensesCache = [];
 let editingExpenseId = null;
 async function renderExpensesTab(box){
   const unlocked = pinStillValid() && state.user;
-  const {data, error} = await sb.from('expenses').select('*').order('expense_date',{ascending:false});
+  const [{data, error}] = await Promise.all([
+    sb.from('expenses').select('*').order('expense_date',{ascending:false}),
+    loadWaSentCache(),
+  ]);
   expensesCache = data || [];
   box.innerHTML = `
     ${!unlocked ? `<p class="config-note">🔒 Add Expense form sirf Unlock karne ke baad dikhta hai.</p>` : `
@@ -991,11 +999,17 @@ async function renderExpensesTab(box){
     <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Paid To</th><th></th></tr></thead><tbody>
-      ${(data||[]).map(e=>`<tr class="floor-${Number((e.expense_date||'').slice(5,7))||'x'}">
+      ${(data||[]).map(e=>{
+        const waMsg = `C-Wing Society — Naya Expense: ${e.category}${e.description?' - '+e.description:''}, ${fmtMoney(e.amount)}, dated ${fmtDate(e.expense_date)}.\n\n- C-Wing Society Maintenance`;
+        const waLinkHref = waShareLink(waMsg);
+        const waKey = `expense:${e.id}:group`;
+        const pillId = `exp-wa-${e.id}`;
+        return `<tr class="floor-${Number((e.expense_date||'').slice(5,7))||'x'}">
         <td class="mono v-input">${fmtDate(e.expense_date)}</td><td class="v-input">${e.category}</td><td class="v-input">${e.description||''}</td>
         <td class="mono v-input">${fmtMoney(e.amount)}</td><td class="v-input">${e.paid_to||''}</td>
-        <td style="white-space:nowrap"><button onclick="notifyExpenseToSoldOwners(${e.id})">📢 Notify</button> <button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
-      </tr>`).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
+        <td style="white-space:nowrap"><a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)} <button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
+      </tr>`;
+      }).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
       </tbody></table>
     </div>`;
 }
@@ -1039,93 +1053,6 @@ async function addExpense(){
     if(error) alert(error.message); else { editingExpenseId = null; refreshTab(); }
   });
 }
-let notifySoldFlatsCache = [];
-let notifyExpenseCache = null;
-async function notifyExpenseToSoldOwners(expenseId){
-  const e = expensesCache.find(x=>x.id===expenseId);
-  if(!e) return;
-  const [{data: soldFlats, error}] = await Promise.all([
-    sb.from('v_flats').select('flat_no, owner_name, contact_no').eq('status','Sold').order('flat_no'),
-    loadWaSentCache(),
-  ]);
-  if(error){ alert(error.message); return; }
-  notifySoldFlatsCache = soldFlats || [];
-  notifyExpenseCache = e;
-  const old = document.getElementById('notify-modal');
-  if(old) old.remove();
-  const overlay = el(`<div class="modal-backdrop" id="notify-modal">
-    <div class="modal-box" style="max-width:420px; max-height:80vh; overflow-y:auto;">
-      <h3>Notify Sold Flat Owners</h3>
-      <p class="config-note">${e.category}${e.description?' - '+e.description:''} — ${fmtMoney(e.amount)}. Har owner ke liye alag WhatsApp chat khulega — Send khud dabana padega (free tarike se ek saath auto-bhejna WhatsApp par possible nahi hai).</p>
-      <p id="notify-progress" class="config-note" style="font-weight:700; color:var(--maroon)"></p>
-      <div id="notify-rows-box"></div>
-      <div class="modal-actions" style="justify-content:space-between; flex-wrap:wrap">
-        <div style="display:flex; gap:10px; flex-wrap:wrap">
-          <button onclick="markAllNotifySent(${expenseId})">✓ Mark All Sent</button>
-          <button onclick="resetNotifySent(${expenseId})">Reset Sent Marks</button>
-        </div>
-        <button onclick="document.getElementById('notify-modal').remove()">Close</button>
-      </div>
-    </div>
-  </div>`);
-  document.body.appendChild(overlay);
-  renderNotifyRows(expenseId);
-}
-function renderNotifyRows(expenseId){
-  const e = notifyExpenseCache;
-  const rowsBox = document.getElementById('notify-rows-box');
-  const progressBox = document.getElementById('notify-progress');
-  if(!rowsBox || !e) return;
-  let sentCount = 0;
-  const rows = notifySoldFlatsCache.map(f=>{
-    const key = `expense:${expenseId}:${f.flat_no}`;
-    const sent = isWaSent(key);
-    if(sent) sentCount++;
-    const msg = `Namaste ${f.owner_name||''}, Flat ${f.flat_no} — Society expense update: ${e.category}${e.description?' - '+e.description:''}, ${fmtMoney(e.amount)}, dated ${fmtDate(e.expense_date)}.\n\n- C-Wing Society Maintenance`;
-    const link = waLink(f.contact_no, msg);
-    const pillId = `notify-pill-${f.flat_no}`;
-    return `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--rule); ${sent?'opacity:.55':''}">
-      <span>${f.flat_no} — ${f.owner_name||'(no owner)'}</span>
-      <span style="display:flex; align-items:center; gap:8px; flex-shrink:0">
-        ${link ? `<a href="${link}" target="_blank" class="btn primary" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return handleNotifySend(event,'${key}',${expenseId},'${link}')">${WA_ICON}Send</a>` : `<span class="config-note" style="margin:0">No contact no.</span>`}
-        <span id="${pillId}" class="pill ${sent?'sold':'unsold'}" style="cursor:pointer" title="Tap to toggle Sent/Pending (PIN needed)" onclick="toggleNotifySent('${key}',${expenseId})">${sent?'✓ Sent':'Pending'}</span>
-      </span>
-    </div>`;
-  }).join('');
-  rowsBox.innerHTML = rows || '<p class="empty">Koi Sold flat with contact number nahi mila.</p>';
-  const total = notifySoldFlatsCache.length;
-  progressBox.textContent = total ? `${sentCount} / ${total} sent — ${total-sentCount} baaki` : '';
-}
-function handleNotifySend(event, key, expenseId, link){
-  event.preventDefault();
-  withPin(async ()=>{
-    window.open(link, '_blank');
-    await setWaSent(key, true);
-    renderNotifyRows(expenseId);
-  });
-  return false;
-}
-function toggleNotifySent(key, expenseId){
-  withPin(async ()=>{
-    await setWaSent(key, !isWaSent(key));
-    renderNotifyRows(expenseId);
-  });
-}
-function resetNotifySent(expenseId){
-  withPin(async ()=>{
-    showConfirmModal('Is expense ke sabhi "Sent" marks clear kar du? (Sirf tracking reset hoga, koi data delete nahi hoga.)', async ()=>{
-      for(const f of notifySoldFlatsCache) await setWaSent(`expense:${expenseId}:${f.flat_no}`, false);
-      renderNotifyRows(expenseId);
-    });
-  });
-}
-function markAllNotifySent(expenseId){
-  withPin(async ()=>{
-    for(const f of notifySoldFlatsCache) await setWaSent(`expense:${expenseId}:${f.flat_no}`, true);
-    renderNotifyRows(expenseId);
-  });
-}
-
 /* ---- Fund Transfer tab (Cash <-> Bank) ---- */
 async function renderTransfersTab(box){
   const {data, error} = await sb.from('fund_transfers').select('*').order('transfer_date',{ascending:false});
