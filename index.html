@@ -1037,8 +1037,11 @@ async function notifyExpenseToSoldOwners(expenseId){
       <p class="config-note">${e.category}${e.description?' - '+e.description:''} — ${fmtMoney(e.amount)}. Har owner ke liye alag WhatsApp chat khulega — Send khud dabana padega (free tarike se ek saath auto-bhejna WhatsApp par possible nahi hai).</p>
       <p id="notify-progress" class="config-note" style="font-weight:700; color:var(--maroon)"></p>
       <div id="notify-rows-box"></div>
-      <div class="modal-actions" style="justify-content:space-between">
-        <button onclick="resetNotifySent(${expenseId})">Reset Sent Marks</button>
+      <div class="modal-actions" style="justify-content:space-between; flex-wrap:wrap">
+        <div style="display:flex; gap:10px; flex-wrap:wrap">
+          <button onclick="markAllNotifySent(${expenseId})">✓ Mark All Sent</button>
+          <button onclick="resetNotifySent(${expenseId})">Reset Sent Marks</button>
+        </div>
         <button onclick="document.getElementById('notify-modal').remove()">Close</button>
       </div>
     </div>
@@ -1084,6 +1087,10 @@ function resetNotifySent(expenseId){
     notifySoldFlatsCache.forEach(f=> setWaSent(`expense:${expenseId}:${f.flat_no}`, false));
     renderNotifyRows(expenseId);
   });
+}
+function markAllNotifySent(expenseId){
+  notifySoldFlatsCache.forEach(f=> setWaSent(`expense:${expenseId}:${f.flat_no}`, true));
+  renderNotifyRows(expenseId);
 }
 
 /* ---- Fund Transfer tab (Cash <-> Bank) ---- */
