@@ -1085,7 +1085,7 @@ async function renderTransfersTab(box){
       </div>
       <table><thead><tr><th>Date</th><th>Amount</th><th>Remarks</th><th></th></tr></thead><tbody>
       ${(data||[]).map(t=>`<tr>
-        <td class="mono v-input">${fmtDate(t.transfer_date)}</td><td class="mono v-input">${fmtMoney(t.amount)}</td><td class="v-input">${t.remarks||''}</td>
+        <td class="mono config-note" style="margin:0">${fmtDate(t.transfer_date)}</td><td class="mono" style="font-weight:800; font-size:16px; color:var(--info);">${fmtMoney(t.amount)}</td><td class="v-input">${t.remarks||''}</td>
         <td><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})" title="Delete">🗑️</button></td>
       </tr>`).join('') || `<tr><td colspan="4" class="empty">No transfers yet.</td></tr>`}
       </tbody></table>
@@ -1199,13 +1199,21 @@ async function renderChargesTab(box){
         <div class="field" style="flex:0"><button onclick="resetChargeForm()">Clear</button></div>
       </div>
       ${error?`<div class="msg error">${error.message}</div>`:''}
-      <table><thead><tr><th>Round</th><th>Amount/Flat</th><th>Applies To</th><th>Started</th><th></th></tr></thead><tbody>
-      ${(data||[]).map(c=>`<tr>
-        <td>${c.round_name}</td><td class="mono">${fmtMoney(c.amount_per_flat)}</td><td>${c.applies_to}</td><td class="mono">${fmtDate(c.date_started)}</td>
-        <td style="white-space:nowrap"><button onclick="editCharge('${c.round_name}')">Edit</button> <button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)" title="Delete">🗑️</button></td>
-      </tr>`).join('') || `<tr><td colspan="5" class="empty">No charge rounds yet.</td></tr>`}
-      </tbody></table>
-    </div>`;
+    </div>
+    ${data && data.length ? data.map(c=>`
+    <div class="card" style="text-align:center;">
+      <h3 style="margin-bottom:2px;">${c.round_name}</h3>
+      <div class="mono" style="font-size:26px; font-weight:800; color:var(--maroon);">${fmtMoney(c.amount_per_flat)}</div>
+      <p class="config-note" style="margin-top:2px;">per flat</p>
+      <div style="display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <span class="pill ${c.applies_to==='All Flats'?'unsold':'sold'}">${c.applies_to}</span>
+        <span class="config-note mono" style="margin:0;">Started ${fmtDate(c.date_started)}</span>
+      </div>
+      <div style="display:flex; justify-content:center; gap:8px; margin-top:12px;">
+        <button onclick="editCharge('${c.round_name}')">Edit</button>
+        <button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)" title="Delete">🗑️</button>
+      </div>
+    </div>`).join('') : `<div class="card"><p class="empty">No charge rounds yet.</p></div>`}`;
 }
 function editCharge(roundName){
   const c = chargeRoundsCache.find(x=>x.round_name===roundName);
@@ -1297,26 +1305,26 @@ async function renderStickerLogTab(box){
         <div class="field" style="flex:0"><button class="primary" onclick="addStickerLog()">Add</button></div>
       </div>
       ${error?`<div class="msg error">${error.message}</div>`:''}
-      <table><thead><tr><th>Flat</th><th>Entries</th></tr></thead><tbody>
-      ${groups.map(g=>`<tr class="floor-${Math.floor(g.flat_no/100)}" style="border-bottom:4px solid var(--maroon);">
-        <td class="mono v-input flat-no" style="vertical-align:top">${g.flat_no}</td>
-        <td>${g.entries.map(s=>{
-          const t = vehicleTypeFor(s.vehicle_number);
-          const typeClass = t==='Two Wheeler' ? 'type-two' : t==='Four Wheeler' ? 'type-four' : '';
-          return `<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            ${t ? `<img src="${t==='Two Wheeler'?ICON_BIKE:ICON_CAR}" alt="" style="height:22px; vertical-align:middle;">` : ''}
-            <span class="pill" style="background:${flatBadgeColor(g.flat_no)}; color:#fff; border-color:${flatBadgeColor(g.flat_no)}; font-weight:700; padding:4px 12px;">Flat ${g.flat_no}</span>
-            <span class="mono v-input">${fmtDate(s.log_date)}</span>
-            <span class="mono vnum ${typeClass}">${fmtVehicleNumber(s.vehicle_number)}</span>
+    </div>
+    ${groups.length ? groups.map(g=>`
+    <div class="card floor-card" style="text-align:center;">
+      <span class="pill flat-chip" style="background:${flatBadgeColor(g.flat_no)}; font-size:22px; padding:6px 22px;">${g.flat_no}</span>
+      ${g.entries.map(s=>{
+        const t = vehicleTypeFor(s.vehicle_number);
+        const typeClass = t==='Two Wheeler' ? 'type-two' : t==='Four Wheeler' ? 'type-four' : '';
+        return `<div class="flat-entry">
+            ${t ? `<img src="${t==='Two Wheeler'?ICON_BIKE:ICON_CAR}" alt="" style="height:20px;">` : ''}
+            <span class="mono vnum ${typeClass}" style="font-size:13.5px;">${fmtVehicleNumber(s.vehicle_number)}</span>
+            <span class="mono config-note" style="margin:0">${fmtDate(s.log_date)}</span>
             ${(s.reason==='Shared Pass' || (s.reason||'').startsWith('No Separate Sticker'))
-              ? `<span class="pill" style="background:#B45309; color:#fff; border-color:#B45309; font-weight:700; font-size:12.5px;">⚠ ${s.reason}</span>`
-              : `<span class="v-input">${s.reason||''}</span>`}
-            <button class="danger" onclick="deleteRow('sticker_log','id',${s.id})" title="Delete">🗑️</button>
+              ? `<span class="pill" style="background:#B45309; color:#fff; border-color:#B45309; font-weight:700; font-size:11px;">⚠ ${s.reason}</span>`
+              : `<span class="config-note" style="margin:0">${s.reason||''}</span>`}
+            <span class="flat-actions">
+              <button class="danger" onclick="deleteRow('sticker_log','id',${s.id})" title="Delete">🗑️</button>
+            </span>
           </div>`;
-        }).join('')}</td>
-      </tr>`).join('') || `<tr><td colspan="2" class="empty">No entries yet.</td></tr>`}
-      </tbody></table>
-    </div>`;
+      }).join('')}
+    </div>`).join('') : `<div class="card"><p class="empty">No entries yet.</p></div>`}`;
   if(lastStickerFlat && (flats||[]).some(f=>String(f.flat_no)===String(lastStickerFlat))){
     document.getElementById('s_flat').value = lastStickerFlat;
   }
