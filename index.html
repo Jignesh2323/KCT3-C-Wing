@@ -279,30 +279,43 @@ const ICON_BIKE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAjCAYAAAA
    flat as Sent the moment you tap the WhatsApp button; you can also
    tap the pill itself to flip it back to Pending (e.g. if you sent it
    by mistake, or want to re-send). */
-function waSentMapLoad(){
-  try{ return JSON.parse(localStorage.getItem('wa_sent_v1')||'{}'); }catch(e){ return {}; }
+let waSentCache = {};
+async function loadWaSentCache(){
+  const {data} = await sb.from('wa_sent').select('entity_key');
+  waSentCache = {};
+  (data||[]).forEach(r=> waSentCache[r.entity_key] = true);
 }
-function waSentMapSave(map){ localStorage.setItem('wa_sent_v1', JSON.stringify(map)); }
-function isWaSent(key){ return !!waSentMapLoad()[key]; }
-function setWaSent(key, val){
-  const map = waSentMapLoad();
-  if(val) map[key] = true; else delete map[key];
-  waSentMapSave(map);
+function isWaSent(key){ return !!waSentCache[key]; }
+async function setWaSent(key, val){
+  if(val) waSentCache[key] = true; else delete waSentCache[key];
+  const {error} = val
+    ? await sb.from('wa_sent').upsert({entity_key: key, sent: true, updated_at: new Date().toISOString()})
+    : await sb.from('wa_sent').delete().eq('entity_key', key);
+  if(error) alert(error.message);
 }
 function waSentPillHtml(key, pillId){
   const sent = isWaSent(key);
-  return `<span id="${pillId}" class="pill ${sent?'sold':'unsold'}" style="cursor:pointer; margin-left:4px" title="Tap to toggle Sent/Pending" onclick="toggleWaSentPill('${key}','${pillId}')">${sent?'✓ Sent':'Pending'}</span>`;
+  return `<span id="${pillId}" class="pill ${sent?'sold':'unsold'}" style="cursor:pointer; margin-left:4px" title="Tap to toggle Sent/Pending (PIN needed)" onclick="toggleWaSentPill('${key}','${pillId}')">${sent?'✓ Sent':'Pending'}</span>`;
 }
-function markWaSentPill(key, pillId){
-  setWaSent(key, true);
+function paintWaSentPill(pillId, sent){
   const p = document.getElementById(pillId);
-  if(p){ p.textContent = '✓ Sent'; p.classList.remove('unsold'); p.classList.add('sold'); }
+  if(p){ p.textContent = sent ? '✓ Sent' : 'Pending'; p.classList.toggle('sold', sent); p.classList.toggle('unsold', !sent); }
 }
 function toggleWaSentPill(key, pillId){
-  const now = !isWaSent(key);
-  setWaSent(key, now);
-  const p = document.getElementById(pillId);
-  if(p){ p.textContent = now ? '✓ Sent' : 'Pending'; p.classList.toggle('sold', now); p.classList.toggle('unsold', !now); }
+  withPin(async ()=>{
+    const now = !isWaSent(key);
+    await setWaSent(key, now);
+    paintWaSentPill(pillId, now);
+  });
+}
+function openWaLink(event, link, key, pillId){
+  event.preventDefault();
+  withPin(async ()=>{
+    window.open(link, '_blank');
+    await setWaSent(key, true);
+    paintWaSentPill(pillId, true);
+  });
+  return false;
 }
 
 function flatBadgeColor(flatNo){
@@ -637,7 +650,10 @@ async function refreshTab(){ renderTabContent(); }
 let flatsCache = [];
 async function renderFlatsTab(box){
   const unlocked = pinStillValid() && state.user;
-  const {data, error} = await sb.from('v_flats').select('*').order('flat_no');
+  const [{data, error}] = await Promise.all([
+    sb.from('v_flats').select('*').order('flat_no'),
+    loadWaSentCache(),
+  ]);
   flatsCache = data || [];
   box.innerHTML = `
     ${!unlocked ? `<p class="config-note">🔒 Add / Update Flat form sirf Unlock karne ke baad dikhta hai.</p>` : `
@@ -661,7 +677,9 @@ async function renderFlatsTab(box){
       <table><thead><tr><th>Flat</th><th>Floor</th><th>Owner</th><th>Contact</th><th>Status</th><th>Vehicle?</th><th></th></tr></thead><tbody>
       ${(data||[]).map((f,i)=>{
         const waMsg = `Namaste ${f.owner_name||''}, Flat ${f.flat_no} — C-Wing Society Maintenance system me aapki detail register ho gayi hai. Kisi bhi payment/query ke liye humse contact karein.\n\n- C-Wing Society Maintenance`;
-        const waLinkHref = unlocked ? waLink(f.contact_no, waMsg) : null;
+        const waLinkHref = waLink(f.contact_no, waMsg);
+        const waKey = `flat:${f.flat_no}`;
+        const waPillId = `flat-wa-${f.flat_no}`;
         const isNewFloorGroup = i===0 || (data[i-1].floor??null) !== (f.floor??null);
         let floorCell = '';
         if(isNewFloorGroup){
@@ -677,7 +695,7 @@ async function renderFlatsTab(box){
             <option value="Unsold" ${f.status==='Unsold'?'selected':''}>Unsold</option>
           </select>
         </td><td class="v-formula">${f.has_vehicle?'Yes':'No'}</td>
-        <td style="white-space:nowrap">${waLinkHref?`<a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center">${WA_ICON}WhatsApp</a> `:''}<button onclick="editFlat(${f.flat_no})">Edit</button> <button class="danger" onclick="deleteRow('flats','flat_no',${f.flat_no})">Delete</button></td>
+        <td style="white-space:nowrap">${waLinkHref?`<a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${waPillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, waPillId)} `:''}<button onclick="editFlat(${f.flat_no})">Edit</button> <button class="danger" onclick="deleteRow('flats','flat_no',${f.flat_no})">Delete</button></td>
       </tr>`;
       }).join('') || `<tr><td colspan="7" class="empty">No flats yet.</td></tr>`}
       </tbody></table>
@@ -736,7 +754,8 @@ async function renderCollectionsTab(box){
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}),
     sb.from('charges').select('round_name, amount_per_flat'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
-    sb.from('v_dues_summary').select('round_name, pending_amount').gt('pending_amount', 0)
+    sb.from('v_dues_summary').select('round_name, pending_amount').gt('pending_amount', 0),
+    loadWaSentCache(),
   ]);
   collectionsCache = data || [];
   chargesCache = charges || [];
@@ -805,7 +824,7 @@ async function renderCollectionsTab(box){
     <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead>
-      <tbody id="collections-tbody">${collectionsRowsHtml(collectionsCache, unlocked)}</tbody></table>
+      <tbody id="collections-tbody">${collectionsRowsHtml(collectionsCache)}</tbody></table>
     </div>`;
   document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
   document.getElementById('coll_purpose_filter').addEventListener('change', filterCollectionsTable);
@@ -830,24 +849,24 @@ async function updateBulkBuilderTotal(){
     ? `${fmtMoney(perFlat)} × ${targetCount} unsold flat(s) still due for "${purpose}" = ${fmtMoney(total)} (auto-calculated — badal sakte ho agar zaroorat ho)`
     : `Sabhi Unsold flats ka "${purpose}" ke liye collection pehle se hi entered hai.`;
 }
-function collectionsRowsHtml(list, unlocked){
+function collectionsRowsHtml(list){
   return (list||[]).map(c=>{
     const pc = purposeColor(c.purpose);
     const msg = `Namaste ${c.flats?.owner_name||''}, Flat ${c.flat_no} — aapka payment mil gaya hai: ${fmtMoney(c.amount)} (${c.mode}), "${c.purpose||''}" ke liye, dated ${fmtDate(c.collection_date)}.\n\n- C-Wing Society Maintenance`;
-    const link = unlocked ? waLink(c.flats?.contact_no, msg) : null;
+    const link = waLink(c.flats?.contact_no, msg);
     const waKey = `collection:${c.id}`;
     const pillId = `coll-wa-${c.id}`;
     return `<tr class="floor-${Math.floor(c.flat_no/100)}">
         <td class="mono v-input">${fmtDate(c.collection_date)}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
         <td class="mono" style="color:${pc}; font-weight:700">${fmtMoney(c.amount)}</td><td style="color:${pc}; font-weight:600">${c.mode}</td><td style="color:${pc}; font-weight:600">${c.purpose||''}</td>
-        <td style="white-space:nowrap">${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="markWaSentPill('${waKey}','${pillId}')">${WA_ICON}WhatsApp</a> ${waSentPillHtml(waKey, pillId)} `:''}<button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
+        <td style="white-space:nowrap">${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)} `:''}<button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
       </tr>`;
   }).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`;
 }
 function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
   const list = purpose ? collectionsCache.filter(c=>c.purpose===purpose) : collectionsCache;
-  document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list, pinStillValid() && !!state.user);
+  document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list);
 }
 async function searchFlatPayments(){
   const flatNo = document.getElementById('pay_search_flat').value.trim();
@@ -975,7 +994,7 @@ async function renderExpensesTab(box){
       ${(data||[]).map(e=>`<tr class="floor-${Number((e.expense_date||'').slice(5,7))||'x'}">
         <td class="mono v-input">${fmtDate(e.expense_date)}</td><td class="v-input">${e.category}</td><td class="v-input">${e.description||''}</td>
         <td class="mono v-input">${fmtMoney(e.amount)}</td><td class="v-input">${e.paid_to||''}</td>
-        <td style="white-space:nowrap">${unlocked?`<button onclick="notifyExpenseToSoldOwners(${e.id})">📢 Notify</button> `:''}<button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
+        <td style="white-space:nowrap"><button onclick="notifyExpenseToSoldOwners(${e.id})">📢 Notify</button> <button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
       </tr>`).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
       </tbody></table>
     </div>`;
@@ -1025,7 +1044,10 @@ let notifyExpenseCache = null;
 async function notifyExpenseToSoldOwners(expenseId){
   const e = expensesCache.find(x=>x.id===expenseId);
   if(!e) return;
-  const {data: soldFlats, error} = await sb.from('v_flats').select('flat_no, owner_name, contact_no').eq('status','Sold').order('flat_no');
+  const [{data: soldFlats, error}] = await Promise.all([
+    sb.from('v_flats').select('flat_no, owner_name, contact_no').eq('status','Sold').order('flat_no'),
+    loadWaSentCache(),
+  ]);
   if(error){ alert(error.message); return; }
   notifySoldFlatsCache = soldFlats || [];
   notifyExpenseCache = e;
@@ -1065,8 +1087,8 @@ function renderNotifyRows(expenseId){
     return `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--rule); ${sent?'opacity:.55':''}">
       <span>${f.flat_no} — ${f.owner_name||'(no owner)'}</span>
       <span style="display:flex; align-items:center; gap:8px; flex-shrink:0">
-        ${link ? `<a href="${link}" target="_blank" class="btn primary" style="text-decoration:none; display:inline-flex; align-items:center" onclick="handleNotifySend('${key}',${expenseId})">${WA_ICON}Send</a>` : `<span class="config-note" style="margin:0">No contact no.</span>`}
-        <span id="${pillId}" class="pill ${sent?'sold':'unsold'}" style="cursor:pointer" title="Tap to toggle Sent/Pending" onclick="toggleNotifySent('${key}',${expenseId})">${sent?'✓ Sent':'Pending'}</span>
+        ${link ? `<a href="${link}" target="_blank" class="btn primary" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return handleNotifySend(event,'${key}',${expenseId},'${link}')">${WA_ICON}Send</a>` : `<span class="config-note" style="margin:0">No contact no.</span>`}
+        <span id="${pillId}" class="pill ${sent?'sold':'unsold'}" style="cursor:pointer" title="Tap to toggle Sent/Pending (PIN needed)" onclick="toggleNotifySent('${key}',${expenseId})">${sent?'✓ Sent':'Pending'}</span>
       </span>
     </div>`;
   }).join('');
@@ -1074,23 +1096,34 @@ function renderNotifyRows(expenseId){
   const total = notifySoldFlatsCache.length;
   progressBox.textContent = total ? `${sentCount} / ${total} sent — ${total-sentCount} baaki` : '';
 }
-function handleNotifySend(key, expenseId){
-  setWaSent(key, true);
-  renderNotifyRows(expenseId);
+function handleNotifySend(event, key, expenseId, link){
+  event.preventDefault();
+  withPin(async ()=>{
+    window.open(link, '_blank');
+    await setWaSent(key, true);
+    renderNotifyRows(expenseId);
+  });
+  return false;
 }
 function toggleNotifySent(key, expenseId){
-  setWaSent(key, !isWaSent(key));
-  renderNotifyRows(expenseId);
-}
-function resetNotifySent(expenseId){
-  showConfirmModal('Is expense ke sabhi "Sent" marks clear kar du? (Sirf tracking reset hoga, koi data delete nahi hoga.)', async ()=>{
-    notifySoldFlatsCache.forEach(f=> setWaSent(`expense:${expenseId}:${f.flat_no}`, false));
+  withPin(async ()=>{
+    await setWaSent(key, !isWaSent(key));
     renderNotifyRows(expenseId);
   });
 }
+function resetNotifySent(expenseId){
+  withPin(async ()=>{
+    showConfirmModal('Is expense ke sabhi "Sent" marks clear kar du? (Sirf tracking reset hoga, koi data delete nahi hoga.)', async ()=>{
+      for(const f of notifySoldFlatsCache) await setWaSent(`expense:${expenseId}:${f.flat_no}`, false);
+      renderNotifyRows(expenseId);
+    });
+  });
+}
 function markAllNotifySent(expenseId){
-  notifySoldFlatsCache.forEach(f=> setWaSent(`expense:${expenseId}:${f.flat_no}`, true));
-  renderNotifyRows(expenseId);
+  withPin(async ()=>{
+    for(const f of notifySoldFlatsCache) await setWaSent(`expense:${expenseId}:${f.flat_no}`, true);
+    renderNotifyRows(expenseId);
+  });
 }
 
 /* ---- Fund Transfer tab (Cash <-> Bank) ---- */
