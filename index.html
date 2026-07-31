@@ -1399,25 +1399,40 @@ async function renderDuesTab(box){
     <div class="card">
       <h3>Dues Summary</h3>
       <p class="config-note">Adding a new round in the "Charges" tab automatically adds a column here and folds it into each flat's total — nothing else to configure.</p>
-      <div class="grid-stats" style="margin:10px 0 14px">
+      <div class="grid-stats" style="margin:10px 0 0">
         <div class="stat ${grandTotal>0?'stat-bad':'stat-good'}"><div class="num mono">${fmtMoney(grandTotal)}</div><div class="lbl">⚖️ Total Pending (All Flats)</div></div>
       </div>
       ${e1||e2?`<div class="msg error">${(e1||e2).message}</div>`:''}
-      <table><thead><tr>
-        <th>Flat</th><th>Owner</th>
-        ${roundNames.map(r=>`<th>${r}</th>`).join('')}
-        <th>Total Pending</th>
-      </tr></thead><tbody>
-      ${flatNos.map(fn=>{
+    </div>
+    ${!flatNos.length ? `<div class="card"><p class="empty">No charge rounds set up yet — add one in the Charges tab.</p></div>` : duesByFloorHtml(flatNos, byFlat, roundNames)}`;
+}
+function duesByFloorHtml(flatNos, byFlat, roundNames){
+  const groups = {};
+  flatNos.forEach(fn=>{
+    const floor = Math.floor(fn/100);
+    (groups[floor] = groups[floor] || []).push(fn);
+  });
+  const floorKeys = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+  return floorKeys.map(fk=>{
+    const fns = groups[fk];
+    const floorTotal = fns.reduce((s,fn)=>s+byFlat[fn].total, 0);
+    return `<div class="card floor-card">
+      <h3 class="floor-heading-center">🏢 Floor ${fk} <span class="config-note" style="display:inline; font-weight:600; margin-left:6px;">${fmtMoney(floorTotal)} pending</span></h3>
+      ${fns.map(fn=>{
         const f = byFlat[fn];
-        return `<tr class="floor-${Math.floor(fn/100)}">
-          <td class="mono v-input flat-no">${fn}</td><td class="owner-name">${f.owner_name||''}</td>
-          ${roundNames.map(r=>`<td class="mono config-note" style="margin:0; font-size:12.5px;">${fmtMoney(f.perRound[r]||0)}</td>`).join('')}
-          <td class="mono" style="font-weight:800; font-size:15.5px; color:${f.total>0?'var(--danger)':'#15803D'};">${fmtMoney(f.total)}</td>
-        </tr>`;
-      }).join('') || `<tr><td colspan="${2+roundNames.length+1}" class="empty">No charge rounds set up yet — add one in the Charges tab.</td></tr>`}
-      </tbody></table>
+        const breakdown = roundNames.filter(r=>Number(f.perRound[r]||0)>0)
+          .map(r=>`<span class="config-note" style="margin:0;">${r}: ${fmtMoney(f.perRound[r])}</span>`).join('');
+        return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:4px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="pill flat-chip" style="background:${flatBadgeColor(fn)}">${fn}</span>
+            <span class="owner-name" style="flex:1 1 100px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</span>
+            <span class="mono" style="font-weight:800; font-size:15.5px; color:${f.total>0?'var(--danger)':'#15803D'};">${fmtMoney(f.total)}</span>
+          </div>
+          ${breakdown ? `<div style="display:flex; gap:10px; flex-wrap:wrap; padding-left:2px;">${breakdown}</div>` : ''}
+        </div>`;
+      }).join('')}
     </div>`;
+  }).join('');
 }
 
 /* ---- generic delete (with a proper styled confirm popup) ---- */
