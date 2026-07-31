@@ -50,20 +50,28 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif; font-weight:700; margin:0 0 .3e
 
 .hero-banner{
   position:relative;
-  margin:-16px -16px 20px;
-  background:linear-gradient(135deg, #3730A3 0%, var(--maroon) 60%, #6D28D9 100%);
+  margin:-16px -16px 24px;
+  background:linear-gradient(135deg, #3730A3 0%, var(--maroon) 55%, #7C3AED 100%);
   display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;
-  padding:18px 20px 16px;
+  padding:22px 20px 26px;
+  border-radius:0 0 26px 26px;
+  box-shadow:0 14px 34px -10px rgba(55,48,163,.5);
+  overflow:hidden;
 }
-.hero-banner .title-block{display:flex; flex-direction:column; gap:3px; min-width:0;}
+.hero-banner::before{
+  content:""; position:absolute; inset:0; z-index:0;
+  background:radial-gradient(circle at 88% -15%, rgba(255,255,255,.28), transparent 55%);
+}
+.hero-banner .title-block{position:relative; z-index:1; display:flex; flex-direction:column; gap:3px; min-width:0;}
 .hero-banner .eyebrow{
-  color:rgba(255,255,255,.75); font-size:11px; font-weight:700;
-  letter-spacing:.14em; text-transform:uppercase;
+  color:rgba(255,255,255,.78); font-size:11px; font-weight:700;
+  letter-spacing:.16em; text-transform:uppercase;
 }
 .hero-banner h1{
-  color:#fff; font-size:21px; font-weight:700; margin:0; letter-spacing:-.01em; line-height:1.2;
+  color:#fff; font-size:22px; font-weight:800; margin:0; letter-spacing:-.01em; line-height:1.2;
+  text-shadow:0 2px 12px rgba(0,0,0,.15);
 }
-.hero-banner .who{display:flex; flex-direction:column-reverse; align-items:flex-end; gap:8px; font-size:13px; flex-shrink:0; margin-left:auto;}
+.hero-banner .who{position:relative; z-index:1; display:flex; flex-direction:column-reverse; align-items:flex-end; gap:8px; font-size:13px; flex-shrink:0; margin-left:auto;}
 .hero-banner .who button.primary{background:#fff; color:var(--maroon); border-color:#fff; box-shadow:0 2px 10px rgba(20,22,43,.2);}
 .hero-banner .who button.primary:hover{background:#F3F4F8; border-color:#F3F4F8;}
 .hero-banner .who button:not(.primary){background:rgba(255,255,255,.15); color:#fff; border-color:rgba(255,255,255,.4);}
@@ -134,8 +142,8 @@ tr:hover td{background:var(--paper-dark);}
 .floor-x:hover td,[class*="floor-"]:hover td{filter:brightness(0.97);}
 .veh-two{background:#E7F8F8;}
 .veh-four{background:#FBE9E8;}
-.mobile{font-weight:700; font-size:16px; letter-spacing:.01em;}
-.owner-name{font-weight:700;}
+.mobile{font-weight:700; font-size:16px; letter-spacing:.01em; color:var(--maroon);}
+.owner-name{font-weight:700; color:var(--ink);}
 .flat-no{font-weight:800; font-size:17px;}
 .search-safe{
   background:#ECFDF3 !important;
@@ -634,12 +642,12 @@ async function renderDashboardTab(box){
     </div>
     <div class="card"><h3>By Payment Mode</h3>
       <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
-      ${(byMode||[]).map(m=>`<tr><td>${m.mode}</td><td class="mono stat-good" style="border:none">${fmtMoney(m.collected)}</td><td class="mono stat-bad" style="border:none">${fmtMoney(m.spent)}</td></tr>`).join('')}
+      ${(byMode||[]).map(m=>`<tr><td style="font-weight:600">${m.mode}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:#15803D;">${fmtMoney(m.collected)}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:var(--danger);">${fmtMoney(m.spent)}</td></tr>`).join('')}
       </tbody></table>
     </div>
     <div class="card"><h3>Expense by Category</h3>
       <table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>
-      ${(byCat||[]).map(c=>`<tr><td>${c.category}</td><td class="mono">${fmtMoney(c.total_amount)}</td></tr>`).join('')}
+      ${(byCat||[]).map(c=>`<tr><td style="font-weight:600">${c.category}</td><td class="mono" style="font-weight:800; font-size:15px;">${fmtMoney(c.total_amount)}</td></tr>`).join('')}
       </tbody></table>
     </div>
     <div class="card">
@@ -874,8 +882,8 @@ function collectionsRowsHtml(list){
     const waKey = `collection:${c.id}`;
     const pillId = `coll-wa-${c.id}`;
     return `<tr class="floor-${Math.floor(c.flat_no/100)}">
-        <td class="mono v-input">${fmtDate(c.collection_date)}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
-        <td class="mono" style="color:${pc}; font-weight:700">${fmtMoney(c.amount)}</td><td style="color:${pc}; font-weight:600">${c.mode}</td><td style="color:${pc}; font-weight:600">${c.purpose||''}</td>
+        <td class="mono config-note" style="margin:0">${fmtDate(c.collection_date)}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
+        <td class="mono" style="color:${pc}; font-weight:800; font-size:15.5px;">${fmtMoney(c.amount)}</td><td style="color:${pc}; font-weight:600; font-size:12.5px;">${c.mode}</td><td style="color:${pc}; font-weight:700; font-size:12.5px;">${c.purpose||''}</td>
         <td style="white-space:nowrap">${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)} `:''}<button class="danger" onclick="deleteRow('collections','id',${c.id})" title="Delete">🗑️</button></td>
       </tr>`;
   }).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`;
@@ -1017,8 +1025,8 @@ async function renderExpensesTab(box){
         const waKey = `expense:${e.id}:group`;
         const pillId = `exp-wa-${e.id}`;
         return `<tr class="floor-${Number((e.expense_date||'').slice(5,7))||'x'}">
-        <td class="mono v-input">${fmtDate(e.expense_date)}</td><td class="v-input">${e.category}</td><td class="v-input">${e.description||''}</td>
-        <td class="mono v-input">${fmtMoney(e.amount)}</td><td class="v-input">${e.paid_to||''}</td>
+        <td class="mono config-note" style="margin:0">${fmtDate(e.expense_date)}</td><td style="font-weight:700; font-size:12.5px;">${e.category}</td><td class="config-note" style="margin:0">${e.description||''}</td>
+        <td class="mono" style="font-weight:800; font-size:15.5px; color:var(--danger);">${fmtMoney(e.amount)}</td><td class="config-note" style="margin:0">${e.paid_to||''}</td>
         <td style="white-space:nowrap"><a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)} <button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})" title="Delete">🗑️</button></td>
       </tr>`;
       }).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
