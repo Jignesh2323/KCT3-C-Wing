@@ -283,6 +283,36 @@ function waShareLink(message){
   // send the pre-filled message to any chat, e.g. your society's group.
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
+/* ---- Long-press-to-copy for phone numbers (no tap-to-call, so a
+   stray tap while just browsing never opens the dialer by accident) ---- */
+let longPressTimer = null;
+function startLongPressCopy(e, number){
+  clearTimeout(longPressTimer);
+  if(!number) return;
+  const target = e.currentTarget;
+  longPressTimer = setTimeout(()=>{
+    longPressTimer = null;
+    navigator.clipboard.writeText(number).then(()=>{
+      showCopyToast(target);
+    }).catch(()=>{ alert('Copy nahi ho paya. Number: ' + number); });
+  }, 450);
+}
+function cancelLongPressCopy(){
+  if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; }
+}
+function showCopyToast(target){
+  const rect = target.getBoundingClientRect();
+  const toast = document.createElement('span');
+  toast.textContent = '✓ Copied!';
+  toast.style.cssText = 'position:fixed; background:#14162B; color:#fff; font-size:12px; font-weight:700; padding:5px 10px; border-radius:8px; z-index:2000; white-space:nowrap; pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,.25);';
+  document.body.appendChild(toast);
+  toast.style.left = Math.max(6, rect.left + rect.width/2 - toast.offsetWidth/2) + 'px';
+  toast.style.top = (rect.top - 34) + 'px';
+  setTimeout(()=> toast.remove(), 1200);
+}
+function copyableNumberAttrs(number, extraStyle){
+  return `ontouchstart="startLongPressCopy(event,'${number}')" ontouchend="cancelLongPressCopy()" ontouchmove="cancelLongPressCopy()" onmousedown="startLongPressCopy(event,'${number}')" onmouseup="cancelLongPressCopy()" onmouseleave="cancelLongPressCopy()" style="user-select:none; -webkit-user-select:none; cursor:pointer; ${extraStyle||''}" title="Dabaye rakho copy karne ke liye"`;
+}
 function fmtVehicleNumber(num){
   if(!num) return '';
   const clean = num.toString().toUpperCase().replace(/\s|-/g,'');
@@ -692,6 +722,7 @@ async function renderFlatsTab(box){
       </div>
     </div>`}
     ${error?`<div class="card"><div class="msg error">${error.message}</div></div>`:''}
+    <p class="config-note" style="text-align:center; margin-top:2px;">📋 નંબર પર દબાવી રાખો તો કૉપિ થઈ જશે</p>
     ${flatsByFloorHtml(data||[])}`;
 }
 function flatsByFloorHtml(data){
@@ -717,7 +748,7 @@ function flatEntryHtml(f){
   return `<div class="flat-entry">
     <span class="pill flat-chip" style="background:${flatBadgeColor(f.flat_no)}">${f.flat_no}</span>
     <span class="owner-name" style="flex:1 1 140px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</span>
-    <span class="mono contact mobile">${f.contact_no||''}</span>
+    <span class="mono contact mobile" ${f.contact_no?copyableNumberAttrs(f.contact_no):''}>${f.contact_no||''}</span>
     <select onchange="updateFlatStatusInline(${f.flat_no}, this.value)" class="pill-select ${f.status==='Sold'?'sold':'unsold'}">
       <option value="Sold" ${f.status==='Sold'?'selected':''}>Sold</option>
       <option value="Unsold" ${f.status==='Unsold'?'selected':''}>Unsold</option>
@@ -1138,6 +1169,7 @@ async function renderVehiclesTab(box){
       <div class="form-row">
         <div class="field"><label class="search-safe-label">🔓 Filter by Vehicle No / Flat No (open search, no PIN)</label><input id="v_search" class="search-safe" placeholder="type to filter"></div>
       </div>
+      <p class="config-note" style="text-align:center; margin-top:2px;">📋 નંબર પર દબાવી રાખો તો કૉપિ થઈ જશે</p>
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <div id="vehicles-results-wrap"></div>
     </div>`;
@@ -1164,7 +1196,7 @@ function filterVehicleResults(){
     <div class="card floor-card" style="text-align:center;">
       <span class="pill flat-chip" style="background:${flatBadgeColor(g.flat_no)}; font-size:22px; padding:6px 22px;">${g.flat_no}</span>
       <h3 style="margin-top:8px;">${g.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</h3>
-      ${g.mobile_no ? `<p class="mono" style="margin-top:-6px; font-size:19px; font-weight:800; color:var(--maroon); letter-spacing:.02em;">📞 ${g.mobile_no}</p>` : ''}
+      ${g.mobile_no ? `<p class="mono" ${copyableNumberAttrs(g.mobile_no, 'margin-top:-6px; font-size:19px; font-weight:800; color:var(--maroon); letter-spacing:.02em; display:inline-block;')}>📞 ${g.mobile_no}</p>` : ''}
       ${g.vehicles.map(v=>`<div class="flat-entry">
           <img src="${v.vehicle_type==='Two Wheeler'?ICON_BIKE:ICON_CAR}" alt="" style="height:20px;">
           <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}" style="font-size:13.5px;">${fmtVehicleNumber(v.vehicle_number)}</span>
