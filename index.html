@@ -214,6 +214,12 @@ tr:hover td{background:var(--paper-dark);}
 .pill-select.sold{color:#15803D;}
 .pill-select.unsold{color:var(--ink-soft);}
 .config-note{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+.floor-card h3{display:flex; align-items:baseline; flex-wrap:wrap; gap:4px;}
+.floor-heading-center{justify-content:center; text-align:center; width:100%;}
+.flat-entry{display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--rule);}
+.flat-entry:last-child{border-bottom:none;}
+.flat-chip{color:#fff; font-weight:800; padding:4px 12px; border:none; font-size:13px;}
+.flat-actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto;}
 a{color:var(--maroon);}
 
 @media (max-width:600px){
@@ -677,35 +683,41 @@ async function renderFlatsTab(box){
         <div class="field" style="flex:0"><button onclick="resetFlatForm()">Clear</button></div>
       </div>
     </div>`}
-    <div class="card">
-      ${error?`<div class="msg error">${error.message}</div>`:''}
-      <table><thead><tr><th>Flat</th><th>Floor</th><th>Owner</th><th>Contact</th><th>Status</th><th>Vehicle?</th><th></th></tr></thead><tbody>
-      ${(data||[]).map((f,i)=>{
-        const waMsg = `Namaste ${f.owner_name||''}, Flat ${f.flat_no} — C-Wing Society Maintenance system me aapki detail register ho gayi hai. Kisi bhi payment/query ke liye humse contact karein.\n\n- C-Wing Society Maintenance`;
-        const waLinkHref = waLink(f.contact_no, waMsg);
-        const waKey = `flat:${f.flat_no}`;
-        const waPillId = `flat-wa-${f.flat_no}`;
-        const isNewFloorGroup = i===0 || (data[i-1].floor??null) !== (f.floor??null);
-        let floorCell = '';
-        if(isNewFloorGroup){
-          let span = 1;
-          for(let j=i+1; j<data.length && (data[j].floor??null)===(f.floor??null); j++) span++;
-          floorCell = `<td class="v-input" rowspan="${span}" style="vertical-align:middle; text-align:center; font-weight:700">${f.floor??''}</td>`;
-        }
-        return `<tr class="floor-${f.floor||'x'}">
-        <td class="mono v-input flat-no">${f.flat_no}</td>${floorCell}<td class="v-input owner-name">${f.owner_name||''}</td><td class="mono v-input contact mobile">${f.contact_no||''}</td>
-        <td class="v-formula">
-          <select onchange="updateFlatStatusInline(${f.flat_no}, this.value)" class="pill-select ${f.status==='Sold'?'sold':'unsold'}">
-            <option value="Sold" ${f.status==='Sold'?'selected':''}>Sold</option>
-            <option value="Unsold" ${f.status==='Unsold'?'selected':''}>Unsold</option>
-          </select>
-        </td><td class="v-formula">${f.has_vehicle?'Yes':'No'}</td>
-        <td style="white-space:nowrap">${waLinkHref?`<a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${waPillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, waPillId)} `:''}<button onclick="editFlat(${f.flat_no})">Edit</button> <button class="danger" onclick="deleteRow('flats','flat_no',${f.flat_no})">Delete</button></td>
-      </tr>`;
-      }).join('') || `<tr><td colspan="7" class="empty">No flats yet.</td></tr>`}
-      </tbody></table>
-      <p class="config-note" style="margin-top:8px"><span class="v-input" style="font-weight:600">■</span> blue = entered directly &nbsp; <span class="v-formula" style="font-weight:600">■</span> black = auto-calculated &nbsp; · row color = floor group (like the old sheet)</p>
+    ${error?`<div class="card"><div class="msg error">${error.message}</div></div>`:''}
+    ${flatsByFloorHtml(data||[])}`;
+}
+function flatsByFloorHtml(data){
+  if(!data.length) return `<div class="card"><p class="empty">No flats yet.</p></div>`;
+  const NO_FLOOR = 'none';
+  const groups = {};
+  data.forEach(f=>{
+    const key = f.floor ?? NO_FLOOR;
+    (groups[key] = groups[key] || []).push(f);
+  });
+  const floorKeys = Object.keys(groups).sort((a,b)=> (a===NO_FLOOR?Infinity:Number(a)) - (b===NO_FLOOR?Infinity:Number(b)));
+  return floorKeys.map(fk=>{
+    const flats = groups[fk];
+    const soldCount = flats.filter(f=>f.status==='Sold').length;
+    const label = fk===NO_FLOOR ? 'No Floor Set' : `Floor ${fk}`;
+    return `<div class="card floor-card">
+      <h3 class="floor-heading-center">🏢 ${label} <span class="config-note" style="display:inline; font-weight:600; margin-left:6px;">${flats.length} flat${flats.length>1?'s':''} · ${soldCount} sold</span></h3>
+      ${flats.map(f=>flatEntryHtml(f)).join('')}
     </div>`;
+  }).join('');
+}
+function flatEntryHtml(f){
+  return `<div class="flat-entry">
+    <span class="pill flat-chip" style="background:${flatBadgeColor(f.flat_no)}">${f.flat_no}</span>
+    <span class="owner-name" style="flex:1 1 140px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</span>
+    <span class="mono contact mobile">${f.contact_no||''}</span>
+    <select onchange="updateFlatStatusInline(${f.flat_no}, this.value)" class="pill-select ${f.status==='Sold'?'sold':'unsold'}">
+      <option value="Sold" ${f.status==='Sold'?'selected':''}>Sold</option>
+      <option value="Unsold" ${f.status==='Unsold'?'selected':''}>Unsold</option>
+    </select>
+    <span class="flat-actions">
+      <button onclick="editFlat(${f.flat_no})">Edit</button>
+    </span>
+  </div>`;
 }
 async function updateFlatStatusInline(flatNo, value){
   await withPin(async ()=>{
@@ -864,7 +876,7 @@ function collectionsRowsHtml(list){
     return `<tr class="floor-${Math.floor(c.flat_no/100)}">
         <td class="mono v-input">${fmtDate(c.collection_date)}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
         <td class="mono" style="color:${pc}; font-weight:700">${fmtMoney(c.amount)}</td><td style="color:${pc}; font-weight:600">${c.mode}</td><td style="color:${pc}; font-weight:600">${c.purpose||''}</td>
-        <td style="white-space:nowrap">${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)} `:''}<button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
+        <td style="white-space:nowrap">${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)} `:''}<button class="danger" onclick="deleteRow('collections','id',${c.id})" title="Delete">🗑️</button></td>
       </tr>`;
   }).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`;
 }
@@ -1007,7 +1019,7 @@ async function renderExpensesTab(box){
         return `<tr class="floor-${Number((e.expense_date||'').slice(5,7))||'x'}">
         <td class="mono v-input">${fmtDate(e.expense_date)}</td><td class="v-input">${e.category}</td><td class="v-input">${e.description||''}</td>
         <td class="mono v-input">${fmtMoney(e.amount)}</td><td class="v-input">${e.paid_to||''}</td>
-        <td style="white-space:nowrap"><a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)} <button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
+        <td style="white-space:nowrap"><a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)} <button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})" title="Delete">🗑️</button></td>
       </tr>`;
       }).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
       </tbody></table>
@@ -1074,7 +1086,7 @@ async function renderTransfersTab(box){
       <table><thead><tr><th>Date</th><th>Amount</th><th>Remarks</th><th></th></tr></thead><tbody>
       ${(data||[]).map(t=>`<tr>
         <td class="mono v-input">${fmtDate(t.transfer_date)}</td><td class="mono v-input">${fmtMoney(t.amount)}</td><td class="v-input">${t.remarks||''}</td>
-        <td><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})">Delete</button></td>
+        <td><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})" title="Delete">🗑️</button></td>
       </tr>`).join('') || `<tr><td colspan="4" class="empty">No transfers yet.</td></tr>`}
       </tbody></table>
     </div>`;
@@ -1140,19 +1152,21 @@ function filterVehicleResults(){
     byFlat[v.flat_no].vehicles.push(v);
   });
   const groups = Object.values(byFlat).sort((a,b)=>a.flat_no-b.flat_no);
-  wrap.innerHTML = `<table><thead><tr><th>Flat</th><th>Owner</th><th>Mobile</th><th>Vehicles</th></tr></thead><tbody>
-    ${groups.map(g=>`<tr class="floor-${Math.floor(g.flat_no/100)}" style="border-bottom:4px solid var(--maroon);">
-      <td class="mono v-input flat-no" style="vertical-align:top">${g.flat_no}</td><td class="v-formula owner-name" style="vertical-align:top">${g.owner_name||''}</td><td class="mono mobile v-formula" style="vertical-align:top">${g.mobile_no||''}</td>
-      <td>${g.vehicles.map(v=>`<div style="margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <img src="${v.vehicle_type==='Two Wheeler'?ICON_BIKE:ICON_CAR}" alt="" style="height:22px; vertical-align:middle;">
-          <span class="pill" style="background:${flatBadgeColor(g.flat_no)}; color:#fff; border-color:${flatBadgeColor(g.flat_no)}; font-weight:700; padding:4px 12px;">Flat ${g.flat_no}</span>
-          <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}">${fmtVehicleNumber(v.vehicle_number)}</span>
-          ${v.remarks ? `<span class="pill" style="background:#B45309; color:#fff; border-color:#B45309; font-weight:700; font-size:12.5px;">⚠ ${v.remarks}</span>` : ''}
-          <span style="font-weight:700; font-size:15px; color:var(--ink-soft);">Sticker: <span style="color:${v.sticker_allotted==='Yes' ? '#2E7D4F' : '#A33A2E'};">${v.sticker_allotted}</span></span>
-          <button class="danger" onclick="deleteRow('vehicles','id',${v.id})">Delete</button>
-        </div>`).join('')}</td>
-    </tr>`).join('') || `<tr><td colspan="4" class="empty">No vehicles found.</td></tr>`}
-    </tbody></table>`;
+  wrap.innerHTML = groups.length ? groups.map(g=>`
+    <div class="card floor-card" style="text-align:center;">
+      <span class="pill flat-chip" style="background:${flatBadgeColor(g.flat_no)}; font-size:22px; padding:6px 22px;">${g.flat_no}</span>
+      <h3 style="margin-top:8px;">${g.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</h3>
+      ${g.mobile_no ? `<p class="mono" style="margin-top:-6px; font-size:19px; font-weight:800; color:var(--maroon); letter-spacing:.02em;">📞 ${g.mobile_no}</p>` : ''}
+      ${g.vehicles.map(v=>`<div class="flat-entry">
+          <img src="${v.vehicle_type==='Two Wheeler'?ICON_BIKE:ICON_CAR}" alt="" style="height:20px;">
+          <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}" style="font-size:13.5px;">${fmtVehicleNumber(v.vehicle_number)}</span>
+          ${v.remarks ? `<span class="pill" style="background:#B45309; color:#fff; border-color:#B45309; font-weight:700; font-size:11px;">⚠ ${v.remarks}</span>` : ''}
+          <span style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">Sticker: <span style="color:${v.sticker_allotted==='Yes' ? '#2E7D4F' : '#A33A2E'};">${v.sticker_allotted}</span></span>
+          <span class="flat-actions">
+            <button class="danger" onclick="deleteRow('vehicles','id',${v.id})" title="Delete">🗑️</button>
+          </span>
+        </div>`).join('')}
+    </div>`).join('') : `<div class="card"><p class="empty">No vehicles found.</p></div>`;
 }
 async function addVehicle(){
   await withPin(async ()=>{
@@ -1188,7 +1202,7 @@ async function renderChargesTab(box){
       <table><thead><tr><th>Round</th><th>Amount/Flat</th><th>Applies To</th><th>Started</th><th></th></tr></thead><tbody>
       ${(data||[]).map(c=>`<tr>
         <td>${c.round_name}</td><td class="mono">${fmtMoney(c.amount_per_flat)}</td><td>${c.applies_to}</td><td class="mono">${fmtDate(c.date_started)}</td>
-        <td style="white-space:nowrap"><button onclick="editCharge('${c.round_name}')">Edit</button> <button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)">Delete</button></td>
+        <td style="white-space:nowrap"><button onclick="editCharge('${c.round_name}')">Edit</button> <button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)" title="Delete">🗑️</button></td>
       </tr>`).join('') || `<tr><td colspan="5" class="empty">No charge rounds yet.</td></tr>`}
       </tbody></table>
     </div>`;
@@ -1297,7 +1311,7 @@ async function renderStickerLogTab(box){
             ${(s.reason==='Shared Pass' || (s.reason||'').startsWith('No Separate Sticker'))
               ? `<span class="pill" style="background:#B45309; color:#fff; border-color:#B45309; font-weight:700; font-size:12.5px;">⚠ ${s.reason}</span>`
               : `<span class="v-input">${s.reason||''}</span>`}
-            <button class="danger" onclick="deleteRow('sticker_log','id',${s.id})">Delete</button>
+            <button class="danger" onclick="deleteRow('sticker_log','id',${s.id})" title="Delete">🗑️</button>
           </div>`;
         }).join('')}</td>
       </tr>`).join('') || `<tr><td colspan="2" class="empty">No entries yet.</td></tr>`}
