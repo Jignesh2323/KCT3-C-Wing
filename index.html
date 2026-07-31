@@ -1394,10 +1394,14 @@ async function renderDuesTab(box){
     byFlat[r.flat_no].total += Number(r.pending_amount||0);
   });
   const flatNos = Object.keys(byFlat).map(Number).sort((a,b)=>a-b);
+  const grandTotal = flatNos.reduce((s,fn)=>s+byFlat[fn].total, 0);
   box.innerHTML = `
     <div class="card">
       <h3>Dues Summary</h3>
       <p class="config-note">Adding a new round in the "Charges" tab automatically adds a column here and folds it into each flat's total — nothing else to configure.</p>
+      <div class="grid-stats" style="margin:10px 0 14px">
+        <div class="stat ${grandTotal>0?'stat-bad':'stat-good'}"><div class="num mono">${fmtMoney(grandTotal)}</div><div class="lbl">⚖️ Total Pending (All Flats)</div></div>
+      </div>
       ${e1||e2?`<div class="msg error">${(e1||e2).message}</div>`:''}
       <table><thead><tr>
         <th>Flat</th><th>Owner</th>
@@ -1407,9 +1411,9 @@ async function renderDuesTab(box){
       ${flatNos.map(fn=>{
         const f = byFlat[fn];
         return `<tr class="floor-${Math.floor(fn/100)}">
-          <td class="mono v-input flat-no">${fn}</td><td class="v-input owner-name">${f.owner_name||''}</td>
-          ${roundNames.map(r=>`<td class="mono v-formula">${fmtMoney(f.perRound[r]||0)}</td>`).join('')}
-          <td class="mono v-formula" style="font-weight:600">${fmtMoney(f.total)}</td>
+          <td class="mono v-input flat-no">${fn}</td><td class="owner-name">${f.owner_name||''}</td>
+          ${roundNames.map(r=>`<td class="mono config-note" style="margin:0; font-size:12.5px;">${fmtMoney(f.perRound[r]||0)}</td>`).join('')}
+          <td class="mono" style="font-weight:800; font-size:15.5px; color:${f.total>0?'var(--danger)':'#15803D'};">${fmtMoney(f.total)}</td>
         </tr>`;
       }).join('') || `<tr><td colspan="${2+roundNames.length+1}" class="empty">No charge rounds set up yet — add one in the Charges tab.</td></tr>`}
       </tbody></table>
