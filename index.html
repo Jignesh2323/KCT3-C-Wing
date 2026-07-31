@@ -179,10 +179,22 @@ tr:hover td{background:var(--paper-dark);}
 .nav-item .nav-label{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;}
 .nav-item.active{color:var(--maroon);}
 .nav-item.active .nav-icon{background:#EEF2FF; transform:translateY(-1px);}
-.nav-more{padding:0;}
-.nav-more select{
-  position:absolute; inset:0; opacity:0; border:none; padding:0; margin:0; min-height:0; cursor:pointer;
+.nav-more{position:relative;}
+.more-menu{
+  position:absolute; bottom:calc(100% + 12px); right:-6px; min-width:190px;
+  background:var(--white-card); border:1px solid var(--rule); border-radius:14px;
+  box-shadow:var(--shadow-lg); padding:6px; z-index:70;
+  display:none; flex-direction:column; gap:2px;
 }
+.more-menu.open{display:flex;}
+.more-menu-item{
+  display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
+  font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600; color:var(--ink);
+  cursor:pointer; text-align:left; white-space:nowrap;
+}
+.more-menu-item .nav-icon{font-size:16px; width:auto; height:auto; background:none;}
+.more-menu-item:hover{background:var(--paper-dark);}
+.more-menu-item.active{background:#EEF2FF; color:var(--maroon);}
 .form-row{display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:16px;}
 .form-row .field{flex:1; min-width:140px; margin-bottom:0;}
 .msg{padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:13.5px;}
@@ -237,6 +249,13 @@ function fmtDate(d){
   if(!d) return '';
   const [y,m,dd] = String(d).slice(0,10).split('-');
   return (y && m && dd) ? `${dd}-${m}-${y}` : String(d);
+}
+const PURPOSE_COLORS = ['#B33A2E','#1D5FA8','#3E8C2E','#B35A18','#5D3EA8','#B3860A','#207E8F','#B32626','#3E9B2E','#B34B18','#A82368','#278A22'];
+function purposeColor(purpose){
+  if(!purpose) return 'inherit';
+  let hash = 0;
+  for(let i=0;i<purpose.length;i++){ hash = (hash*31 + purpose.charCodeAt(i)) & 0xffffffff; }
+  return PURPOSE_COLORS[Math.abs(hash) % PURPOSE_COLORS.length];
 }
 function fmtVehicleNumber(num){
   if(!num) return '';
@@ -406,7 +425,7 @@ document.addEventListener('focusin', (e)=>{
 
 /* ---------------- render root — always shows the app, no view-lock ---------------- */
 async function render(){
-  renderAdmin();
+  await renderAdmin();
 }
 
 /* ---------------- shared topbar ---------------- */
@@ -449,6 +468,10 @@ const TAB_ICONS = {
   collections: '📥',
   expenses: '📤',
   vehicles: '🚗',
+  transfers: '🔁',
+  charges: '🧾',
+  stickerlog: '🏷️',
+  dues: '📋',
 };
 
 async function renderAdmin(){
@@ -463,16 +486,28 @@ async function renderAdmin(){
     ${primaryTabs.map(([k,label])=>`<div class="nav-item ${state.tab===k?'active':''}" onclick="setTab('${k}')">
       <span class="nav-icon">${TAB_ICONS[k]||'•'}</span><span class="nav-label">${label}</span>
     </div>`).join('')}
-    <div class="nav-item nav-more ${onSecondary?'active':''}">
+    <div class="nav-item nav-more ${onSecondary?'active':''}" onclick="toggleMoreMenu(event)">
       <span class="nav-icon">⋯</span><span class="nav-label">More</span>
-      <select onchange="onMoreTabSelect(this.value)">
-        <option value="">⋯ More</option>
-        ${secondaryTabs.map(([k,label])=>`<option value="${k}" ${state.tab===k?'selected':''}>${label}</option>`).join('')}
-      </select>
+      <div class="more-menu" id="more-menu">
+        ${secondaryTabs.map(([k,label])=>`<div class="more-menu-item ${state.tab===k?'active':''}" onclick="event.stopPropagation(); closeMoreMenu(); onMoreTabSelect('${k}')">
+          <span class="nav-icon">${TAB_ICONS[k]||'•'}</span>${label}
+        </div>`).join('')}
+      </div>
     </div>
   </nav>`;
-  renderTabContent();
+  await renderTabContent();
 }
+function toggleMoreMenu(e){
+  e.stopPropagation();
+  document.getElementById('more-menu')?.classList.toggle('open');
+}
+function closeMoreMenu(){
+  document.getElementById('more-menu')?.classList.remove('open');
+}
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('more-menu');
+  if(menu && menu.classList.contains('open') && !e.target.closest('.nav-more')) menu.classList.remove('open');
+});
 async function onMoreTabSelect(k){
   if(!k) return;
   await withPin(async ()=>{ state.tab = k; render(); });
@@ -561,9 +596,11 @@ async function refreshTab(){ renderTabContent(); }
 /* ---- Flats tab ---- */
 let flatsCache = [];
 async function renderFlatsTab(box){
+  const unlocked = pinStillValid() && state.user;
   const {data, error} = await sb.from('v_flats').select('*').order('flat_no');
   flatsCache = data || [];
   box.innerHTML = `
+    ${!unlocked ? `<p class="config-note">🔒 Add / Update Flat form sirf Unlock karne ke baad dikhta hai.</p>` : `
     <div class="card">
       <h3 id="flats-form-title">Add / Update Flat</h3>
       <div class="form-row">
@@ -578,6 +615,8 @@ async function renderFlatsTab(box){
         <div class="field" style="flex:0"><button class="primary" onclick="upsertFlat()">Save</button></div>
         <div class="field" style="flex:0"><button onclick="resetFlatForm()">Clear</button></div>
       </div>
+    </div>`}
+    <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Flat</th><th>Floor</th><th>Owner</th><th>Contact</th><th>Status</th><th>Vehicle?</th><th></th></tr></thead><tbody>
       ${(data||[]).map(f=>`<tr class="floor-${f.floor||'x'}">
@@ -601,9 +640,9 @@ async function updateFlatStatusInline(flatNo, value){
     refreshTab();
   });
 }
-function editFlat(flatNo){
+function populateFlatForm(flatNo){
   const f = flatsCache.find(x=>x.flat_no===flatNo);
-  if(!f) return;
+  if(!f || !document.getElementById('f_no')) return;
   document.getElementById('f_no').value = f.flat_no;
   document.getElementById('f_floor').value = f.floor ?? '';
   document.getElementById('f_owner').value = f.owner_name || '';
@@ -612,6 +651,10 @@ function editFlat(flatNo){
   document.getElementById('f_remarks').value = f.remarks || '';
   document.getElementById('flats-form-title').textContent = `Editing Flat ${f.flat_no}`;
   document.getElementById('f_no').scrollIntoView({behavior:'smooth', block:'center'});
+}
+async function editFlat(flatNo){
+  if(pinStillValid() && state.user){ populateFlatForm(flatNo); return; }
+  await withPin(async ()=>{ await render(); populateFlatForm(flatNo); });
 }
 function resetFlatForm(){
   ['f_no','f_floor','f_owner','f_contact','f_remarks'].forEach(id=>document.getElementById(id).value='');
@@ -737,11 +780,11 @@ async function updateBulkBuilderTotal(){
     : `Sabhi Unsold flats ka "${purpose}" ke liye collection pehle se hi entered hai.`;
 }
 function collectionsRowsHtml(list){
-  return (list||[]).map(c=>`<tr class="floor-${Math.floor(c.flat_no/100)}">
+  return (list||[]).map(c=>{ const pc = purposeColor(c.purpose); return `<tr class="floor-${Math.floor(c.flat_no/100)}">
         <td class="mono v-input">${fmtDate(c.collection_date)}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
-        <td class="mono v-input">${fmtMoney(c.amount)}</td><td class="v-input">${c.mode}</td><td class="v-input">${c.purpose||''}</td>
+        <td class="mono" style="color:${pc}; font-weight:700">${fmtMoney(c.amount)}</td><td style="color:${pc}; font-weight:600">${c.mode}</td><td style="color:${pc}; font-weight:600">${c.purpose||''}</td>
         <td><button class="danger" onclick="deleteRow('collections','id',${c.id})">Delete</button></td>
-      </tr>`).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`;
+      </tr>`; }).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`;
 }
 function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
@@ -838,11 +881,16 @@ async function bulkBuilderPayment(){
 }
 
 /* ---- Expenses tab ---- */
+let expensesCache = [];
+let editingExpenseId = null;
 async function renderExpensesTab(box){
+  const unlocked = pinStillValid() && state.user;
   const {data, error} = await sb.from('expenses').select('*').order('expense_date',{ascending:false});
+  expensesCache = data || [];
   box.innerHTML = `
+    ${!unlocked ? `<p class="config-note">🔒 Add Expense form sirf Unlock karne ke baad dikhta hai.</p>` : `
     <div class="card">
-      <h3>Add Expense</h3>
+      <h3 id="expenses-form-title">Add Expense</h3>
       <div class="form-row">
         <div class="field"><label>Date</label><input id="e_date" type="date"></div>
         <div class="field"><label>Category</label>
@@ -859,17 +907,44 @@ async function renderExpensesTab(box){
         <div class="field"><label>Mode</label>
           <select id="e_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
         </div>
-        <div class="field" style="flex:0"><button class="primary" onclick="addExpense()">Add</button></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addExpense()">Save</button></div>
+        <div class="field" style="flex:0"><button onclick="resetExpenseForm()">Clear</button></div>
       </div>
+    </div>`}
+    <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Paid To</th><th></th></tr></thead><tbody>
       ${(data||[]).map(e=>`<tr class="floor-${Number((e.expense_date||'').slice(5,7))||'x'}">
         <td class="mono v-input">${fmtDate(e.expense_date)}</td><td class="v-input">${e.category}</td><td class="v-input">${e.description||''}</td>
         <td class="mono v-input">${fmtMoney(e.amount)}</td><td class="v-input">${e.paid_to||''}</td>
-        <td><button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
+        <td style="white-space:nowrap"><button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})">Delete</button></td>
       </tr>`).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
       </tbody></table>
     </div>`;
+}
+function populateExpenseForm(id){
+  const e = expensesCache.find(x=>x.id===id);
+  if(!e || !document.getElementById('e_date')) return;
+  editingExpenseId = id;
+  document.getElementById('e_date').value = e.expense_date || '';
+  document.getElementById('e_cat').value = e.category || '';
+  document.getElementById('e_desc').value = e.description || '';
+  document.getElementById('e_amount').value = e.amount ?? '';
+  document.getElementById('e_paidto').value = e.paid_to || '';
+  document.getElementById('e_mode').value = e.mode || 'Cash';
+  document.getElementById('expenses-form-title').textContent = `Editing Expense`;
+  document.getElementById('e_date').scrollIntoView({behavior:'smooth', block:'center'});
+}
+async function editExpense(id){
+  if(pinStillValid() && state.user){ populateExpenseForm(id); return; }
+  await withPin(async ()=>{ await render(); populateExpenseForm(id); });
+}
+function resetExpenseForm(){
+  editingExpenseId = null;
+  ['e_date','e_desc','e_amount','e_paidto'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const cat = document.getElementById('e_cat'); if(cat) cat.value = 'Flat Expense';
+  const mode = document.getElementById('e_mode'); if(mode) mode.value = 'Cash';
+  const title = document.getElementById('expenses-form-title'); if(title) title.textContent = 'Add Expense';
 }
 async function addExpense(){
   await withPin(async ()=>{
@@ -881,8 +956,10 @@ async function addExpense(){
       paid_to: document.getElementById('e_paidto').value || null,
       mode: document.getElementById('e_mode').value,
     };
-    const {error} = await sb.from('expenses').insert(payload);
-    if(error) alert(error.message); else refreshTab();
+    const {error} = editingExpenseId
+      ? await sb.from('expenses').update(payload).eq('id', editingExpenseId)
+      : await sb.from('expenses').insert(payload);
+    if(error) alert(error.message); else { editingExpenseId = null; refreshTab(); }
   });
 }
 
@@ -927,12 +1004,14 @@ async function addFundTransfer(){
 /* ---- Vehicles tab ---- */
 let vehiclesCache = [];
 async function renderVehiclesTab(box){
+  const unlocked = pinStillValid() && state.user;
   const [{data, error}, {data:flats}] = await Promise.all([
     sb.from('v_vehicles').select('*').order('flat_no'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no')
   ]);
   vehiclesCache = data || [];
   box.innerHTML = `
+    ${!unlocked ? `<p class="config-note">🔒 Add Vehicle form sirf Unlock karne ke baad dikhta hai.</p>` : `
     <div class="card">
       <h3>Add Vehicle</h3>
       <div class="form-row">
@@ -944,6 +1023,8 @@ async function renderVehiclesTab(box){
         <div class="field"><label>Remarks</label><input id="v_remarks"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addVehicle()">Add</button></div>
       </div>
+    </div>`}
+    <div class="card">
       <div class="form-row">
         <div class="field"><label class="search-safe-label">🔓 Filter by Vehicle No / Flat No (open search, no PIN)</label><input id="v_search" class="search-safe" placeholder="type to filter"></div>
       </div>
@@ -997,37 +1078,73 @@ async function addVehicle(){
 }
 
 /* ---- Charges tab ---- */
+let chargeRoundsCache = [];
+let editingChargeRoundName = null;
 async function renderChargesTab(box){
   const {data, error} = await sb.from('charges').select('*').order('date_started',{ascending:false});
+  chargeRoundsCache = data || [];
   box.innerHTML = `
     <div class="card">
-      <h3>Add Charge Round</h3>
+      <h3 id="charges-form-title">Add Charge Round</h3>
       <div class="form-row">
         <div class="field"><label>Round Name</label><input id="ch_name" placeholder="e.g. Diwali Fund"></div>
         <div class="field"><label>Amount per Flat</label><input id="ch_amount" type="number"></div>
         <div class="field"><label>Applies To</label><select id="ch_applies"><option>All Flats</option><option>Sold Flats Only</option><option>Unsold Flats Only</option></select></div>
         <div class="field"><label>Date Started</label><input id="ch_date" type="date"></div>
-        <div class="field" style="flex:0"><button class="primary" onclick="addCharge()">Add</button></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addCharge()">Save</button></div>
+        <div class="field" style="flex:0"><button onclick="resetChargeForm()">Clear</button></div>
       </div>
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Round</th><th>Amount/Flat</th><th>Applies To</th><th>Started</th><th></th></tr></thead><tbody>
       ${(data||[]).map(c=>`<tr>
         <td>${c.round_name}</td><td class="mono">${fmtMoney(c.amount_per_flat)}</td><td>${c.applies_to}</td><td class="mono">${fmtDate(c.date_started)}</td>
-        <td><button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)">Delete</button></td>
+        <td style="white-space:nowrap"><button onclick="editCharge('${c.round_name}')">Edit</button> <button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)">Delete</button></td>
       </tr>`).join('') || `<tr><td colspan="5" class="empty">No charge rounds yet.</td></tr>`}
       </tbody></table>
     </div>`;
 }
+function editCharge(roundName){
+  const c = chargeRoundsCache.find(x=>x.round_name===roundName);
+  if(!c) return;
+  editingChargeRoundName = roundName;
+  document.getElementById('ch_name').value = c.round_name;
+  document.getElementById('ch_amount').value = c.amount_per_flat ?? '';
+  document.getElementById('ch_applies').value = c.applies_to || 'All Flats';
+  document.getElementById('ch_date').value = c.date_started || '';
+  document.getElementById('charges-form-title').textContent = `Editing "${roundName}"`;
+  document.getElementById('ch_name').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function resetChargeForm(){
+  editingChargeRoundName = null;
+  ['ch_name','ch_amount','ch_date'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ch_applies').value = 'All Flats';
+  document.getElementById('charges-form-title').textContent = 'Add Charge Round';
+}
 async function addCharge(){
   await withPin(async ()=>{
+    const newName = document.getElementById('ch_name').value;
     const payload = {
-      round_name: document.getElementById('ch_name').value,
+      round_name: newName,
       amount_per_flat: Number(document.getElementById('ch_amount').value),
       applies_to: document.getElementById('ch_applies').value,
       date_started: document.getElementById('ch_date').value || null,
     };
-    const {error} = await sb.from('charges').insert(payload);
-    if(error) alert(error.message); else refreshTab();
+    if(editingChargeRoundName && editingChargeRoundName !== newName){
+      // Renaming a round: insert the new name first, repoint every collection
+      // entry to it, then remove the old name — this order never leaves a
+      // collections.purpose value pointing at a round_name that doesn't exist.
+      const insertRes = await sb.from('charges').insert(payload);
+      if(insertRes.error){ alert(insertRes.error.message); return; }
+      const moveRes = await sb.from('collections').update({purpose: newName}).eq('purpose', editingChargeRoundName);
+      if(moveRes.error){ alert('Round renamed, lekin collections entries move karte waqt error: ' + moveRes.error.message); return; }
+      const deleteRes = await sb.from('charges').delete().eq('round_name', editingChargeRoundName);
+      if(deleteRes.error){ alert('Warning: purani round "' + editingChargeRoundName + '" delete nahi ho payi: ' + deleteRes.error.message); }
+      editingChargeRoundName = null; refreshTab(); return;
+    }
+    const {error} = editingChargeRoundName
+      ? await sb.from('charges').update(payload).eq('round_name', editingChargeRoundName)
+      : await sb.from('charges').insert(payload);
+    if(error) alert(error.message); else { editingChargeRoundName = null; refreshTab(); }
   });
 }
 
