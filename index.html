@@ -916,7 +916,7 @@ async function updateBulkBuilderTotal(){
 function collectionsRowsHtml(list){
   return (list||[]).map(c=>{
     const pc = purposeColor(c.purpose);
-    const msg = `Namaste ${c.flats?.owner_name||''}, Flat ${c.flat_no} — aapka payment mil gaya hai: ${fmtMoney(c.amount)} (${c.mode}), "${c.purpose||''}" ke liye, dated ${fmtDate(c.collection_date)}.\n\n- C-Wing Society Maintenance`;
+    const msg = `🙏 નમસ્તે ${c.flats?.owner_name||''},\n\nઆપનું *Flat ${c.flat_no}* નું પેમેન્ટ સફળતાપૂર્વક સ્વીકારવામાં આવ્યું છે ✅\n\n💰 રકમ: ${fmtMoney(c.amount)} (${c.mode})\n🧾 હેતુ: "${c.purpose||''}"\n📅 તારીખ: ${fmtDate(c.collection_date)}\n\nઆપના સમયસર સહયોગ બદલ હાર્દિક આભાર 🙏🏻\n\n🏢 *C-Wing Society Maintenance*`;
     const link = waLink(c.flats?.contact_no, msg);
     const waKey = `collection:${c.id}`;
     const pillId = `coll-wa-${c.id}`;
@@ -1059,7 +1059,7 @@ async function renderExpensesTab(box){
       ${error?`<div class="msg error">${error.message}</div>`:''}
       <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Paid To</th><th></th></tr></thead><tbody>
       ${(data||[]).map(e=>{
-        const waMsg = `C-Wing Society — Naya Expense: ${e.category}${e.description?' - '+e.description:''}, ${fmtMoney(e.amount)}, dated ${fmtDate(e.expense_date)}.\n\n- C-Wing Society Maintenance`;
+        const waMsg = `📢 *C-Wing Society – નવો ખર્ચ*\n\n🗂️ કેટેગરી: ${e.category}\n${e.description?`📝 વિગત: ${e.description}\n`:''}💰 રકમ: ${fmtMoney(e.amount)}\n📅 તારીખ: ${fmtDate(e.expense_date)}\n\nઆપની જાણકારી માટે 🙏\n\n🏢 *C-Wing Society Maintenance*`;
         const waLinkHref = waShareLink(waMsg);
         const waKey = `expense:${e.id}:group`;
         const pillId = `exp-wa-${e.id}`;
