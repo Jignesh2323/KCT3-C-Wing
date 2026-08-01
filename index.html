@@ -252,6 +252,13 @@ a{color:var(--maroon);}
   .form-row .field[style*="flex:0"]{width:100%;}
   .form-row button{width:100%;}
 }
+
+@media print{
+  .bottom-nav, .hero-banner .who, .form-row, .flat-actions, button, .nav-more{display:none !important;}
+  .app{padding-bottom:0;}
+  body{background:#fff;}
+  .card{box-shadow:none; border:1px solid #ccc;}
+}
 </style>
 </head>
 <body>
@@ -290,6 +297,34 @@ function waShareLink(message){
   // No phone number = WhatsApp opens its own chat/group picker so you can
   // send the pre-filled message to any chat, e.g. your society's group.
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+/* ---- CSV report export (client-side, no server/library needed) ---- */
+function toCSV(headers, rows){
+  const esc = (v)=>{
+    const s = String(v??'');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  return [headers.join(','), ...rows.map(r=>r.map(esc).join(','))].join('\n');
+}
+function downloadCSV(filename, csv){
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+async function exportCollectionsCSV(){
+  const {data, error} = await sb.from('collections').select('*, flats(owner_name)').order('collection_date',{ascending:false});
+  if(error){ alert(error.message); return; }
+  const rows = (data||[]).map(c=>[fmtDate(c.collection_date), c.flat_no, c.flats?.owner_name||'', c.amount, c.mode, c.purpose||'', c.remarks||'']);
+  downloadCSV(`Collections_${new Date().toISOString().slice(0,10)}.csv`, toCSV(['Date','Flat No','Owner','Amount','Mode','Purpose','Remarks'], rows));
+}
+async function exportExpensesCSV(){
+  const {data, error} = await sb.from('expenses').select('*').order('expense_date',{ascending:false});
+  if(error){ alert(error.message); return; }
+  const rows = (data||[]).map(e=>[fmtDate(e.expense_date), e.category, e.description||'', e.amount, e.paid_to||'', e.mode||'']);
+  downloadCSV(`Expenses_${new Date().toISOString().slice(0,10)}.csv`, toCSV(['Date','Category','Description','Amount','Paid To','Mode'], rows));
 }
 /* ---- Long-press-to-copy for phone numbers (no tap-to-call, so a
    stray tap while just browsing never opens the dialer by accident) ---- */
@@ -696,6 +731,15 @@ async function renderDashboardTab(box){
       </div>
       <p class="config-note" style="margin-bottom:8px">Categories included: ${COMMON_EXPENSE_CATEGORIES.join(', ')}. Flat Expense, Event, Festival excluded. Total flats fixed at ${TOTAL_FLATS_FIXED}.</p>
       <div id="cx_result">Loading...</div>
+    </div>
+    <div class="card">
+      <h3>📊 Reports</h3>
+      <p class="config-note" style="margin-top:-6px">Collections/Expenses ka data Excel me kholne ke liye CSV download karo, ya poori report PDF banane ke liye Print button dabao (browser "Save as PDF" option dega).</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <button onclick="exportCollectionsCSV()">⬇️ Collections CSV</button>
+        <button onclick="exportExpensesCSV()">⬇️ Expenses CSV</button>
+        <button onclick="window.print()">🖨️ Print / Save as PDF</button>
+      </div>
     </div>`;
   renderCommonExpenseSplit();
 }
@@ -912,6 +956,63 @@ async function updateBulkBuilderTotal(){
     ? `${fmtMoney(perFlat)} × ${targetCount} unsold flat(s) still due for "${purpose}" = ${fmtMoney(total)} (auto-calculated — badal sakte ho agar zaroorat ho)`
     : `Sabhi Unsold flats ka "${purpose}" ke liye collection pehle se hi entered hai.`;
 }
+/* ---- Payment receipt image (canvas) — shareable as a photo instead of plain text ---- */
+function drawReceiptCanvas(c){
+  const canvas = document.createElement('canvas');
+  canvas.width = 640; canvas.height = 420;
+  const ctx = canvas.getContext('2d');
+  const roundedRect = (x,y,w,h,r)=>{
+    ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(x,y,w,h,r); }
+    else { ctx.rect(x,y,w,h); }
+  };
+  ctx.fillStyle = '#F3F4F8'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  roundedRect(20,20,canvas.width-40,canvas.height-40,18);
+  ctx.fillStyle = '#FFFFFF'; ctx.fill();
+  const grad = ctx.createLinearGradient(20,20,canvas.width-20,20);
+  grad.addColorStop(0,'#3730A3'); grad.addColorStop(0.55,'#4F46E5'); grad.addColorStop(1,'#7C3AED');
+  roundedRect(20,20,canvas.width-40,88,18);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '700 13px Arial'; ctx.fillText('KIRAN CLASSIC TOWER-3', 40, 52);
+  ctx.font = '800 22px Arial'; ctx.fillText('C-Wing Maintenance Fund', 40, 82);
+  ctx.fillStyle = '#14162B';
+  ctx.font = '700 16px Arial'; ctx.fillText('Payment Receipt', 40, 138);
+  let y = 172;
+  const row = (label, value, big, color)=>{
+    ctx.fillStyle = '#6B7280'; ctx.font = '700 11px Arial'; ctx.fillText(label, 40, y);
+    ctx.fillStyle = color || '#14162B'; ctx.font = big ? '800 28px Arial' : '700 16px Arial';
+    ctx.fillText(String(value), 40, y + (big?32:20));
+    y += big ? 52 : 36;
+  };
+  row('FLAT NO / OWNER', `${c.flat_no} — ${c.flats?.owner_name||''}`);
+  row('AMOUNT PAID', fmtMoney(c.amount), true, '#15803D');
+  row('MODE / PURPOSE', `${c.mode} · ${c.purpose||''}`);
+  row('DATE', fmtDate(c.collection_date));
+  ctx.fillStyle = '#6B7280'; ctx.font = '500 11px Arial';
+  ctx.fillText('Thank you for your timely payment 🙏', 40, canvas.height-35);
+  return canvas;
+}
+function shareReceipt(c){
+  const canvas = drawReceiptCanvas(c);
+  canvas.toBlob(async (blob)=>{
+    if(!blob) return;
+    const file = new File([blob], `Receipt_Flat${c.flat_no}_${c.collection_date}.png`, {type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:'Payment Receipt', text:`Flat ${c.flat_no} payment receipt`}); return; }
+      catch(e){ /* cancelled or unsupported — fall through to download */ }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
+function shareReceiptById(id){
+  const c = collectionsCache.find(x=>x.id===id);
+  if(c) shareReceipt(c);
+}
 function collectionsRowsHtml(list){
   return (list||[]).map(c=>{
     const pc = purposeColor(c.purpose);
@@ -930,6 +1031,7 @@ function collectionsRowsHtml(list){
           <span class="config-note" style="margin:0; color:${pc}; font-weight:700;">${c.mode} · ${c.purpose||''}</span>
           <span class="flat-actions" style="margin-left:auto;">
             ${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)}`:''}
+            <button onclick="shareReceiptById(${c.id})" title="Receipt image banao">🧾 Receipt</button>
             <button class="danger" onclick="deleteRow('collections','id',${c.id})" title="Delete">🗑️</button>
           </span>
         </div>
@@ -1440,14 +1542,18 @@ async function addStickerLog(){
 
 /* ---- Dues Summary tab (pivot: flat x charge round, with total) ---- */
 async function renderDuesTab(box){
-  const [{data:rounds, error:e1}, {data:rows, error:e2}] = await Promise.all([
+  const [{data:rounds, error:e1}, {data:rows, error:e2}, {data:flats}] = await Promise.all([
     sb.from('charges').select('round_name').order('round_name'),
-    sb.from('v_dues_summary').select('*')
+    sb.from('v_dues_summary').select('*'),
+    sb.from('flats').select('flat_no, contact_no'),
+    loadWaSentCache(),
   ]);
+  const contactByFlat = {};
+  (flats||[]).forEach(f=> contactByFlat[f.flat_no] = f.contact_no);
   const roundNames = (rounds||[]).map(r=>r.round_name);
   const byFlat = {};
   (rows||[]).forEach(r=>{
-    if(!byFlat[r.flat_no]) byFlat[r.flat_no] = { owner_name:r.owner_name, status:r.status, perRound:{}, total:0 };
+    if(!byFlat[r.flat_no]) byFlat[r.flat_no] = { owner_name:r.owner_name, status:r.status, contact_no:contactByFlat[r.flat_no], perRound:{}, total:0 };
     byFlat[r.flat_no].perRound[r.round_name] = r.pending_amount;
     byFlat[r.flat_no].total += Number(r.pending_amount||0);
   });
@@ -1463,6 +1569,11 @@ async function renderDuesTab(box){
       ${e1||e2?`<div class="msg error">${(e1||e2).message}</div>`:''}
     </div>
     ${!flatNos.length ? `<div class="card"><p class="empty">No charge rounds set up yet — add one in the Charges tab.</p></div>` : duesByFloorHtml(flatNos, byFlat, roundNames)}`;
+}
+function duesReminderMsg(flatNo, f, roundNames){
+  const lines = roundNames.filter(r=>Number(f.perRound[r]||0)>0)
+    .map(r=>`🧾 ${r}: ${fmtMoney(f.perRound[r])}`).join('\n');
+  return `🙏 નમસ્તે ${f.owner_name||''},\n\nઆપની *Flat ${flatNo}* માટે મેન્ટેનન્સની નીચે મુજબ રકમ બાકી છે:\n\n💰 કુલ બાકી રકમ: ${fmtMoney(f.total)}\n${lines?lines+'\n':''}\nકૃપા કરી વહેલી તકે ચુકવણી કરવા વિનંતી છે 🙏🏻\n\n🏢 *C-Wing Society Maintenance*`;
 }
 function duesByFloorHtml(flatNos, byFlat, roundNames){
   const groups = {};
@@ -1480,12 +1591,16 @@ function duesByFloorHtml(flatNos, byFlat, roundNames){
         const f = byFlat[fn];
         const breakdown = roundNames.filter(r=>Number(f.perRound[r]||0)>0)
           .map(r=>`<span class="config-note" style="margin:0;">${r}: ${fmtMoney(f.perRound[r])}</span>`).join('');
+        const link = f.total>0 ? waLink(f.contact_no, duesReminderMsg(fn, f, roundNames)) : null;
+        const waKey = `dues:${fn}:${Math.round(f.total)}`;
+        const pillId = `dues-wa-${fn}`;
         return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:4px;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <span class="pill flat-chip" style="background:${flatBadgeColor(fn)}">${fn}</span>
             <span class="owner-name" style="flex:1 1 100px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</span>
             <span class="mono" style="font-weight:800; font-size:15.5px; color:${f.total>0?'var(--danger)':'#15803D'};">${fmtMoney(f.total)}</span>
           </div>
+          ${link ? `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;"><a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}Remind</a>${waSentPillHtml(waKey, pillId)}</div>` : ''}
           ${breakdown ? `<div style="display:flex; gap:10px; flex-wrap:wrap; padding-left:2px;">${breakdown}</div>` : ''}
         </div>`;
       }).join('')}
