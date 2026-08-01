@@ -887,8 +887,7 @@ async function renderCollectionsTab(box){
     </div>`}
     <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
-      <table><thead><tr><th>Date</th><th>Flat</th><th>Owner</th><th>Amount</th><th>Mode</th><th>Purpose</th><th></th></tr></thead>
-      <tbody id="collections-tbody">${collectionsRowsHtml(collectionsCache)}</tbody></table>
+      <div id="collections-tbody">${collectionsRowsHtml(collectionsCache)}</div>
     </div>`;
   document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
   document.getElementById('coll_purpose_filter').addEventListener('change', filterCollectionsTable);
@@ -920,12 +919,22 @@ function collectionsRowsHtml(list){
     const link = waLink(c.flats?.contact_no, msg);
     const waKey = `collection:${c.id}`;
     const pillId = `coll-wa-${c.id}`;
-    return `<tr class="floor-${Math.floor(c.flat_no/100)}">
-        <td class="mono config-note" style="margin:0">${fmtDate(c.collection_date)}</td><td class="mono v-input flat-no">${c.flat_no}</td><td class="v-formula owner-name">${c.flats?.owner_name||''}</td>
-        <td class="mono" style="color:${pc}; font-weight:800; font-size:15.5px;">${fmtMoney(c.amount)}</td><td style="color:${pc}; font-weight:600; font-size:12.5px;">${c.mode}</td><td style="color:${pc}; font-weight:700; font-size:12.5px;">${c.purpose||''}</td>
-        <td style="white-space:nowrap">${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)} `:''}<button class="danger" onclick="deleteRow('collections','id',${c.id})" title="Delete">🗑️</button></td>
-      </tr>`;
-  }).join('') || `<tr><td colspan="7" class="empty">No collections yet.</td></tr>`;
+    return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span class="pill flat-chip" style="background:${flatBadgeColor(c.flat_no)}">${c.flat_no}</span>
+          <span class="owner-name" style="flex:1 1 100px; min-width:0;">${c.flats?.owner_name||''}</span>
+          <span class="mono" style="font-weight:800; font-size:16px; color:${pc};">${fmtMoney(c.amount)}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
+          <span class="config-note" style="margin:0;">${fmtDate(c.collection_date)}</span>
+          <span class="config-note" style="margin:0; color:${pc}; font-weight:700;">${c.mode} · ${c.purpose||''}</span>
+          <span class="flat-actions" style="margin-left:auto;">
+            ${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)}`:''}
+            <button class="danger" onclick="deleteRow('collections','id',${c.id})" title="Delete">🗑️</button>
+          </span>
+        </div>
+      </div>`;
+  }).join('') || `<p class="empty">No collections yet.</p>`;
 }
 function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
@@ -1057,19 +1066,28 @@ async function renderExpensesTab(box){
     </div>`}
     <div class="card">
       ${error?`<div class="msg error">${error.message}</div>`:''}
-      <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Paid To</th><th></th></tr></thead><tbody>
-      ${(data||[]).map(e=>{
+      <div>${(data||[]).map(e=>{
         const waMsg = `📢 *C-Wing Society – નવો ખર્ચ*\n\n🗂️ કેટેગરી: ${e.category}\n${e.description?`📝 વિગત: ${e.description}\n`:''}💰 રકમ: ${fmtMoney(e.amount)}\n📅 તારીખ: ${fmtDate(e.expense_date)}\n\nઆપની જાણકારી માટે 🙏\n\n🏢 *C-Wing Society Maintenance*`;
         const waLinkHref = waShareLink(waMsg);
         const waKey = `expense:${e.id}:group`;
         const pillId = `exp-wa-${e.id}`;
-        return `<tr class="floor-${Number((e.expense_date||'').slice(5,7))||'x'}">
-        <td class="mono config-note" style="margin:0">${fmtDate(e.expense_date)}</td><td style="font-weight:700; font-size:12.5px;">${e.category}</td><td class="config-note" style="margin:0">${e.description||''}</td>
-        <td class="mono" style="font-weight:800; font-size:15.5px; color:var(--danger);">${fmtMoney(e.amount)}</td><td class="config-note" style="margin:0">${e.paid_to||''}</td>
-        <td style="white-space:nowrap"><a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)} <button onclick="editExpense(${e.id})">Edit</button> <button class="danger" onclick="deleteRow('expenses','id',${e.id})" title="Delete">🗑️</button></td>
-      </tr>`;
-      }).join('') || `<tr><td colspan="6" class="empty">No expenses yet.</td></tr>`}
-      </tbody></table>
+        return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="pill" style="background:#EEF2FF; color:var(--maroon); border:1.5px solid var(--maroon); font-weight:700;">${e.category}</span>
+            <span style="flex:1 1 100px; min-width:0; font-weight:600;">${e.description||''}</span>
+            <span class="mono" style="font-weight:800; font-size:16px; color:var(--danger);">${fmtMoney(e.amount)}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
+            <span class="config-note" style="margin:0;">${fmtDate(e.expense_date)}</span>
+            ${e.paid_to?`<span class="config-note" style="margin:0;">Paid to: ${e.paid_to}</span>`:''}
+            <span class="flat-actions" style="margin-left:auto;">
+              <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)}
+              <button onclick="editExpense(${e.id})">Edit</button>
+              <button class="danger" onclick="deleteRow('expenses','id',${e.id})" title="Delete">🗑️</button>
+            </span>
+          </div>
+        </div>`;
+      }).join('') || `<p class="empty">No expenses yet.</p>`}</div>
     </div>`;
 }
 function populateExpenseForm(id){
@@ -1130,12 +1148,12 @@ async function renderTransfersTab(box){
       <div class="grid-stats" style="margin-bottom:14px">
         <div class="stat stat-bank"><div class="num mono">${fmtMoney(total)}</div><div class="lbl">🏦 Total Transferred to Bank</div></div>
       </div>
-      <table><thead><tr><th>Date</th><th>Amount</th><th>Remarks</th><th></th></tr></thead><tbody>
-      ${(data||[]).map(t=>`<tr>
-        <td class="mono config-note" style="margin:0">${fmtDate(t.transfer_date)}</td><td class="mono" style="font-weight:800; font-size:16px; color:var(--info);">${fmtMoney(t.amount)}</td><td class="v-input">${t.remarks||''}</td>
-        <td><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})" title="Delete">🗑️</button></td>
-      </tr>`).join('') || `<tr><td colspan="4" class="empty">No transfers yet.</td></tr>`}
-      </tbody></table>
+      <div>${(data||[]).map(t=>`<div class="flat-entry">
+        <span class="mono" style="font-weight:800; font-size:16px; color:var(--info);">${fmtMoney(t.amount)}</span>
+        <span style="flex:1 1 100px; min-width:0;">${t.remarks||''}</span>
+        <span class="config-note" style="margin:0;">${fmtDate(t.transfer_date)}</span>
+        <span class="flat-actions"><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})" title="Delete">🗑️</button></span>
+      </div>`).join('') || `<p class="empty">No transfers yet.</p>`}</div>
     </div>`;
 }
 async function addFundTransfer(){
