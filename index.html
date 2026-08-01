@@ -1595,7 +1595,12 @@ async function deleteRow(table, col, val, isString){
   await withPin(async ()=>{
     showConfirmModal('This will permanently delete this row. This cannot be undone.', async ()=>{
       const {error} = await sb.from(table).delete().eq(col, val);
-      if(error) alert(error.message); else refreshTab();
+      if(error) { alert(error.message); return; }
+      // clean up the matching WhatsApp Sent/Pending row so stale
+      // status entries don't pile up in wa_sent after deletes
+      if(table === 'collections') await setWaSent(`collection:${val}`, false);
+      if(table === 'expenses') await setWaSent(`expense:${val}:group`, false);
+      refreshTab();
     });
   });
 }
