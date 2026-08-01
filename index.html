@@ -956,65 +956,6 @@ async function updateBulkBuilderTotal(){
     ? `${fmtMoney(perFlat)} × ${targetCount} unsold flat(s) still due for "${purpose}" = ${fmtMoney(total)} (auto-calculated — badal sakte ho agar zaroorat ho)`
     : `Sabhi Unsold flats ka "${purpose}" ke liye collection pehle se hi entered hai.`;
 }
-/* ---- Payment receipt image (canvas) — shareable as a photo instead of plain text ---- */
-function drawReceiptCanvas(c){
-  const canvas = document.createElement('canvas');
-  canvas.width = 640; canvas.height = 420;
-  const ctx = canvas.getContext('2d');
-  const roundedRect = (x,y,w,h,r)=>{
-    ctx.beginPath();
-    if(ctx.roundRect){ ctx.roundRect(x,y,w,h,r); }
-    else { ctx.rect(x,y,w,h); }
-  };
-  ctx.fillStyle = '#F3F4F8'; ctx.fillRect(0,0,canvas.width,canvas.height);
-  roundedRect(20,20,canvas.width-40,canvas.height-40,18);
-  ctx.fillStyle = '#FFFFFF'; ctx.fill();
-  const grad = ctx.createLinearGradient(20,20,canvas.width-20,20);
-  grad.addColorStop(0,'#3730A3'); grad.addColorStop(0.55,'#4F46E5'); grad.addColorStop(1,'#7C3AED');
-  roundedRect(20,20,canvas.width-40,88,18);
-  ctx.fillStyle = grad; ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.font = '700 13px Arial'; ctx.fillText('KIRAN CLASSIC TOWER-3', 40, 52);
-  ctx.font = '800 22px Arial'; ctx.fillText('C-Wing Maintenance Fund', 40, 82);
-  ctx.fillStyle = '#14162B';
-  ctx.font = '700 16px Arial'; ctx.fillText('Payment Receipt', 40, 138);
-  let y = 172;
-  const row = (label, value, big, color)=>{
-    ctx.fillStyle = '#6B7280'; ctx.font = '700 11px Arial'; ctx.fillText(label, 40, y);
-    ctx.fillStyle = color || '#14162B'; ctx.font = big ? '800 28px Arial' : '700 16px Arial';
-    ctx.fillText(String(value), 40, y + (big?32:20));
-    y += big ? 52 : 36;
-  };
-  row('FLAT NO / OWNER', `${c.flat_no} — ${c.flats?.owner_name||''}`);
-  row('AMOUNT PAID', fmtMoney(c.amount), true, '#15803D');
-  row('MODE / PURPOSE', `${c.mode} · ${c.purpose||''}`);
-  row('DATE', fmtDate(c.collection_date));
-  ctx.fillStyle = '#6B7280'; ctx.font = '500 11px Arial';
-  ctx.fillText('Thank you for your timely payment 🙏', 40, canvas.height-35);
-  return canvas;
-}
-function shareReceipt(c){
-  const canvas = drawReceiptCanvas(c);
-  canvas.toBlob((blob)=>{
-    if(!blob) return;
-    const file = new File([blob], `Receipt_Flat${c.flat_no}_${c.collection_date}.png`, {type:'image/png'});
-    // Download first so the receipt photo is ready to attach (top of gallery/downloads).
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = file.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=> URL.revokeObjectURL(url), 4000);
-    // Then jump straight into that member's WhatsApp chat — no more searching for the contact,
-    // just tap the 📎 attach button inside WhatsApp and pick the photo just downloaded.
-    const link = waLink(c.flats?.contact_no, `🧾 Aapki *Flat ${c.flat_no}* ki payment receipt niche attach kar raha hoon.`);
-    if(link) window.open(link, '_blank');
-    else alert('Is flat ka mobile number save nahi hai, isliye WhatsApp chat khud nahi khul saka. Receipt image download ho gayi hai — usse manually attach kar sakte ho.');
-  }, 'image/png');
-}
-function shareReceiptById(id){
-  const c = collectionsCache.find(x=>x.id===id);
-  if(c) shareReceipt(c);
-}
 function collectionsRowsHtml(list){
   return (list||[]).map(c=>{
     const pc = purposeColor(c.purpose);
@@ -1033,7 +974,6 @@ function collectionsRowsHtml(list){
           <span class="config-note" style="margin:0; color:${pc}; font-weight:700;">${c.mode} · ${c.purpose||''}</span>
           <span class="flat-actions" style="margin-left:auto;">
             ${link?`<a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}WhatsApp</a>${waSentPillHtml(waKey, pillId)}`:''}
-            <button onclick="shareReceiptById(${c.id})" title="Receipt image banao">🧾 Receipt</button>
             <button class="danger" onclick="deleteRow('collections','id',${c.id})" title="Delete">🗑️</button>
           </span>
         </div>
