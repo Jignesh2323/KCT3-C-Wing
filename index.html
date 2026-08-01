@@ -995,18 +995,20 @@ function drawReceiptCanvas(c){
 }
 function shareReceipt(c){
   const canvas = drawReceiptCanvas(c);
-  canvas.toBlob(async (blob)=>{
+  canvas.toBlob((blob)=>{
     if(!blob) return;
     const file = new File([blob], `Receipt_Flat${c.flat_no}_${c.collection_date}.png`, {type:'image/png'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      try{ await navigator.share({files:[file], title:'Payment Receipt', text:`Flat ${c.flat_no} payment receipt`}); return; }
-      catch(e){ /* cancelled or unsupported — fall through to download */ }
-    }
+    // Download first so the receipt photo is ready to attach (top of gallery/downloads).
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = file.name;
     document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);
+    // Then jump straight into that member's WhatsApp chat — no more searching for the contact,
+    // just tap the 📎 attach button inside WhatsApp and pick the photo just downloaded.
+    const link = waLink(c.flats?.contact_no, `🧾 Aapki *Flat ${c.flat_no}* ki payment receipt niche attach kar raha hoon.`);
+    if(link) window.open(link, '_blank');
+    else alert('Is flat ka mobile number save nahi hai, isliye WhatsApp chat khud nahi khul saka. Receipt image download ho gayi hai — usse manually attach kar sakte ho.');
   }, 'image/png');
 }
 function shareReceiptById(id){
