@@ -363,7 +363,7 @@ function showCopyToast(target){
   setTimeout(()=> toast.remove(), 1200);
 }
 function copyableNumberAttrs(number, extraStyle){
-  return `ontouchstart="startLongPressCopy(event,'${number}')" ontouchend="cancelLongPressCopy()" ontouchmove="cancelLongPressCopy()" onmousedown="startLongPressCopy(event,'${number}')" onmouseup="cancelLongPressCopy()" onmouseleave="cancelLongPressCopy()" style="user-select:none; -webkit-user-select:none; cursor:pointer; ${extraStyle||''}" title="Dabaye rakho copy karne ke liye"`;
+  return `ontouchstart="startLongPressCopy(event,'${number}')" ontouchend="cancelLongPressCopy()" ontouchmove="cancelLongPressCopy()" onmousedown="startLongPressCopy(event,'${number}')" onmouseup="cancelLongPressCopy()" onmouseleave="cancelLongPressCopy()" style="user-select:none; -webkit-user-select:none; cursor:pointer; ${extraStyle||''}" title="કૉપિ કરવા માટે દબાવી રાખો"`;
 }
 function fmtVehicleNumber(num){
   if(!num) return '';
@@ -527,7 +527,7 @@ function showPinModal(action){
   const overlay = el(`<div class="modal-backdrop" id="pin-modal">
     <div class="modal-box">
       <h3>Enter PIN</h3>
-      <p class="config-note">Needed to make changes. Stays unlocked on this device until you press Lock.</p>
+      <p class="config-note">ફેરફાર કરવા માટે જરૂરી છે. Lock ન દબાવો ત્યાં સુધી આ ડિવાઈસ પર અનલૉક રહેશે.</p>
       <div id="pin-modal-msg"></div>
       <input id="pin-modal-input" type="password" inputmode="numeric" maxlength="6" style="width:100%; letter-spacing:.3em; text-align:center; font-size:20px" autofocus>
       <div class="modal-actions">
@@ -715,7 +715,7 @@ async function renderAdmin(){
   const onSecondary = HIDDEN_TAB_KEYS.includes(state.tab);
   root.innerHTML = `<div class="app">
     ${topbar('Admin')}
-    <div id="tab-content"><div class="empty">Loading…</div></div>
+    <div id="tab-content"><div class="empty">લોડ થઈ રહ્યું છે…</div></div>
   </div>
   <nav class="bottom-nav">
     ${primaryTabs.map(([k,label])=>`<div class="nav-item ${state.tab===k?'active':''}" onclick="setTab('${k}')">
@@ -819,7 +819,7 @@ async function renderDashboardTab(box){
         <div class="stat stat-four"><div class="num mono type-four">${s?.total_four_wheelers??'-'}</div><div class="lbl"><img src="${ICON_CAR}" alt="" style="height:16px; vertical-align:-3px; margin-right:5px;">4-Wheelers</div></div>
         <div class="stat stat-two"><div class="num mono type-two">${s?.total_two_wheelers??'-'}</div><div class="lbl"><img src="${ICON_BIKE}" alt="" style="height:16px; vertical-align:-3px; margin-right:5px;">2-Wheelers</div></div>
       </div>
-      <p class="config-note" style="margin-top:10px">Cash in Hand = Cash collected − Cash spent. Bank Balance = everything else (UPI/Bank Transfer/Cheque) collected − spent combined.</p>
+      <p class="config-note" style="margin-top:10px">રોકડ હાથમાં = રોકડ જમા − રોકડ ખર્ચ. બેંક બેલેન્સ = બાકીનું બધું (UPI/બેંક ટ્રાન્સફર/ચેક) જમા − ખર્ચ ભેગું.</p>
     </div>
     <div class="card"><h3>By Payment Mode</h3>
       <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
@@ -837,12 +837,12 @@ async function renderDashboardTab(box){
         <div class="field"><label>Month</label><select id="cx_month" onchange="onCxDateChange()">${cxMonthOptionsHtml()}</select></div>
         <div class="field"><label>Year</label><select id="cx_year" onchange="onCxDateChange()">${cxYearOptionsHtml()}</select></div>
       </div>
-      <p class="config-note" style="margin-bottom:8px">Categories included: ${COMMON_EXPENSE_CATEGORIES.join(', ')}. Flat Expense, Event, Festival excluded. Total flats fixed at ${TOTAL_FLATS_FIXED}.</p>
+      <p class="config-note" style="margin-bottom:8px">સામેલ કેટેગરી: ${COMMON_EXPENSE_CATEGORIES.join(', ')}. Flat Expense, Event, Festival બાકાત. કુલ ફ્લેટ ${TOTAL_FLATS_FIXED} નક્કી છે.</p>
       <div id="cx_result">Loading...</div>
     </div>
     <div class="card">
       <h3>📊 Reports</h3>
-      <p class="config-note" style="margin-top:-6px">Collections/Expenses ka data Excel me kholne ke liye CSV download karo, ya poori report PDF banane ke liye Print button dabao (browser "Save as PDF" option dega).</p>
+      <p class="config-note" style="margin-top:-6px">Collections/Expenses નો ડેટા Excel માં ખોલવા માટે CSV ડાઉનલોડ કરો, અથવા આખો રિપોર્ટ PDF બનાવવા માટે Print બટન દબાવો (browser "Save as PDF" ઓપ્શન આપશે).</p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
         <button onclick="exportCollectionsCSV()">⬇️ Collections CSV</button>
         <button onclick="exportExpensesCSV()">⬇️ Expenses CSV</button>
@@ -865,7 +865,7 @@ async function renderFlatsTab(box){
   ]);
   flatsCache = data || [];
   box.innerHTML = `
-    ${!unlocked ? `<p class="config-note">🔒 Add / Update Flat form sirf Unlock karne ke baad dikhta hai.</p>` : `
+    ${!unlocked ? `<p class="config-note">🔒 Add / Update Flat ફોર્મ ફક્ત Unlock કર્યા પછી જ દેખાય છે.</p>` : `
     <div class="card">
       <div class="accordion-header" onclick="toggleAccordion('acc_flats')">
         <h3 id="flats-form-title">Add / Update Flat</h3>
@@ -891,7 +891,7 @@ async function renderFlatsTab(box){
     ${flatsByFloorHtml(data||[])}`;
 }
 function flatsByFloorHtml(data){
-  if(!data.length) return `<div class="card"><p class="empty">No flats yet.</p></div>`;
+  if(!data.length) return `<div class="card"><p class="empty">હજુ કોઈ ફ્લેટ નથી.</p></div>`;
   const NO_FLOOR = 'none';
   const groups = {};
   data.forEach(f=>{
@@ -912,7 +912,7 @@ function flatsByFloorHtml(data){
 function flatEntryHtml(f){
   return `<div class="flat-entry">
     <span class="pill flat-chip" style="background:${flatBadgeColor(f.flat_no)}">${f.flat_no}</span>
-    <span class="owner-name" style="flex:1 1 140px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</span>
+    <span class="owner-name" style="flex:1 1 140px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">કોઈ માલિક નથી</span>'}</span>
     <span class="mono contact mobile" ${f.contact_no?copyableNumberAttrs(f.contact_no):''}>${f.contact_no||''}</span>
     <select onchange="updateFlatStatusInline(${f.flat_no}, this.value)" class="pill-select ${f.status==='Sold'?'sold':'unsold'}">
       <option value="Sold" ${f.status==='Sold'?'selected':''}>Sold</option>
@@ -1001,7 +1001,7 @@ async function renderCollectionsTab(box){
   box.innerHTML = `
     <div class="card">
       <h3>Search by Flat No — Payment History &amp; Dues</h3>
-      <p class="config-note" style="margin-top:-6px">Koi bhi flat member apna flat number daal ke apni payment history aur pending dues dekh sakta hai. No PIN needed.</p>
+      <p class="config-note" style="margin-top:-6px">કોઈપણ ફ્લેટ મેમ્બર પોતાનો ફ્લેટ નંબર નાખીને પોતાની પેમેન્ટ હિસ્ટ્રી અને બાકી રકમ જોઈ શકે છે. PIN ની જરૂર નથી.</p>
       <div class="form-row">
         <div class="field"><label class="search-safe-label">🔓 Flat No (open search, no PIN)</label><input id="pay_search_flat" class="search-safe" placeholder="e.g. 201"></div>
         <div class="field"><label class="search-safe-label">🔓 Filter by Purpose (Round)</label>
@@ -1021,7 +1021,7 @@ async function renderCollectionsTab(box){
         : `<p class="config-note" style="margin-top:6px">✅ કોઈપણ રાઉન્ડમાં કંઈ બાકી નથી.</p>`}
       <div id="pay_search_results"></div>
     </div>
-    ${!unlocked ? `<p class="config-note">🔒 Add Collection / Bulk Builder Payment sirf Unlock karne ke baad dikhte hain.</p>` : `
+    ${!unlocked ? `<p class="config-note">🔒 Add Collection / Bulk Builder Payment ફક્ત Unlock કર્યા પછી જ દેખાય છે.</p>` : `
     <div class="card">
       <div class="accordion-header" onclick="toggleAccordion('acc_coll_add')">
         <h3>Add Collection</h3>
@@ -1051,7 +1051,7 @@ async function renderCollectionsTab(box){
         <span class="accordion-caret" id="acc_coll_bulk_caret">▾</span>
       </div>
       <div class="accordion-body" id="acc_coll_bulk_body" style="display:none; margin-top:12px;">
-      <p class="config-note" style="margin-top:-6px">Ek hi entry me total amount daal — khud-ba-khud sabhi Unsold flats me equal collection entries ban jayengi. Jis flat ka is round ke liye entry pehle se hai, wo skip ho jayegi.</p>
+      <p class="config-note" style="margin-top:-6px">એક જ એન્ટ્રીમાં કુલ રકમ નાખો — આપોઆપ બધા Unsold ફ્લેટમાં સરખી કલેક્શન એન્ટ્રી બની જશે. જે ફ્લેટની આ રાઉન્ડ માટે એન્ટ્રી પહેલેથી છે, તે છોડી દેવાશે.</p>
       <div class="form-row">
         <div class="field"><label>Purpose (Round)</label>
           <select id="bb_purpose" onchange="updateBulkBuilderTotal()">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
@@ -1116,7 +1116,7 @@ function collectionsRowsHtml(list){
           </span>
         </div>
       </div>`;
-  }).join('') || `<p class="empty">No collections yet.</p>`;
+  }).join('') || `<p class="empty">હજુ કોઈ કલેક્શન નથી.</p>`;
 }
 function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
@@ -1143,11 +1143,11 @@ async function searchFlatPayments(){
     </div>
     <h4 style="margin-bottom:6px">Payment History</h4>
     <table><thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Purpose</th><th>Remarks</th></tr></thead><tbody>
-    ${(payments||[]).map(p=>`<tr><td class="mono">${fmtDate(p.collection_date)}</td><td class="mono">${fmtMoney(p.amount)}</td><td>${p.mode}</td><td>${p.purpose||''}</td><td>${p.remarks||''}</td></tr>`).join('') || `<tr><td colspan="5" class="empty">No payments found for this flat.</td></tr>`}
+    ${(payments||[]).map(p=>`<tr><td class="mono">${fmtDate(p.collection_date)}</td><td class="mono">${fmtMoney(p.amount)}</td><td>${p.mode}</td><td>${p.purpose||''}</td><td>${p.remarks||''}</td></tr>`).join('') || `<tr><td colspan="5" class="empty">આ ફ્લેટ માટે કોઈ પેમેન્ટ મળ્યું નથી.</td></tr>`}
     </tbody></table>
     <h4 style="margin:14px 0 6px">Pending by Round</h4>
     <table><thead><tr><th>Round</th><th>Pending</th></tr></thead><tbody>
-    ${(dues||[]).map(d=>`<tr><td>${d.round_name}</td><td class="mono">${fmtMoney(d.pending_amount)}</td></tr>`).join('') || `<tr><td colspan="2" class="empty">No dues on record.</td></tr>`}
+    ${(dues||[]).map(d=>`<tr><td>${d.round_name}</td><td class="mono">${fmtMoney(d.pending_amount)}</td></tr>`).join('') || `<tr><td colspan="2" class="empty">કોઈ બાકી રકમ નોંધાયેલ નથી.</td></tr>`}
     </tbody></table>`;
 }
 async function addCollection(){
@@ -1223,7 +1223,7 @@ async function renderExpensesTab(box){
   ]);
   expensesCache = data || [];
   box.innerHTML = `
-    ${!unlocked ? `<p class="config-note">🔒 Add Expense form sirf Unlock karne ke baad dikhta hai.</p>` : `
+    ${!unlocked ? `<p class="config-note">🔒 Add Expense ફોર્મ ફક્ત Unlock કર્યા પછી જ દેખાય છે.</p>` : `
     <div class="card">
       <div class="accordion-header" onclick="toggleAccordion('acc_expenses')">
         <h3 id="expenses-form-title">Add Expense</h3>
@@ -1267,8 +1267,8 @@ async function renderExpensesTab(box){
           </div>
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
             <span class="config-note" style="margin:0;">${fmtDate(e.expense_date)}</span>
-            ${e.paid_to?`<span class="config-note" style="margin:0;">Paid to: ${e.paid_to}</span>`:''}
-            ${e.bill_url?`<a href="${e.bill_url}" target="_blank" class="config-note" style="margin:0;">📎 Bill</a>`:''}
+            ${e.paid_to?`<span class="config-note" style="margin:0;">ચૂકવ્યું: ${e.paid_to}</span>`:''}
+            ${e.bill_url?`<a href="${e.bill_url}" target="_blank" class="config-note" style="margin:0;">📎 બિલ</a>`:''}
             <span class="flat-actions" style="margin-left:auto;">
               <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)}
               <button onclick="editExpense(${e.id})">Edit</button>
@@ -1276,7 +1276,7 @@ async function renderExpensesTab(box){
             </span>
           </div>
         </div>`;
-      }).join('') || `<p class="empty">No expenses yet.</p>`}</div>
+      }).join('') || `<p class="empty">હજુ કોઈ ખર્ચ નથી.</p>`}</div>
     </div>`;
 }
 function populateExpenseForm(id){
@@ -1292,7 +1292,7 @@ function populateExpenseForm(id){
   document.getElementById('e_mode').value = e.mode || 'Cash';
   const billField = document.getElementById('e_bill'); if(billField) billField.value = '';
   const billNote = document.getElementById('e_bill_current');
-  if(billNote) billNote.innerHTML = e.bill_url ? `<a href="${e.bill_url}" target="_blank">📎 Current bill dekho</a> (naya photo select karoge to replace ho jayega)` : '';
+  if(billNote) billNote.innerHTML = e.bill_url ? `<a href="${e.bill_url}" target="_blank">📎 હાલનું બિલ જુઓ</a> (નવો ફોટો પસંદ કરશો તો બદલાઈ જશે)` : '';
   document.getElementById('expenses-form-title').textContent = `Editing Expense`;
   document.getElementById('e_date').scrollIntoView({behavior:'smooth', block:'center'});
 }
@@ -1350,7 +1350,7 @@ async function renderTransfersTab(box){
         <span class="accordion-caret" id="acc_transfers_caret">▾</span>
       </div>
       <div class="accordion-body" id="acc_transfers_body" style="display:none; margin-top:12px;">
-      <p class="config-note" style="margin-top:-6px">Jab cash bank me deposit karo, yahan entry daalo. Cash in Hand se ghatega, Bank Balance me judega — koi expense/collection number nahi badlega.</p>
+      <p class="config-note" style="margin-top:-6px">જ્યારે રોકડ બેંકમાં જમા કરો, ત્યારે અહીં એન્ટ્રી નાખો. Cash in Hand માંથી ઘટશે, Bank Balance માં ઉમેરાશે — કોઈ expense/collection નંબર બદલાશે નહીં.</p>
       <div class="form-row">
         <div class="field"><label>Date</label><input id="tr_date" type="date"></div>
         <div class="field"><label>Amount</label><input id="tr_amount" type="number"></div>
@@ -1367,7 +1367,7 @@ async function renderTransfersTab(box){
         <span style="flex:1 1 100px; min-width:0;">${t.remarks||''}</span>
         <span class="config-note" style="margin:0;">${fmtDate(t.transfer_date)}</span>
         <span class="flat-actions"><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})" title="Delete">🗑️</button></span>
-      </div>`).join('') || `<p class="empty">No transfers yet.</p>`}</div>
+      </div>`).join('') || `<p class="empty">હજુ કોઈ ટ્રાન્સફર નથી.</p>`}</div>
     </div>`;
 }
 async function addFundTransfer(){
@@ -1392,7 +1392,7 @@ async function renderVehiclesTab(box){
   ]);
   vehiclesCache = data || [];
   box.innerHTML = `
-    ${!unlocked ? `<p class="config-note">🔒 Add Vehicle form sirf Unlock karne ke baad dikhta hai.</p>` : `
+    ${!unlocked ? `<p class="config-note">🔒 Add Vehicle ફોર્મ ફક્ત Unlock કર્યા પછી જ દેખાય છે.</p>` : `
     <div class="card">
       <div class="accordion-header" onclick="toggleAccordion('acc_vehicles')">
         <h3>Add Vehicle</h3>
@@ -1440,18 +1440,18 @@ function filterVehicleResults(){
   wrap.innerHTML = groups.length ? groups.map(g=>`
     <div class="card floor-card" style="text-align:center;">
       <span class="pill flat-chip" style="background:${flatBadgeColor(g.flat_no)}; font-size:22px; padding:6px 22px;">${g.flat_no}</span>
-      <h3 style="margin-top:8px;">${g.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</h3>
+      <h3 style="margin-top:8px;">${g.owner_name || '<span class="config-note" style="margin:0">કોઈ માલિક નથી</span>'}</h3>
       ${g.mobile_no ? `<p class="mono" ${copyableNumberAttrs(g.mobile_no, 'margin-top:-6px; font-size:19px; font-weight:800; color:var(--maroon); letter-spacing:.02em; display:inline-block;')}>📞 ${g.mobile_no}</p>` : ''}
       ${g.vehicles.map(v=>`<div class="flat-entry">
           <img src="${v.vehicle_type==='Two Wheeler'?ICON_BIKE:ICON_CAR}" alt="" style="height:20px;">
           <span class="mono vnum ${v.vehicle_type==='Two Wheeler'?'type-two':'type-four'}" style="font-size:13.5px;">${fmtVehicleNumber(v.vehicle_number)}</span>
           ${v.remarks ? `<span class="pill" style="background:#B45309; color:#fff; border-color:#B45309; font-weight:700; font-size:11px;">⚠ ${v.remarks}</span>` : ''}
-          <span style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">Sticker: <span style="color:${v.sticker_allotted==='Yes' ? '#2E7D4F' : '#A33A2E'};">${v.sticker_allotted}</span></span>
+          <span style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">સ્ટીકર: <span style="color:${v.sticker_allotted==='Yes' ? '#2E7D4F' : '#A33A2E'};">${v.sticker_allotted}</span></span>
           <span class="flat-actions">
             <button class="danger" onclick="deleteRow('vehicles','id',${v.id})" title="Delete">🗑️</button>
           </span>
         </div>`).join('')}
-    </div>`).join('') : `<div class="card"><p class="empty">No vehicles found.</p></div>`;
+    </div>`).join('') : `<div class="card"><p class="empty">કોઈ વાહન મળ્યું નથી.</p></div>`;
 }
 async function addVehicle(){
   await withPin(async ()=>{
@@ -1494,16 +1494,16 @@ async function renderChargesTab(box){
     <div class="card" style="text-align:center;">
       <h3 style="margin-bottom:2px;">${c.round_name}</h3>
       <div class="mono" style="font-size:26px; font-weight:800; color:var(--maroon);">${fmtMoney(c.amount_per_flat)}</div>
-      <p class="config-note" style="margin-top:2px;">per flat</p>
+      <p class="config-note" style="margin-top:2px;">ફ્લેટ દીઠ</p>
       <div style="display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px;">
         <span class="pill ${c.applies_to==='All Flats'?'unsold':'sold'}">${c.applies_to}</span>
-        <span class="config-note mono" style="margin:0;">Started ${fmtDate(c.date_started)}</span>
+        <span class="config-note mono" style="margin:0;">શરૂઆત ${fmtDate(c.date_started)}</span>
       </div>
       <div style="display:flex; justify-content:center; gap:8px; margin-top:12px;">
         <button onclick="editCharge('${c.round_name}')">Edit</button>
         <button class="danger" onclick="deleteRow('charges','round_name','${c.round_name}',true)" title="Delete">🗑️</button>
       </div>
-    </div>`).join('') : `<div class="card"><p class="empty">No charge rounds yet.</p></div>`}`;
+    </div>`).join('') : `<div class="card"><p class="empty">હજુ કોઈ ચાર્જ રાઉન્ડ નથી.</p></div>`}`;
 }
 function editCharge(roundName){
   const c = chargeRoundsCache.find(x=>x.round_name===roundName);
@@ -1620,7 +1620,7 @@ async function renderStickerLogTab(box){
             </span>
           </div>`;
       }).join('')}
-    </div>`).join('') : `<div class="card"><p class="empty">No entries yet.</p></div>`}`;
+    </div>`).join('') : `<div class="card"><p class="empty">હજુ કોઈ એન્ટ્રી નથી.</p></div>`}`;
   if(lastStickerFlat && (flats||[]).some(f=>String(f.flat_no)===String(lastStickerFlat))){
     document.getElementById('s_flat').value = lastStickerFlat;
   }
@@ -1634,7 +1634,7 @@ function onStickerFlatChange(){
   const matches = vehiclesByFlatCache.filter(v => v.flat_no === flatNo);
   vnumSel.innerHTML = matches.length
     ? matches.map(v=>`<option value="${v.vehicle_number}">${fmtVehicleNumber(v.vehicle_number)} — ${v.vehicle_type==='Two Wheeler'?'2-Wheeler':'4-Wheeler'}</option>`).join('')
-    : `<option value="">No vehicle on record for this flat</option>`;
+    : `<option value="">આ ફ્લેટ માટે કોઈ વાહન નોંધાયેલ નથી</option>`;
   updateReasonOptions();
 }
 function updateReasonOptions(){
@@ -1694,7 +1694,7 @@ async function renderDuesTab(box){
   box.innerHTML = `
     <div class="card">
       <h3>Dues Summary</h3>
-      <p class="config-note">Adding a new round in the "Charges" tab automatically adds a column here and folds it into each flat's total — nothing else to configure.</p>
+      <p class="config-note">"Charges" ટેબમાં નવો રાઉન્ડ ઉમેરવાથી અહીં આપોઆપ કૉલમ ઉમેરાઈ જાય છે અને દરેક ફ્લેટના ટોટલમાં ભળી જાય છે — બીજું કંઈ સેટ કરવાની જરૂર નથી.</p>
       <div class="grid-stats" style="margin:10px 0 0">
         <div class="stat ${grandTotal>0?'stat-bad':'stat-good'}"><div class="num mono">${fmtMoney(grandTotal)}</div><div class="lbl">⚖️ Total Pending (All Flats)</div></div>
       </div>
@@ -1707,9 +1707,9 @@ async function renderDuesTab(box){
         <button onclick="clearDuesSelection()">Clear</button>
         <button class="primary" onclick="sendSelectedDuesReminders()" style="margin-left:auto;">${WA_ICON}Send Reminders</button>
       </div>
-      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Flats select karo, phir "Send Reminders" dabao — ek-ek karke har flat ka WhatsApp khulega, tap karo aur agla khud aa jayega. WhatsApp kisi bhi website ko ek saath sabko bhejne nahi deta, isliye ye sabse tez tareeka hai.</p>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">ફ્લેટ સિલેક્ટ કરો, પછી "Send Reminders" દબાવો — એક પછી એક દરેક ફ્લેટનું WhatsApp ખુલશે, tap કરો અને આગલું આપોઆપ આવશે. WhatsApp કોઈપણ વેબસાઈટને એકસાથે બધાને મોકલવાની પરવાનગી નથી આપતું, એટલે આ સૌથી ઝડપી રીત છે.</p>
     </div>` : ''}
-    ${!flatNos.length ? `<div class="card"><p class="empty">No charge rounds set up yet — add one in the Charges tab.</p></div>` : duesByFloorHtml(flatNos, byFlat, roundNames)}`;
+    ${!flatNos.length ? `<div class="card"><p class="empty">હજુ કોઈ ચાર્જ રાઉન્ડ સેટ નથી — "Charges" ટેબમાં એક ઉમેરો.</p></div>` : duesByFloorHtml(flatNos, byFlat, roundNames)}`;
 }
 function duesReminderMsg(flatNo, f, roundNames){
   const lines = roundNames.filter(r=>Number(f.perRound[r]||0)>0)
@@ -1740,7 +1740,7 @@ function duesByFloorHtml(flatNos, byFlat, roundNames){
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             ${link ? `<input type="checkbox" class="dues-select-cb" data-flat="${fn}" onchange="toggleDuesSelect(${fn}, this.checked)" style="width:20px; height:20px; accent-color:var(--maroon); flex-shrink:0;">` : ''}
             <span class="pill flat-chip" style="background:${flatBadgeColor(fn)}">${fn}</span>
-            <span class="owner-name" style="flex:1 1 100px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</span>
+            <span class="owner-name" style="flex:1 1 100px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">કોઈ માલિક નથી</span>'}</span>
             <span class="mono" style="font-weight:800; font-size:15.5px; color:${f.total>0?'var(--danger)':'#15803D'};">${fmtMoney(f.total)}</span>
           </div>
           ${link ? `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;"><a href="${link}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${link}','${waKey}','${pillId}')">${WA_ICON}Remind</a>${waSentPillHtml(waKey, pillId)}</div>` : ''}
@@ -1801,7 +1801,7 @@ function showWaQueueModal(){
   const overlay = el(`<div class="modal-backdrop" id="wa-queue-modal">
     <div class="modal-box">
       <h3>Reminder ${waQueueIndex+1} / ${waQueue.length}</h3>
-      <p class="config-note">Flat ${item.flatNo} ka WhatsApp kholne ke liye niche button dabao — bhejne ke baad agla flat khud aa jayega.</p>
+      <p class="config-note">Flat ${item.flatNo} નું WhatsApp ખોલવા માટે નીચે બટન દબાવો — મોકલ્યા પછી આગલો ફ્લેટ આપોઆપ આવશે.</p>
       <div class="modal-actions" style="justify-content:space-between;">
         <button onclick="skipWaQueue()">Skip</button>
         <a href="${item.link}" target="_blank" class="btn primary" style="text-decoration:none;" onclick="return sendWaQueueItem()">${WA_ICON}Flat ${item.flatNo} ko bhejo</a>
