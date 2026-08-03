@@ -1655,7 +1655,11 @@ async function addStickerLog(){
 }
 
 /* ---- Dues Summary tab (pivot: flat x charge round, with total) ---- */
+let duesSelected = new Set();
+let duesReminderLinks = {};
 async function renderDuesTab(box){
+  duesSelected = new Set();
+  duesReminderLinks = {};
   const [{data:rounds, error:e1}, {data:rows, error:e2}, {data:flats}] = await Promise.all([
     sb.from('charges').select('round_name').order('round_name'),
     sb.from('v_dues_summary').select('*'),
@@ -1682,6 +1686,15 @@ async function renderDuesTab(box){
       </div>
       ${e1||e2?`<div class="msg error">${(e1||e2).message}</div>`:''}
     </div>
+    ${grandTotal>0 ? `<div class="card">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span id="dues-select-count" class="config-note" style="margin:0; font-weight:700;">0 flat(s) selected</span>
+        <button onclick="selectAllPendingDues()">☑️ Select All Pending</button>
+        <button onclick="clearDuesSelection()">Clear</button>
+        <button class="primary" onclick="sendSelectedDuesReminders()" style="margin-left:auto;">${WA_ICON}Send Reminders</button>
+      </div>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Flats select karo, phir "Send Reminders" dabao — ek-ek karke har flat ka WhatsApp khulega, tap karo aur agla khud aa jayega. WhatsApp kisi bhi website ko ek saath sabko bhejne nahi deta, isliye ye sabse tez tareeka hai.</p>
+    </div>` : ''}
     ${!flatNos.length ? `<div class="card"><p class="empty">No charge rounds set up yet — add one in the Charges tab.</p></div>` : duesByFloorHtml(flatNos, byFlat, roundNames)}`;
 }
 function duesReminderMsg(flatNo, f, roundNames){
@@ -1708,8 +1721,10 @@ function duesByFloorHtml(flatNos, byFlat, roundNames){
         const link = f.total>0 ? waLink(f.contact_no, duesReminderMsg(fn, f, roundNames)) : null;
         const waKey = `dues:${fn}:${Math.round(f.total)}`;
         const pillId = `dues-wa-${fn}`;
+        if(link) duesReminderLinks[fn] = {flatNo:fn, link, waKey, pillId};
         return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:4px;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            ${link ? `<input type="checkbox" class="dues-select-cb" data-flat="${fn}" onchange="toggleDuesSelect(${fn}, this.checked)" style="width:20px; height:20px; accent-color:var(--maroon); flex-shrink:0;">` : ''}
             <span class="pill flat-chip" style="background:${flatBadgeColor(fn)}">${fn}</span>
             <span class="owner-name" style="flex:1 1 100px; min-width:0;">${f.owner_name || '<span class="config-note" style="margin:0">no owner</span>'}</span>
             <span class="mono" style="font-weight:800; font-size:15.5px; color:${f.total>0?'var(--danger)':'#15803D'};">${fmtMoney(f.total)}</span>
@@ -1721,6 +1736,79 @@ function duesByFloorHtml(flatNos, byFlat, roundNames){
     </div>`;
   }).join('');
 }
+
+/* ---- Dues Summary bulk reminders — select flats, then work through
+   their WhatsApp chats one at a time. WhatsApp gives no way for a
+   website to message multiple contacts in one go, so this is a
+   guided queue: each tap opens the next flat's chat and auto-advances,
+   instead of making the admin scroll and hunt for each flat manually. */
+function toggleDuesSelect(flatNo, checked){
+  if(checked) duesSelected.add(flatNo); else duesSelected.delete(flatNo);
+  updateDuesSelectToolbar();
+}
+function selectAllPendingDues(){
+  Object.keys(duesReminderLinks).forEach(fn=> duesSelected.add(Number(fn)));
+  document.querySelectorAll('.dues-select-cb').forEach(cb=> cb.checked = true);
+  updateDuesSelectToolbar();
+}
+function clearDuesSelection(){
+  duesSelected.clear();
+  document.querySelectorAll('.dues-select-cb').forEach(cb=> cb.checked = false);
+  updateDuesSelectToolbar();
+}
+function updateDuesSelectToolbar(){
+  const el = document.getElementById('dues-select-count');
+  if(el) el.textContent = `${duesSelected.size} flat(s) selected`;
+}
+function sendSelectedDuesReminders(){
+  if(!duesSelected.size){ alert('Pehle kam se kam ek flat select karo.'); return; }
+  withPin(async ()=>{
+    const items = [...duesSelected].map(fn=>duesReminderLinks[fn]).filter(Boolean);
+    startWaQueue(items);
+  });
+}
+let waQueue = [];
+let waQueueIndex = 0;
+function startWaQueue(items){
+  waQueue = items;
+  waQueueIndex = 0;
+  showWaQueueModal();
+}
+function showWaQueueModal(){
+  const old = document.getElementById('wa-queue-modal');
+  if(old) old.remove();
+  if(waQueueIndex >= waQueue.length){
+    const done = waQueue.length;
+    waQueue = []; waQueueIndex = 0;
+    if(done){ alert(`✅ ${done} flat(s) ka reminder process complete ho gaya.`); refreshTab(); }
+    return;
+  }
+  const item = waQueue[waQueueIndex];
+  const overlay = el(`<div class="modal-backdrop" id="wa-queue-modal">
+    <div class="modal-box">
+      <h3>Reminder ${waQueueIndex+1} / ${waQueue.length}</h3>
+      <p class="config-note">Flat ${item.flatNo} ka WhatsApp kholne ke liye niche button dabao — bhejne ke baad agla flat khud aa jayega.</p>
+      <div class="modal-actions" style="justify-content:space-between;">
+        <button onclick="skipWaQueue()">Skip</button>
+        <a href="${item.link}" target="_blank" class="btn primary" style="text-decoration:none;" onclick="return sendWaQueueItem()">${WA_ICON}Flat ${item.flatNo} ko bhejo</a>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeWaQueueModal()">Close</button>
+      </div>
+    </div>
+  </div>`);
+  document.body.appendChild(overlay);
+}
+function sendWaQueueItem(){
+  const item = waQueue[waQueueIndex];
+  window.open(item.link, '_blank');
+  setWaSent(item.waKey, true);
+  waQueueIndex++;
+  showWaQueueModal();
+  return false;
+}
+function skipWaQueue(){ waQueueIndex++; showWaQueueModal(); }
+function closeWaQueueModal(){ document.getElementById('wa-queue-modal')?.remove(); waQueue = []; waQueueIndex = 0; }
 
 /* ---- generic delete (with a proper styled confirm popup) ---- */
 function showConfirmModal(message, onYes){
