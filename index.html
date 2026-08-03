@@ -591,13 +591,13 @@ function topbar(title){
       <h1>C-Wing Maintenance Fund</h1>
     </div>
     <div class="who">
-      <div style="display:flex; align-items:center; gap:10px;">${unlocked
-        ? `<span class="pill sold">Unlocked</span> <button onclick="lockNow()">Lock</button>`
-        : `<span class="pill unsold">View Only</span> <button class="primary" onclick="unlockOnly()">Unlock</button>`}
+      <span class="pill ${unlocked?'sold':'unsold'}">${unlocked?'Unlocked':'View Only'}</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="bell-wrap" onclick="toggleNotifPanel(event)">🔔<span id="notif-badge" class="notif-badge">0</span>
+          <div class="notif-panel" id="notif-panel"></div>
+        </span>
+        ${unlocked ? `<button onclick="lockNow()">Lock</button>` : `<button class="primary" onclick="unlockOnly()">Unlock</button>`}
       </div>
-      <span class="bell-wrap" onclick="toggleNotifPanel(event)">🔔<span id="notif-badge" class="notif-badge">0</span>
-        <div class="notif-panel" id="notif-panel"></div>
-      </span>
     </div>
   </div>`;
 }
