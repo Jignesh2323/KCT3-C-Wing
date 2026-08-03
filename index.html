@@ -230,6 +230,12 @@ tr:hover td{background:var(--paper-dark);}
 .pill-select.sold{color:#15803D;}
 .pill-select.unsold{color:var(--ink-soft);}
 .config-note{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+.bell-wrap{position:relative; font-size:20px; line-height:1; cursor:pointer; color:#fff; padding:4px; -webkit-tap-highlight-color:transparent;}
+.notif-badge{position:absolute; top:-4px; right:-6px; background:#DC2626; color:#fff; font-size:10px; font-weight:800; min-width:17px; height:17px; border-radius:999px; display:none; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--maroon-dark);}
+.notif-panel{position:absolute; top:calc(100% + 10px); right:-6px; width:300px; max-width:85vw; max-height:360px; overflow-y:auto; background:var(--white-card); border:1px solid var(--rule); border-radius:14px; box-shadow:var(--shadow-lg); padding:6px; z-index:80; display:none; text-align:left;}
+.notif-panel.open{display:block;}
+.notif-item{padding:10px; border-bottom:1px solid var(--rule); font-size:13px; color:var(--ink); font-weight:600;}
+.notif-item:last-child{border-bottom:none;}
 .accordion-header{display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; padding:2px 0; -webkit-tap-highlight-color:transparent;}
 .accordion-header h3{margin:0;}
 .accordion-caret{font-size:13px; font-weight:800; color:var(--maroon); background:#EEF2FF; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
@@ -584,14 +590,95 @@ function topbar(title){
       <div class="eyebrow">Kiran Classic Tower-3</div>
       <h1>C-Wing Maintenance Fund</h1>
     </div>
-    <div class="who">${unlocked
+    <div class="who">
+      <div style="display:flex; align-items:center; gap:10px;">${unlocked
         ? `<span class="pill sold">Unlocked</span> <button onclick="lockNow()">Lock</button>`
         : `<span class="pill unsold">View Only</span> <button class="primary" onclick="unlockOnly()">Unlock</button>`}
+      </div>
+      <span class="bell-wrap" onclick="toggleNotifPanel(event)">🔔<span id="notif-badge" class="notif-badge">0</span>
+        <div class="notif-panel" id="notif-panel"></div>
+      </span>
     </div>
   </div>`;
 }
 async function unlockOnly(){
   await withPin(async ()=>{ render(); });
+}
+
+/* ---------------- New-entry bell notification ----------------
+   Tracks the highest collection/expense id already seen on THIS
+   device (localStorage). Anything with a bigger id is "new" — shown
+   as a red count on the bell and (where the OS/browser supports it)
+   as a badge on the installed app icon. There is no server/push
+   here, so this updates whenever the app is open or reopened, not
+   while it's fully closed — a true always-on badge needs a push
+   notification server, which this app doesn't have. */
+const NOTIF_LAST_COLL_KEY = 'cwing_last_seen_coll_id';
+const NOTIF_LAST_EXP_KEY = 'cwing_last_seen_exp_id';
+let notifNewItems = [];
+let notifIntervalStarted = false;
+
+async function ensureNotifBaseline(){
+  if(localStorage.getItem(NOTIF_LAST_COLL_KEY) !== null) return;
+  const [{data:maxColl}, {data:maxExp}] = await Promise.all([
+    sb.from('collections').select('id').order('id',{ascending:false}).limit(1),
+    sb.from('expenses').select('id').order('id',{ascending:false}).limit(1),
+  ]);
+  localStorage.setItem(NOTIF_LAST_COLL_KEY, String(maxColl?.[0]?.id || 0));
+  localStorage.setItem(NOTIF_LAST_EXP_KEY, String(maxExp?.[0]?.id || 0));
+}
+async function refreshNotifBadge(){
+  const lastColl = Number(localStorage.getItem(NOTIF_LAST_COLL_KEY) || 0);
+  const lastExp = Number(localStorage.getItem(NOTIF_LAST_EXP_KEY) || 0);
+  const [{data:newColl}, {data:newExp}] = await Promise.all([
+    sb.from('collections').select('id, flat_no, amount, purpose, collection_date, flats(owner_name)').gt('id', lastColl).order('id',{ascending:false}),
+    sb.from('expenses').select('id, category, amount, description, expense_date').gt('id', lastExp).order('id',{ascending:false}),
+  ]);
+  notifNewItems = [
+    ...(newColl||[]).map(c=>({type:'collection', id:c.id, text:`💰 Flat ${c.flat_no}${c.flats?.owner_name?' — '+c.flats.owner_name:''}: ${fmtMoney(c.amount)} (${c.purpose||''})`, date:c.collection_date})),
+    ...(newExp||[]).map(e=>({type:'expense', id:e.id, text:`📤 ${e.category}: ${fmtMoney(e.amount)}${e.description?' — '+e.description:''}`, date:e.expense_date})),
+  ];
+  const count = notifNewItems.length;
+  const badge = document.getElementById('notif-badge');
+  if(badge){ badge.style.display = count>0 ? 'flex' : 'none'; badge.textContent = count>99?'99+':String(count); }
+  if(navigator.setAppBadge){
+    try{ count>0 ? navigator.setAppBadge(count) : navigator.clearAppBadge(); }catch(e){}
+  }
+}
+function renderNotifPanel(){
+  const panel = document.getElementById('notif-panel');
+  if(!panel) return;
+  panel.innerHTML = notifNewItems.length
+    ? notifNewItems.map(n=>`<div class="notif-item">${n.text}<div class="config-note" style="margin:2px 0 0;">${fmtDate(n.date)}</div></div>`).join('')
+    : `<div class="notif-item" style="text-align:center; color:var(--ink-soft); font-weight:500;">Koi nayi entry nahi hai 🎉</div>`;
+}
+function toggleNotifPanel(e){
+  e.stopPropagation();
+  const panel = document.getElementById('notif-panel');
+  if(!panel) return;
+  const opening = !panel.classList.contains('open');
+  if(opening){
+    renderNotifPanel(); // show what's new BEFORE marking it seen
+    panel.classList.add('open');
+    const collIds = notifNewItems.filter(n=>n.type==='collection').map(n=>n.id);
+    const expIds = notifNewItems.filter(n=>n.type==='expense').map(n=>n.id);
+    if(collIds.length) localStorage.setItem(NOTIF_LAST_COLL_KEY, String(Math.max(...collIds)));
+    if(expIds.length) localStorage.setItem(NOTIF_LAST_EXP_KEY, String(Math.max(...expIds)));
+    const badge = document.getElementById('notif-badge');
+    if(badge) badge.style.display = 'none';
+    if(navigator.clearAppBadge){ try{ navigator.clearAppBadge(); }catch(err){} }
+  } else {
+    panel.classList.remove('open');
+  }
+}
+document.addEventListener('click', (e)=>{
+  const panel = document.getElementById('notif-panel');
+  if(panel && panel.classList.contains('open') && !e.target.closest('.bell-wrap')) panel.classList.remove('open');
+});
+function startNotifPolling(){
+  if(notifIntervalStarted) return;
+  notifIntervalStarted = true;
+  setInterval(refreshNotifBadge, 30000);
 }
 
 /* ============================================================
@@ -1676,7 +1763,10 @@ async function deleteRow(table, col, val, isString){
     if(session){ state.user = session.user; }
     else { localStorage.removeItem(PIN_UNLOCK_KEY); } // stale flag, session actually gone
   }
+  await ensureNotifBaseline();
   render();
+  refreshNotifBadge();
+  startNotifPolling();
 })();
 if('serviceWorker' in navigator && location.protocol !== 'file:'){
   window.addEventListener('load', ()=>{
