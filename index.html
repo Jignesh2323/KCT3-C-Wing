@@ -972,15 +972,25 @@ let collectionsCache = [];
 let chargesCache = [];
 async function renderCollectionsTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data, error}, {data:charges}, {data:flats}, {data:pending}] = await Promise.all([
+  const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
-    sb.from('charges').select('round_name, amount_per_flat'),
+    sb.from('charges').select('round_name, amount_per_flat, applies_to'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
     sb.from('v_dues_summary').select('round_name, pending_amount').gt('pending_amount', 0),
+    sb.from('v_flats').select('status'),
     loadWaSentCache(),
   ]);
   collectionsCache = data || [];
   chargesCache = charges || [];
+  const totalFlatsCount = (flatStatuses||[]).length;
+  const soldFlatsCount = (flatStatuses||[]).filter(f=>f.status==='Sold').length;
+  const unsoldFlatsCount = (flatStatuses||[]).filter(f=>f.status==='Unsold').length;
+  const appliesToCountByRound = {};
+  (charges||[]).forEach(c=>{
+    appliesToCountByRound[c.round_name] = c.applies_to==='Sold Flats Only' ? soldFlatsCount
+      : c.applies_to==='Unsold Flats Only' ? unsoldFlatsCount
+      : totalFlatsCount;
+  });
   const pendingByRound = {};
   (pending||[]).forEach(r=>{
     if(!pendingByRound[r.round_name]) pendingByRound[r.round_name] = {total:0, count:0};
@@ -1003,7 +1013,11 @@ async function renderCollectionsTab(box){
         <div class="field" style="flex:0"><button onclick="document.getElementById('pay_search_flat').value=''; document.getElementById('pay_search_results').innerHTML='';">Clear</button></div>
       </div>
       ${pendingRounds.length
-        ? pendingRounds.map(([round,r])=>`<p class="config-note" style="margin-top:6px">🔸 <b>${round}</b>: ${fmtMoney(r.total)} pending across ${r.count} flat(s)</p>`).join('')
+        ? pendingRounds.map(([round,r])=>{
+            const applicable = appliesToCountByRound[round] || r.count;
+            const doneCount = Math.max(applicable - r.count, 0);
+            return `<p class="config-note" style="margin-top:6px">🔸 <b>${round}</b>: ${applicable} flat(s) me se ${doneCount} flat ka collection aa gaya hai, ${r.count} flat ka ${fmtMoney(r.total)} baaki hai</p>`;
+          }).join('')
         : `<p class="config-note" style="margin-top:6px">✅ Koi bhi round me kuch pending nahi hai.</p>`}
       <div id="pay_search_results"></div>
     </div>
