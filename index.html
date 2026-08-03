@@ -1016,9 +1016,9 @@ async function renderCollectionsTab(box){
         ? pendingRounds.map(([round,r])=>{
             const applicable = appliesToCountByRound[round] || r.count;
             const doneCount = Math.max(applicable - r.count, 0);
-            return `<p class="config-note" style="margin-top:6px">🔸 <b>${round}</b>: ${applicable} flat(s) me se ${doneCount} flat ka collection aa gaya hai, ${r.count} flat ka ${fmtMoney(r.total)} baaki hai</p>`;
+            return `<p class="config-note" style="margin-top:6px">🔸 <b>${round}</b>: ${applicable} ફ્લેટ માંથી ${doneCount} ફ્લેટનું કલેક્શન આવી ગયું છે, ${r.count} ફ્લેટના ${fmtMoney(r.total)} બાકી છે</p>`;
           }).join('')
-        : `<p class="config-note" style="margin-top:6px">✅ Koi bhi round me kuch pending nahi hai.</p>`}
+        : `<p class="config-note" style="margin-top:6px">✅ કોઈપણ રાઉન્ડમાં કંઈ બાકી નથી.</p>`}
       <div id="pay_search_results"></div>
     </div>
     ${!unlocked ? `<p class="config-note">🔒 Add Collection / Bulk Builder Payment sirf Unlock karne ke baad dikhte hain.</p>` : `
