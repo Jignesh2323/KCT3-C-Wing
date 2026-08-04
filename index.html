@@ -232,8 +232,7 @@ tr:hover td{background:var(--paper-dark);}
 .config-note{font-size:12px; color:var(--ink-soft); margin-top:6px;}
 .bell-wrap{position:relative; font-size:20px; line-height:1; cursor:pointer; color:#fff; padding:4px; -webkit-tap-highlight-color:transparent;}
 .notif-badge{position:absolute; top:-4px; right:-6px; background:#DC2626; color:#fff; font-size:10px; font-weight:800; min-width:17px; height:17px; border-radius:999px; display:none; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--maroon-dark);}
-.notif-panel{position:absolute; top:calc(100% + 10px); right:-6px; width:300px; max-width:85vw; max-height:360px; overflow-y:auto; background:var(--white-card); border:1px solid var(--rule); border-radius:14px; box-shadow:var(--shadow-lg); padding:6px; z-index:80; display:none; text-align:left;}
-.notif-panel.open{display:block;}
+.notif-panel{position:fixed; width:300px; max-width:85vw; max-height:360px; overflow-y:auto; background:var(--white-card); border:1px solid var(--rule); border-radius:14px; box-shadow:var(--shadow-lg); padding:6px; z-index:90; text-align:left;}
 .notif-item{padding:10px; border-bottom:1px solid var(--rule); font-size:13px; color:var(--ink); font-weight:600;}
 .notif-item:last-child{border-bottom:none;}
 .accordion-header{display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; padding:2px 0; -webkit-tap-highlight-color:transparent;}
@@ -594,7 +593,6 @@ function topbar(title){
       <span class="pill ${unlocked?'sold':'unsold'}">${unlocked?'Unlocked':'View Only'}</span>
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="bell-wrap" onclick="toggleNotifPanel(event)">🔔<span id="notif-badge" class="notif-badge">0</span>
-          <div class="notif-panel" id="notif-panel"></div>
         </span>
         ${unlocked ? `<button onclick="lockNow()">Lock</button>` : `<button class="primary" onclick="unlockOnly()">Unlock</button>`}
       </div>
@@ -645,35 +643,38 @@ async function refreshNotifBadge(){
     try{ count>0 ? navigator.setAppBadge(count) : navigator.clearAppBadge(); }catch(e){}
   }
 }
-function renderNotifPanel(){
-  const panel = document.getElementById('notif-panel');
-  if(!panel) return;
+function toggleNotifPanel(e){
+  e.stopPropagation();
+  const existing = document.getElementById('notif-panel');
+  if(existing){ existing.remove(); return; }
+  showNotifPanel();
+}
+function showNotifPanel(){
+  const bell = document.querySelector('.bell-wrap');
+  if(!bell) return;
+  const rect = bell.getBoundingClientRect();
+  const panel = document.createElement('div');
+  panel.id = 'notif-panel';
+  panel.className = 'notif-panel';
+  panel.style.top = (rect.bottom + 8) + 'px';
+  panel.style.right = Math.max(6, window.innerWidth - rect.right) + 'px';
   panel.innerHTML = notifNewItems.length
     ? notifNewItems.map(n=>`<div class="notif-item">${n.text}<div class="config-note" style="margin:2px 0 0;">${fmtDate(n.date)}</div></div>`).join('')
     : `<div class="notif-item" style="text-align:center; color:var(--ink-soft); font-weight:500;">Koi nayi entry nahi hai 🎉</div>`;
-}
-function toggleNotifPanel(e){
-  e.stopPropagation();
-  const panel = document.getElementById('notif-panel');
-  if(!panel) return;
-  const opening = !panel.classList.contains('open');
-  if(opening){
-    renderNotifPanel(); // show what's new BEFORE marking it seen
-    panel.classList.add('open');
-    const collIds = notifNewItems.filter(n=>n.type==='collection').map(n=>n.id);
-    const expIds = notifNewItems.filter(n=>n.type==='expense').map(n=>n.id);
-    if(collIds.length) localStorage.setItem(NOTIF_LAST_COLL_KEY, String(Math.max(...collIds)));
-    if(expIds.length) localStorage.setItem(NOTIF_LAST_EXP_KEY, String(Math.max(...expIds)));
-    const badge = document.getElementById('notif-badge');
-    if(badge) badge.style.display = 'none';
-    if(navigator.clearAppBadge){ try{ navigator.clearAppBadge(); }catch(err){} }
-  } else {
-    panel.classList.remove('open');
-  }
+  // appended directly to <body> (not inside the hero banner) so its
+  // dropdown isn't clipped by the banner's own overflow:hidden
+  document.body.appendChild(panel);
+  const collIds = notifNewItems.filter(n=>n.type==='collection').map(n=>n.id);
+  const expIds = notifNewItems.filter(n=>n.type==='expense').map(n=>n.id);
+  if(collIds.length) localStorage.setItem(NOTIF_LAST_COLL_KEY, String(Math.max(...collIds)));
+  if(expIds.length) localStorage.setItem(NOTIF_LAST_EXP_KEY, String(Math.max(...expIds)));
+  const badge = document.getElementById('notif-badge');
+  if(badge) badge.style.display = 'none';
+  if(navigator.clearAppBadge){ try{ navigator.clearAppBadge(); }catch(err){} }
 }
 document.addEventListener('click', (e)=>{
   const panel = document.getElementById('notif-panel');
-  if(panel && panel.classList.contains('open') && !e.target.closest('.bell-wrap')) panel.classList.remove('open');
+  if(panel && !e.target.closest('.bell-wrap') && !e.target.closest('#notif-panel')) panel.remove();
 });
 function startNotifPolling(){
   if(notifIntervalStarted) return;
@@ -1733,7 +1734,7 @@ function duesByFloorHtml(flatNos, byFlat, roundNames){
         const f = byFlat[fn];
         const breakdown = roundNames.filter(r=>Number(f.perRound[r]||0)>0)
           .map(r=>`<span class="config-note" style="margin:0;">${r}: ${fmtMoney(f.perRound[r])}</span>`).join('');
-        const link = f.total>0 ? waLink(f.contact_no, duesReminderMsg(fn, f, roundNames)) : null;
+        const link = (f.total>0 && f.owner_name) ? waLink(f.contact_no, duesReminderMsg(fn, f, roundNames)) : null;
         const waKey = `dues:${fn}:${Math.round(f.total)}`;
         const pillId = `dues-wa-${fn}`;
         if(link) duesReminderLinks[fn] = {flatNo:fn, link, waKey, pillId};
