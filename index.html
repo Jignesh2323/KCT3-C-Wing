@@ -971,18 +971,25 @@ async function upsertFlat(){
 /* ---- Collections tab ---- */
 let collectionsCache = [];
 let chargesCache = [];
+let flatsListCache = [];
+let pendingFlatsByRoundCache = {};
 async function renderCollectionsTab(box){
   const unlocked = pinStillValid() && state.user;
   const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
     sb.from('charges').select('round_name, amount_per_flat, applies_to'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
-    sb.from('v_dues_summary').select('round_name, pending_amount').gt('pending_amount', 0),
+    sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').gt('pending_amount', 0),
     sb.from('v_flats').select('status'),
     loadWaSentCache(),
   ]);
   collectionsCache = data || [];
   chargesCache = charges || [];
+  flatsListCache = flats || [];
+  pendingFlatsByRoundCache = {};
+  (pending||[]).forEach(r=>{
+    (pendingFlatsByRoundCache[r.round_name] = pendingFlatsByRoundCache[r.round_name] || []).push(r.flat_no);
+  });
   const totalFlatsCount = (flatStatuses||[]).length;
   const soldFlatsCount = (flatStatuses||[]).filter(f=>f.status==='Sold').length;
   const unsoldFlatsCount = (flatStatuses||[]).filter(f=>f.status==='Unsold').length;
@@ -1030,16 +1037,16 @@ async function renderCollectionsTab(box){
       </div>
       <div class="accordion-body" id="acc_coll_add_body" style="display:none; margin-top:12px;">
       <div class="form-row">
-        <div class="field"><label>Flat No</label>
-          <select id="c_flat">${(flats||[]).map(f=>`<option value="${f.flat_no}">${f.flat_no}${f.owner_name?' — '+f.owner_name:''}</option>`).join('')}</select>
+        <div class="field"><label>Purpose (Round)</label>
+          <select id="c_purpose" onchange="onCollectionPurposeChange()">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Flat No <span class="config-note" style="margin:0; display:inline;">(sirf jinka is round me pending hai)</span></label>
+          <select id="c_flat"></select>
         </div>
         <div class="field"><label>Date</label><input id="c_date" type="date"></div>
         <div class="field"><label>Amount</label><input id="c_amount" type="number"></div>
         <div class="field"><label>Mode</label>
           <select id="c_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
-        </div>
-        <div class="field"><label>Purpose (Round)</label>
-          <select id="c_purpose" onchange="autofillCollectionAmount()">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Remarks</label><input id="c_remarks"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addCollection()">Add</button></div>
@@ -1074,7 +1081,24 @@ async function renderCollectionsTab(box){
     </div>`;
   document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
   document.getElementById('coll_purpose_filter').addEventListener('change', filterCollectionsTable);
-  if(unlocked && chargesCache.length){ autofillCollectionAmount(); updateBulkBuilderTotal(); }
+  if(unlocked && chargesCache.length){ populateCollectionFlatOptions(); autofillCollectionAmount(); updateBulkBuilderTotal(); }
+}
+function onCollectionPurposeChange(){
+  populateCollectionFlatOptions();
+  autofillCollectionAmount();
+}
+function populateCollectionFlatOptions(){
+  const purpose = document.getElementById('c_purpose')?.value;
+  const flatSel = document.getElementById('c_flat');
+  if(!purpose || !flatSel) return;
+  const pendingFlatNos = pendingFlatsByRoundCache[purpose] || [];
+  const options = pendingFlatNos
+    .map(fn => flatsListCache.find(f=>f.flat_no===fn))
+    .filter(Boolean)
+    .sort((a,b)=>a.flat_no-b.flat_no);
+  flatSel.innerHTML = options.length
+    ? options.map(f=>`<option value="${f.flat_no}">${f.flat_no}${f.owner_name?' — '+f.owner_name:''}</option>`).join('')
+    : `<option value="">Is round me koi bhi flat pending nahi hai</option>`;
 }
 function autofillCollectionAmount(){
   const purpose = document.getElementById('c_purpose')?.value;
@@ -1159,7 +1183,9 @@ async function searchFlatPayments(){
     </tbody></table>`;
 }
 async function addCollection(){
-  const flatNo = Number(document.getElementById('c_flat').value);
+  const flatVal = document.getElementById('c_flat').value;
+  if(!flatVal){ alert('Is round me koi bhi flat pending nahi hai — dusra Purpose (Round) select karo.'); return; }
+  const flatNo = Number(flatVal);
   const purpose = document.getElementById('c_purpose').value;
   const {data: existing} = await sb.from('collections').select('*').eq('flat_no', flatNo).eq('purpose', purpose);
   if(existing && existing.length){
