@@ -262,6 +262,9 @@ a{color:var(--maroon);}
   .form-row .field{width:100%; min-width:0;}
   .form-row .field[style*="flex:0"]{width:100%;}
   .form-row button{width:100%;}
+  .form-row.form-row-pair{flex-direction:row; gap:10px;}
+  .form-row.form-row-pair .field{width:auto; flex:1 1 0;}
+  .grid-stats-2col .stat{flex:1 1 calc(50% - 4px);}
 }
 
 @media print{
@@ -473,7 +476,7 @@ async function renderCommonExpenseSplit(){
   const soldTotal = perFlat * soldCount;
   const unsoldTotal = perFlat * unsoldCount;
   resultBox.innerHTML = `
-    <div class="grid-stats">
+    <div class="grid-stats grid-stats-2col">
       <div class="stat stat-bad"><div class="num mono">${fmtMoney(total)}</div><div class="lbl">Month Total (Common Categories)</div></div>
       <div class="stat stat-neutral"><div class="num mono">${fmtMoney(perFlat)}</div><div class="lbl">Per Flat (÷${TOTAL_FLATS_FIXED})</div></div>
       <div class="stat stat-good"><div class="num mono">${soldCount}</div><div class="lbl">Sold Flats Count</div></div>
@@ -837,7 +840,7 @@ async function renderDashboardTab(box){
     </div>
     <div class="card">
       <h3>Monthly Common Expense Split</h3>
-      <div class="form-row">
+      <div class="form-row form-row-pair">
         <div class="field"><label>Month</label><select id="cx_month" onchange="onCxDateChange()">${cxMonthOptionsHtml()}</select></div>
         <div class="field"><label>Year</label><select id="cx_year" onchange="onCxDateChange()">${cxYearOptionsHtml()}</select></div>
       </div>
