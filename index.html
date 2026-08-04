@@ -1039,7 +1039,7 @@ async function renderCollectionsTab(box){
           <select id="c_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
         </div>
         <div class="field"><label>Purpose (Round)</label>
-          <select id="c_purpose">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
+          <select id="c_purpose" onchange="autofillCollectionAmount()">${(charges||[]).map(c=>`<option>${c.round_name}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Remarks</label><input id="c_remarks"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addCollection()">Add</button></div>
@@ -1074,7 +1074,14 @@ async function renderCollectionsTab(box){
     </div>`;
   document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
   document.getElementById('coll_purpose_filter').addEventListener('change', filterCollectionsTable);
-  if(unlocked && chargesCache.length) updateBulkBuilderTotal();
+  if(unlocked && chargesCache.length){ autofillCollectionAmount(); updateBulkBuilderTotal(); }
+}
+function autofillCollectionAmount(){
+  const purpose = document.getElementById('c_purpose')?.value;
+  const amountField = document.getElementById('c_amount');
+  if(!purpose || !amountField) return;
+  const round = chargesCache.find(c=>c.round_name===purpose);
+  if(round) amountField.value = round.amount_per_flat;
 }
 async function updateBulkBuilderTotal(){
   const purpose = document.getElementById('bb_purpose')?.value;
