@@ -45,6 +45,49 @@
   --shadow-lg:0 4px 10px rgba(20,22,43,.08), 0 16px 40px rgba(20,22,43,.14);
   --nav-h:64px;
 }
+:root[data-theme="dark"]{
+  --paper:#12131C;
+  --paper-dark:#1E2030;
+  --ink:#ECEDF7;
+  --ink-soft:#9AA0B8;
+  --maroon:#8B85FF;
+  --maroon-dark:#A5A0FF;
+  --ledger-green:#34D399;
+  --rule:#2E3145;
+  --white-card:#1A1C2A;
+  --danger:#F87171;
+  --warning:#FBBF24;
+  --info:#38BDF8;
+  --maroon-glow:rgba(139,133,255,.35);
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  --shadow-lg:0 4px 10px rgba(0,0,0,.35), 0 16px 40px rgba(0,0,0,.5);
+}
+:root[data-theme="dark"] .stat-good{background:#0F2E22;}
+:root[data-theme="dark"] .stat-good .num{color:#34D399;}
+:root[data-theme="dark"] .stat-bad{background:#3A1414;}
+:root[data-theme="dark"] .stat-bad .num{color:#F87171;}
+:root[data-theme="dark"] .stat-neutral{background:#232349;}
+:root[data-theme="dark"] .stat-neutral .num{color:#A5A0FF;}
+:root[data-theme="dark"] .stat-info{background:#0E2A3A;}
+:root[data-theme="dark"] .stat-info .num{color:#38BDF8;}
+:root[data-theme="dark"] .stat-warning{background:#3A2A0E;}
+:root[data-theme="dark"] .stat-warning .num{color:#FBBF24;}
+:root[data-theme="dark"] .stat-two{background:#0E2E33;}
+:root[data-theme="dark"] .stat-two .num{color:#22D3EE;}
+:root[data-theme="dark"] .stat-four{background:#3A1414;}
+:root[data-theme="dark"] .stat-four .num{color:#F87171;}
+:root[data-theme="dark"] .stat-cash{background:#3A2A0E;}
+:root[data-theme="dark"] .stat-cash .num{color:#FBBF24;}
+:root[data-theme="dark"] .stat-bank{background:#0E2438;}
+:root[data-theme="dark"] .stat-bank .num{color:#60A5FA;}
+:root[data-theme="dark"] .pill.sold{background:#0F2E22; color:#34D399;}
+:root[data-theme="dark"] .pill.unsold{background:var(--paper-dark);}
+:root[data-theme="dark"] .msg.error{background:#3A1414; border-color:#7A3838;}
+:root[data-theme="dark"] .msg.ok{background:#0F2E22; border-color:#2D6A4F;}
+:root[data-theme="dark"] .search-safe{background:#0F2E22 !important; border-color:#34D399 !important;}
+:root[data-theme="dark"] .search-safe::placeholder{color:#5FBE8A;}
+:root[data-theme="dark"] button.danger{background:#3A1414; border-color:#7A3838;}
+:root[data-theme="dark"] .hero-banner .who button.primary{background:var(--white-card); color:var(--maroon);}
 *{box-sizing:border-box;}
 body{
   margin:0; background:var(--paper); color:var(--ink);
@@ -499,6 +542,41 @@ let state = { user:null, profile:null, tab:'dashboard', msg:null };
 
 function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
 
+/* ---------------- Settings (device-local, no Supabase table needed) ---------------- */
+const THEME_KEY = 'cwing_theme';
+const NOTIF_ENABLED_KEY = 'cwing_notif_enabled';
+const DEFAULT_TAB_KEY = 'cwing_default_tab';
+const AUTOFILL_AMOUNT_KEY = 'cwing_autofill_amount';
+
+function getTheme(){ return localStorage.getItem(THEME_KEY) || 'auto'; }
+function applyTheme(){
+  const theme = getTheme();
+  const resolved = theme === 'auto'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme;
+  document.documentElement.setAttribute('data-theme', resolved);
+}
+function setTheme(theme){ localStorage.setItem(THEME_KEY, theme); applyTheme(); }
+applyTheme();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{ if(getTheme()==='auto') applyTheme(); });
+
+function notifEnabled(){ return localStorage.getItem(NOTIF_ENABLED_KEY) !== 'false'; }
+function getDefaultTab(){ return localStorage.getItem(DEFAULT_TAB_KEY) || 'dashboard'; }
+function setDefaultTab(k){ localStorage.setItem(DEFAULT_TAB_KEY, k); }
+function autofillEnabled(){ return localStorage.getItem(AUTOFILL_AMOUNT_KEY) !== 'false'; }
+function toggleNotifSetting(checked){
+  localStorage.setItem(NOTIF_ENABLED_KEY, checked ? 'true' : 'false');
+  if(checked){ ensureNotifBaseline().then(()=>{ refreshNotifBadge(); startNotifPolling(); }); }
+  else {
+    const badge = document.getElementById('notif-badge'); if(badge) badge.style.display = 'none';
+    if(navigator.clearAppBadge){ try{ navigator.clearAppBadge(); }catch(e){} }
+  }
+  render();
+}
+function toggleAutofillSetting(checked){
+  localStorage.setItem(AUTOFILL_AMOUNT_KEY, checked ? 'true' : 'false');
+}
+
 /* ---------------- PIN-gated WRITE access ----------------
    Viewing (dashboard, flats, expenses, vehicle search) never
    needs a PIN — it's open to everyone, same as before.
@@ -598,8 +676,8 @@ function topbar(title){
     <div class="who">
       <span class="pill ${unlocked?'sold':'unsold'}">${unlocked?'Unlocked':'View Only'}</span>
       <div style="display:flex; align-items:center; gap:8px;">
-        <span class="bell-wrap" onclick="toggleNotifPanel(event)">🔔<span id="notif-badge" class="notif-badge">0</span>
-        </span>
+        ${notifEnabled() ? `<span class="bell-wrap" onclick="toggleNotifPanel(event)">🔔<span id="notif-badge" class="notif-badge">0</span>
+        </span>` : ''}
         ${unlocked ? `<button onclick="lockNow()">Lock</button>` : `<button class="primary" onclick="unlockOnly()">Unlock</button>`}
       </div>
     </div>
@@ -701,9 +779,11 @@ const ADMIN_TABS = [
   ['charges','Charges'],
   ['stickerlog','Sticker Log'],
   ['dues','Dues Summary'],
+  ['settings','Settings'],
 ];
 
-const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues'];
+const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues','settings'];
+const NO_PIN_MORE_TABS = ['settings']; // secondary tabs reachable via More without a PIN
 const TAB_ICONS = {
   dashboard: '🏠',
   flats: '🏢',
@@ -714,6 +794,7 @@ const TAB_ICONS = {
   charges: '🧾',
   stickerlog: '🏷️',
   dues: '📋',
+  settings: '⚙️',
 };
 
 async function renderAdmin(){
@@ -752,6 +833,7 @@ document.addEventListener('click', (e)=>{
 });
 async function onMoreTabSelect(k){
   if(!k) return;
+  if(NO_PIN_MORE_TABS.includes(k)){ state.tab = k; render(); return; }
   await withPin(async ()=>{ state.tab = k; render(); });
 }
 function setTab(k){ state.tab = k; render(); }
@@ -787,6 +869,7 @@ async function renderTabContent(){
     if(state.tab==='charges') return await renderChargesTab(box);
     if(state.tab==='stickerlog') return await renderStickerLogTab(box);
     if(state.tab==='dues') return await renderDuesTab(box);
+    if(state.tab==='settings') return await renderSettingsTab(box);
   }catch(err){
     console.error(err);
     box.innerHTML = `<div class="msg error"><b>Something broke:</b> ${err.message || err}</div>`;
@@ -1108,6 +1191,7 @@ function populateCollectionFlatOptions(){
     : `<option value="">Is round me koi bhi flat pending nahi hai</option>`;
 }
 function autofillCollectionAmount(){
+  if(!autofillEnabled()) return;
   const purpose = document.getElementById('c_purpose')?.value;
   const amountField = document.getElementById('c_amount');
   if(!purpose || !amountField) return;
@@ -1886,6 +1970,51 @@ function sendWaQueueItem(){
 function skipWaQueue(){ waQueueIndex++; showWaQueueModal(); }
 function closeWaQueueModal(){ document.getElementById('wa-queue-modal')?.remove(); waQueue = []; waQueueIndex = 0; }
 
+/* ---- Settings tab — device-local preferences only, nothing here
+   touches Supabase data. Reachable via More without a PIN. ---- */
+async function renderSettingsTab(box){
+  const theme = getTheme();
+  box.innerHTML = `
+    <div class="card">
+      <h3>🎨 Theme</h3>
+      <p class="config-note" style="margin-top:-6px">App kaisi dikhe, choose karo.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <button class="${theme==='light'?'primary':''}" onclick="setTheme('light'); refreshTab();">☀️ Light</button>
+        <button class="${theme==='dark'?'primary':''}" onclick="setTheme('dark'); refreshTab();">🌙 Dark</button>
+        <button class="${theme==='auto'?'primary':''}" onclick="setTheme('auto'); refreshTab();">🔁 Auto (Device)</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🔔 Notifications</h3>
+      <p class="config-note" style="margin-top:-6px">Naye Collection/Expense aane par bell icon par badge dikhana.</p>
+      <label style="display:flex; align-items:center; gap:10px; margin-top:10px; cursor:pointer;">
+        <input type="checkbox" id="set_notif_toggle" ${notifEnabled()?'checked':''} onchange="toggleNotifSetting(this.checked)" style="width:20px; height:20px; accent-color:var(--maroon); flex-shrink:0;">
+        <span>Bell notification badge enable rakho</span>
+      </label>
+    </div>
+    <div class="card">
+      <h3>📌 Default Tab</h3>
+      <p class="config-note" style="margin-top:-6px">App open karte hi kaunsi tab sabse pehle dikhe.</p>
+      <div class="field" style="margin-top:10px; max-width:260px;">
+        <select id="set_default_tab" onchange="setDefaultTab(this.value)">
+          ${ADMIN_TABS.map(([k,label])=>`<option value="${k}" ${getDefaultTab()===k?'selected':''}>${label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🔁 Add Collection Auto-fill</h3>
+      <p class="config-note" style="margin-top:-6px">Purpose (Round) select karte hi Amount apne aap us round ke "Amount per Flat" se bhar jaye.</p>
+      <label style="display:flex; align-items:center; gap:10px; margin-top:10px; cursor:pointer;">
+        <input type="checkbox" id="set_autofill_toggle" ${autofillEnabled()?'checked':''} onchange="toggleAutofillSetting(this.checked)" style="width:20px; height:20px; accent-color:var(--maroon); flex-shrink:0;">
+        <span>Auto-fill enable rakho</span>
+      </label>
+    </div>
+    <div class="card">
+      <h3>ℹ️ Jaankari</h3>
+      <p class="config-note" style="margin:0;">Ye sabhi settings sirf isi device/browser par lagu hoti hain — koi bhi Supabase data ya doosre kisi device ki setting nahi badalti.</p>
+    </div>`;
+}
+
 /* ---- generic delete (with a proper styled confirm popup) ---- */
 function showConfirmModal(message, onYes){
   const old = document.getElementById('confirm-modal');
@@ -1927,10 +2056,13 @@ async function deleteRow(table, col, val, isString){
     if(session){ state.user = session.user; }
     else { localStorage.removeItem(PIN_UNLOCK_KEY); } // stale flag, session actually gone
   }
-  await ensureNotifBaseline();
+  state.tab = getDefaultTab();
   render();
-  refreshNotifBadge();
-  startNotifPolling();
+  if(notifEnabled()){
+    await ensureNotifBaseline();
+    refreshNotifBadge();
+    startNotifPolling();
+  }
 })();
 if('serviceWorker' in navigator && location.protocol !== 'file:'){
   window.addEventListener('load', ()=>{
