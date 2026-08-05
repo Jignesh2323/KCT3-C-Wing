@@ -1026,6 +1026,7 @@ async function renderCollectionsTab(box){
         </div>
         <div class="field" style="flex:0"><button onclick="document.getElementById('pay_search_flat').value=''; document.getElementById('pay_search_results').innerHTML='';">Clear</button></div>
       </div>
+      <div id="pending_flats_by_round_box"></div>
       ${pendingRounds.length
         ? pendingRounds.map(([round,r])=>{
             const applicable = appliesToCountByRound[round] || r.count;
@@ -1160,6 +1161,26 @@ function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
   const list = purpose ? collectionsCache.filter(c=>c.purpose===purpose) : collectionsCache;
   document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list);
+  renderPendingFlatsForRound();
+}
+function renderPendingFlatsForRound(){
+  const purpose = document.getElementById('coll_purpose_filter')?.value;
+  const box = document.getElementById('pending_flats_by_round_box');
+  if(!box) return;
+  if(!purpose){ box.innerHTML = ''; return; }
+  const pendingFlatNos = (pendingFlatsByRoundCache[purpose] || []).slice().sort((a,b)=>a-b);
+  if(!pendingFlatNos.length){
+    box.innerHTML = `<p class="config-note" style="margin-top:6px">✅ "${purpose}" નું બધાનું કલેક્શન આવી ગયું છે.</p>`;
+    return;
+  }
+  const items = pendingFlatNos.map(fn=>{
+    const f = flatsListCache.find(x=>x.flat_no===fn);
+    return `<span style="display:inline-flex; align-items:center; gap:5px; background:var(--paper-dark); border-radius:999px; padding:3px 12px 3px 3px; font-size:12px; font-weight:600;">
+      <span class="pill flat-chip" style="background:${flatBadgeColor(fn)}; margin:0;">${fn}</span>${f?.owner_name||''}
+    </span>`;
+  }).join('');
+  box.innerHTML = `<p class="config-note" style="margin-top:6px; font-weight:700;">🔸 "${purpose}" — ${pendingFlatNos.length} ફ્લેટનું કલેક્શન બાકી છે:</p>
+    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${items}</div>`;
 }
 async function searchFlatPayments(){
   const flatNo = document.getElementById('pay_search_flat').value.trim();
