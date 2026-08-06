@@ -478,7 +478,7 @@ function flatBadgeColor(flatNo){
 }
 
 /* ---- Monthly Common Expense Split ---- */
-const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery'];
+const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery','KIRAN 3 Society Expense'];
 const TOTAL_FLATS_FIXED = 52;
 let cxMonth = new Date().getMonth()+1;
 let cxYear = new Date().getFullYear();
@@ -878,17 +878,21 @@ async function renderTabContent(){
 
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
-  const [{data:s}, {data:byMode}, {data:byCat}, {data:transfers}] = await Promise.all([
+  const [{data:s}, {data:byMode}, {data:byCat}, {data:transfers}, {data:kiran3}] = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
     sb.from('v_fund_by_mode').select('*'),
     sb.from('v_expense_by_category').select('*'),
-    sb.from('fund_transfers').select('amount')
+    sb.from('fund_transfers').select('amount'),
+    sb.from('expenses').select('category, amount').in('category', ['KIRAN 3 Society Advance', 'KIRAN 3 Society Expense']),
   ]);
   const totalTransferred = (transfers||[]).reduce((s,t)=>s+Number(t.amount||0),0);
   const cashRow = (byMode||[]).find(m => (m.mode||'').toLowerCase() === 'cash');
   const cashInHand = (Number(cashRow?.collected||0)) - (Number(cashRow?.spent||0)) - totalTransferred;
   const bankRows = (byMode||[]).filter(m => (m.mode||'').toLowerCase() !== 'cash');
   const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0) + totalTransferred;
+  const kiran3Advance = (kiran3||[]).filter(e=>e.category==='KIRAN 3 Society Advance').reduce((s,e)=>s+Number(e.amount||0),0);
+  const kiran3Expense = (kiran3||[]).filter(e=>e.category==='KIRAN 3 Society Expense').reduce((s,e)=>s+Number(e.amount||0),0);
+  const kiran3Balance = kiran3Advance - kiran3Expense;
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
       <div class="grid-stats" style="margin-bottom:10px;">
@@ -911,6 +915,15 @@ async function renderDashboardTab(box){
       </div>
       <p class="config-note" style="margin-top:10px">રોકડ હાથમાં = રોકડ જમા − રોકડ ખર્ચ. બેંક બેલેન્સ = બાકીનું બધું (UPI/બેંક ટ્રાન્સફર/ચેક) જમા − ખર્ચ ભેગું.</p>
     </div>
+    ${(kiran3Advance>0 || kiran3Expense>0) ? `<div class="card">
+      <h3>🏢 KIRAN 3 Society Balance</h3>
+      <div class="grid-stats-2col grid-stats" style="margin-top:10px;">
+        <div class="stat stat-cash"><div class="num mono">${fmtMoney(kiran3Advance)}</div><div class="lbl">Total Diya (Advance)</div></div>
+        <div class="stat stat-bad"><div class="num mono">${fmtMoney(kiran3Expense)}</div><div class="lbl">Total Actual Expense</div></div>
+        <div class="stat ${kiran3Balance>=0?'stat-good':'stat-bad'}"><div class="num mono">${fmtMoney(kiran3Balance)}</div><div class="lbl">Society ke paas Baaki Balance</div></div>
+      </div>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">"KIRAN 3 Society Advance" — jab bhi society ko paisa do. "KIRAN 3 Society Expense" — 15 tarikh ko jo actual per-flat amount bataye, uska total. Baaki Balance = Advance − Expense, jo abhi bhi society ke bank account me C-Wing ka pada hai.</p>
+    </div>` : ''}
     <div class="card"><h3>By Payment Mode</h3>
       <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
       ${(byMode||[]).map(m=>`<tr><td style="font-weight:600">${m.mode}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:#15803D;">${fmtMoney(m.collected)}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:var(--danger);">${fmtMoney(m.spent)}</td></tr>`).join('')}
@@ -1383,6 +1396,7 @@ async function renderExpensesTab(box){
             <option>Electricity</option><option>Water</option><option>Lift Maintenance</option>
             <option>Repair & Maintenance</option><option>Gardening</option><option>Pest Control</option>
             <option>Event</option><option>Admin/Stationery</option><option>Festival</option>
+            <option>KIRAN 3 Society Advance</option><option>KIRAN 3 Society Expense</option>
           </select>
         </div>
         <div class="field"><label>Description</label><input id="e_desc"></div>
