@@ -334,7 +334,7 @@ function fmtMoney(n){ n = Number(n||0); return '₹' + n.toLocaleString('en-IN')
 function fmtDate(d){
   if(!d) return '';
   const [y,m,dd] = String(d).slice(0,10).split('-');
-  return (y && m && dd) ? `${dd}-${m}-${y}` : String(d);
+  return (y && m && dd) ? `${dd}/${m}/${y}` : String(d);
 }
 const PURPOSE_COLORS = ['#B33A2E','#1D5FA8','#3E8C2E','#B35A18','#5D3EA8','#B3860A','#207E8F','#B32626','#3E9B2E','#B34B18','#A82368','#278A22'];
 function purposeColor(purpose){
@@ -903,6 +903,7 @@ async function renderDashboardTab(box){
       <div class="grid-stats" style="margin-bottom:10px;">
         <div class="stat stat-cash"><div class="num mono">${fmtMoney(cashInHand)}</div><div class="lbl"><span class="lbl-icon">💵</span>Cash in Hand</div></div>
         <div class="stat stat-bank"><div class="num mono">${fmtMoney(bankBalance)}</div><div class="lbl"><span class="lbl-icon">🏦</span>Bank Balance</div></div>
+        ${(kiran3Advance>0 || kiran3Expense>0) ? `<div class="stat ${kiran3Balance>=0?'stat-good':'stat-bad'}"><div class="num mono">${kiran3Balance>=0?'+':'−'}${fmtMoney(Math.abs(kiran3Balance))}</div><div class="lbl"><span class="lbl-icon">🏢</span>KIRAN 3 Common Balance</div></div>` : ''}
       </div>
       <div class="grid-stats" style="margin-bottom:10px;">
         <div class="stat stat-info"><div class="num mono">${s?.total_flats??'-'}</div><div class="lbl"><span class="lbl-icon">🏢</span>Total Flats</div></div>
@@ -915,15 +916,6 @@ async function renderDashboardTab(box){
       </div>
       <p class="config-note" style="margin-top:10px">રોકડ હાથમાં = રોકડ જમા − રોકડ ખર્ચ. બેંક બેલેન્સ = બાકીનું બધું (UPI/બેંક ટ્રાન્સફર/ચેક) જમા − ખર્ચ ભેગું.</p>
     </div>
-    ${(kiran3Advance>0 || kiran3Expense>0) ? `<div class="card">
-      <h3>🏢 KIRAN 3 Society Balance</h3>
-      <div class="grid-stats-2col grid-stats" style="margin-top:10px;">
-        <div class="stat stat-cash"><div class="num mono">${fmtMoney(kiran3Advance)}</div><div class="lbl">Total Diya (Advance)</div></div>
-        <div class="stat stat-bad"><div class="num mono">${fmtMoney(kiran3Expense)}</div><div class="lbl">Total Actual Expense</div></div>
-        <div class="stat ${kiran3Balance>=0?'stat-good':'stat-bad'}"><div class="num mono">${fmtMoney(kiran3Balance)}</div><div class="lbl">Society ke paas Baaki Balance</div></div>
-      </div>
-      <p class="config-note" style="margin-top:8px; margin-bottom:0;">"KIRAN 3 Society Advance" — jab bhi society ko paisa do. "KIRAN 3 Society Expense" — 15 tarikh ko jo actual per-flat amount bataye, uska total. Baaki Balance = Advance − Expense, jo abhi bhi society ke bank account me C-Wing ka pada hai.</p>
-    </div>` : ''}
     <div class="card"><h3>By Payment Mode</h3>
       <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
       ${(byMode||[]).map(m=>`<tr><td style="font-weight:600">${m.mode}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:#15803D;">${fmtMoney(m.collected)}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:var(--danger);">${fmtMoney(m.spent)}</td></tr>`).join('')}
