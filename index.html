@@ -1398,7 +1398,7 @@ async function renderExpensesTab(box){
         <div class="field"><label>Mode</label>
           <select id="e_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
         </div>
-        <div class="field"><label>Bill Photo (optional)</label><input id="e_bill" type="file" accept="image/*"><div id="e_bill_current" class="config-note"></div></div>
+        <div class="field"><label>Bill Photos (optional — multiple select kar sakte ho)</label><input id="e_bill" type="file" accept="image/*" multiple><div id="e_bill_current" class="config-note"></div></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addExpense()">Save</button></div>
         <div class="field" style="flex:0"><button onclick="resetExpenseForm()">Clear</button></div>
       </div>
@@ -1420,7 +1420,7 @@ async function renderExpensesTab(box){
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
             <span class="config-note" style="margin:0;">${fmtDate(e.expense_date)}</span>
             ${e.paid_to?`<span class="config-note" style="margin:0;">ચૂકવ્યું: ${e.paid_to}</span>`:''}
-            ${e.bill_url?`<a href="${e.bill_url}" target="_blank" class="config-note" style="margin:0;">📎 બિલ</a>`:''}
+            ${billLinksHtml(e.bill_url)}
             <span class="flat-actions" style="margin-left:auto;">
               <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)}
               <button onclick="editExpense(${e.id})">Edit</button>
@@ -1444,7 +1444,12 @@ function populateExpenseForm(id){
   document.getElementById('e_mode').value = e.mode || 'Cash';
   const billField = document.getElementById('e_bill'); if(billField) billField.value = '';
   const billNote = document.getElementById('e_bill_current');
-  if(billNote) billNote.innerHTML = e.bill_url ? `<a href="${e.bill_url}" target="_blank">📎 હાલનું બિલ જુઓ</a> (નવો ફોટો પસંદ કરશો તો બદલાઈ જશે)` : '';
+  if(billNote){
+    const urls = (e.bill_url||'').split('\n').filter(Boolean);
+    billNote.innerHTML = urls.length
+      ? urls.map((u,i)=>`<a href="${u}" target="_blank">📎 હાલનું બિલ${urls.length>1?' '+(i+1):''} જુઓ</a>`).join(' · ') + ' (નવા ફોટા પસંદ કરશો તો બધા બદલાઈ જશે)'
+      : '';
+  }
   document.getElementById('expenses-form-title').textContent = `Editing Expense`;
   document.getElementById('e_date').scrollIntoView({behavior:'smooth', block:'center'});
 }
@@ -1461,13 +1466,23 @@ function resetExpenseForm(){
   const billNote = document.getElementById('e_bill_current'); if(billNote) billNote.innerHTML = '';
   const title = document.getElementById('expenses-form-title'); if(title) title.textContent = 'Add Expense';
 }
-async function uploadExpenseBill(file){
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `bill_${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
-  const {error} = await sb.storage.from('expense-bills').upload(path, file, {cacheControl:'3600', upsert:false});
-  if(error){ alert('Bill photo upload nahi ho paya: ' + error.message); return null; }
-  const {data} = sb.storage.from('expense-bills').getPublicUrl(path);
-  return data.publicUrl;
+async function uploadExpenseBills(files){
+  const urls = [];
+  for(const file of files){
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `bill_${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+    const {error} = await sb.storage.from('expense-bills').upload(path, file, {cacheControl:'3600', upsert:false});
+    if(error){ alert('Bill photo upload nahi ho paya: ' + error.message); return null; }
+    const {data} = sb.storage.from('expense-bills').getPublicUrl(path);
+    urls.push(data.publicUrl);
+  }
+  return urls;
+}
+// bill_url stores one or more URLs joined by \n (no schema change needed)
+function billLinksHtml(billUrl){
+  const urls = (billUrl||'').split('\n').filter(Boolean);
+  if(!urls.length) return '';
+  return urls.map((u,i)=>`<a href="${u}" target="_blank" class="config-note" style="margin:0;">📎 બિલ${urls.length>1?' '+(i+1):''}</a>`).join('');
 }
 async function addExpense(){
   await withPin(async ()=>{
@@ -1479,11 +1494,11 @@ async function addExpense(){
       paid_to: document.getElementById('e_paidto').value || null,
       mode: document.getElementById('e_mode').value,
     };
-    const billFile = document.getElementById('e_bill')?.files?.[0];
-    if(billFile){
-      const url = await uploadExpenseBill(billFile);
-      if(!url) return;
-      payload.bill_url = url;
+    const billFiles = document.getElementById('e_bill')?.files;
+    if(billFiles && billFiles.length){
+      const urls = await uploadExpenseBills([...billFiles]);
+      if(!urls) return;
+      payload.bill_url = urls.join('\n');
     }
     const {error} = editingExpenseId
       ? await sb.from('expenses').update(payload).eq('id', editingExpenseId)
