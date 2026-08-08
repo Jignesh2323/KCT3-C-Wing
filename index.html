@@ -273,8 +273,15 @@ tr:hover td{background:var(--paper-dark);}
 .pill-select.sold{color:#15803D;}
 .pill-select.unsold{color:var(--ink-soft);}
 .config-note{font-size:12px; color:var(--ink-soft); margin-top:6px;}
-.bell-wrap{position:relative; font-size:20px; line-height:1; cursor:pointer; color:#fff; padding:4px; -webkit-tap-highlight-color:transparent;}
+.bell-wrap{position:relative; display:inline-block; font-size:20px; line-height:1; cursor:pointer; color:#fff; padding:4px; -webkit-tap-highlight-color:transparent;}
 .notif-badge{position:absolute; top:-4px; right:-6px; background:#DC2626; color:#fff; font-size:10px; font-weight:800; min-width:17px; height:17px; border-radius:999px; display:none; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--maroon-dark);}
+@keyframes bellShake{
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30%, 50%, 70% { transform: rotate(-14deg); }
+  20%, 40%, 60%, 80% { transform: rotate(14deg); }
+  90% { transform: rotate(-4deg); }
+}
+.bell-wrap.has-notif{ animation: bellShake 1.8s ease-in-out infinite; transform-origin: 50% 0%; }
 .notif-panel{position:fixed; width:300px; max-width:85vw; max-height:360px; overflow-y:auto; background:var(--white-card); border:1px solid var(--rule); border-radius:14px; box-shadow:var(--shadow-lg); padding:6px; z-index:90; text-align:left;}
 .notif-item{padding:10px; border-bottom:1px solid var(--rule); font-size:13px; color:var(--ink); font-weight:600;}
 .notif-item:last-child{border-bottom:none;}
@@ -723,6 +730,7 @@ async function refreshNotifBadge(){
   const count = notifNewItems.length;
   const badge = document.getElementById('notif-badge');
   if(badge){ badge.style.display = count>0 ? 'flex' : 'none'; badge.textContent = count>99?'99+':String(count); }
+  document.querySelector('.bell-wrap')?.classList.toggle('has-notif', count>0);
   if(navigator.setAppBadge){
     try{ count>0 ? navigator.setAppBadge(count) : navigator.clearAppBadge(); }catch(e){}
   }
@@ -743,7 +751,7 @@ function showNotifPanel(){
   panel.style.top = (rect.bottom + 8) + 'px';
   panel.style.right = Math.max(6, window.innerWidth - rect.right) + 'px';
   panel.innerHTML = notifNewItems.length
-    ? notifNewItems.map(n=>`<div class="notif-item">${n.text}<div class="config-note" style="margin:2px 0 0;">${fmtDate(n.date)}</div></div>`).join('')
+    ? notifNewItems.map(n=>`<div class="notif-item" style="cursor:pointer;" onclick="notifItemClick('${n.type}')">${n.text}<div class="config-note" style="margin:2px 0 0;">${fmtDate(n.date)}</div></div>`).join('')
     : `<div class="notif-item" style="text-align:center; color:var(--ink-soft); font-weight:500;">Koi nayi entry nahi hai 🎉</div>`;
   // appended directly to <body> (not inside the hero banner) so its
   // dropdown isn't clipped by the banner's own overflow:hidden
@@ -760,6 +768,10 @@ document.addEventListener('click', (e)=>{
   const panel = document.getElementById('notif-panel');
   if(panel && !e.target.closest('.bell-wrap') && !e.target.closest('#notif-panel')) panel.remove();
 });
+function notifItemClick(type){
+  document.getElementById('notif-panel')?.remove();
+  setTab(type==='collection' ? 'collections' : 'expenses');
+}
 function startNotifPolling(){
   if(notifIntervalStarted) return;
   notifIntervalStarted = true;
@@ -819,6 +831,7 @@ async function renderAdmin(){
     </div>
   </nav>`;
   await renderTabContent();
+  if(notifEnabled()) refreshNotifBadge();
 }
 function toggleMoreMenu(e){
   e.stopPropagation();
