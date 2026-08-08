@@ -724,7 +724,7 @@ async function refreshNotifBadge(){
     sb.from('expenses').select('id, category, amount, description, expense_date').gt('id', lastExp).order('id',{ascending:false}),
   ]);
   notifNewItems = [
-    ...(newColl||[]).map(c=>({type:'collection', id:c.id, text:`💰 Flat ${c.flat_no}${c.flats?.owner_name?' — '+c.flats.owner_name:''}: ${fmtMoney(c.amount)} (${c.purpose||''})`, date:c.collection_date})),
+    ...(newColl||[]).map(c=>({type:'collection', id:c.id, text:`💰 ફ્લેટ ${c.flat_no}${c.flats?.owner_name?' — '+c.flats.owner_name:''}: ${fmtMoney(c.amount)} (${c.purpose||''})`, date:c.collection_date})),
     ...(newExp||[]).map(e=>({type:'expense', id:e.id, text:`📤 ${e.category}: ${fmtMoney(e.amount)}${e.description?' — '+e.description:''}`, date:e.expense_date})),
   ];
   const count = notifNewItems.length;
@@ -752,7 +752,7 @@ function showNotifPanel(){
   panel.style.right = Math.max(6, window.innerWidth - rect.right) + 'px';
   panel.innerHTML = notifNewItems.length
     ? notifNewItems.map(n=>`<div class="notif-item" style="cursor:pointer;" onclick="notifItemClick('${n.type}')">${n.text}<div class="config-note" style="margin:2px 0 0;">${fmtDate(n.date)}</div></div>`).join('')
-    : `<div class="notif-item" style="text-align:center; color:var(--ink-soft); font-weight:500;">Koi nayi entry nahi hai 🎉</div>`;
+    : `<div class="notif-item" style="text-align:center; color:var(--ink-soft); font-weight:500;">કોઈ નવી એન્ટ્રી નથી 🎉</div>`;
   // appended directly to <body> (not inside the hero banner) so its
   // dropdown isn't clipped by the banner's own overflow:hidden
   document.body.appendChild(panel);
