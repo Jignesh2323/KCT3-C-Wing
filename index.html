@@ -892,27 +892,46 @@ async function renderTabContent(){
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data:s}, {data:byMode}, {data:byCat}, {data:transfers}, {data:kiran3}] = await Promise.all([
+  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}] = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
-    sb.from('v_fund_by_mode').select('*'),
     sb.from('v_expense_by_category').select('*'),
     sb.from('fund_transfers').select('amount'),
-    sb.from('expenses').select('category, amount').in('category', ['KIRAN 3 Society Advance', 'KIRAN 3 Society Expense']),
+    sb.from('expenses').select('amount, mode, category'),
+    sb.from('collections').select('amount, mode'),
   ]);
+  // "KIRAN 3 Society Expense" entries report how much of an already-given
+  // "KIRAN 3 Society Advance" was actually consumed - they are NOT new
+  // cash leaving C-Wing, so they're excluded here (and only here) to
+  // avoid double-counting real money movement. They still show normally
+  // in "Expense by Category" above, since that's just informational.
+  const realExpenses = (allExpenses||[]).filter(e => e.category !== 'KIRAN 3 Society Expense');
+  const totalExpenseReal = realExpenses.reduce((sum,e)=>sum+Number(e.amount||0),0);
+  const modeMap = {};
+  (allCollections||[]).forEach(c=>{
+    const m = c.mode || 'Other';
+    if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
+    modeMap[m].collected += Number(c.amount||0);
+  });
+  realExpenses.forEach(e=>{
+    const m = e.mode || 'Other';
+    if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
+    modeMap[m].spent += Number(e.amount||0);
+  });
+  const byMode = Object.values(modeMap);
   const totalTransferred = (transfers||[]).reduce((s,t)=>s+Number(t.amount||0),0);
-  const cashRow = (byMode||[]).find(m => (m.mode||'').toLowerCase() === 'cash');
+  const cashRow = byMode.find(m => (m.mode||'').toLowerCase() === 'cash');
   const cashInHand = (Number(cashRow?.collected||0)) - (Number(cashRow?.spent||0)) - totalTransferred;
-  const bankRows = (byMode||[]).filter(m => (m.mode||'').toLowerCase() !== 'cash');
+  const bankRows = byMode.filter(m => (m.mode||'').toLowerCase() !== 'cash');
   const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0) + totalTransferred;
-  const kiran3Advance = (kiran3||[]).filter(e=>e.category==='KIRAN 3 Society Advance').reduce((s,e)=>s+Number(e.amount||0),0);
-  const kiran3Expense = (kiran3||[]).filter(e=>e.category==='KIRAN 3 Society Expense').reduce((s,e)=>s+Number(e.amount||0),0);
+  const kiran3Advance = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Advance').reduce((s,e)=>s+Number(e.amount||0),0);
+  const kiran3Expense = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Expense').reduce((s,e)=>s+Number(e.amount||0),0);
   const kiran3Balance = kiran3Advance - kiran3Expense;
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
       <div class="grid-stats" style="margin-bottom:10px;">
         <div class="stat stat-neutral"><div class="num mono">${fmtMoney(cashInHand + bankBalance)}</div><div class="lbl"><span class="lbl-icon">⚖️</span>Total Balance</div></div>
         ${unlocked ? `<div class="stat stat-good"><div class="num mono">${fmtMoney(s?.total_collected)}</div><div class="lbl"><span class="lbl-icon">📥</span>Collected</div></div>
-        <div class="stat stat-bad"><div class="num mono">${fmtMoney(s?.total_expense)}</div><div class="lbl"><span class="lbl-icon">📤</span>Expense</div></div>` : ''}
+        <div class="stat stat-bad"><div class="num mono">${fmtMoney(totalExpenseReal)}</div><div class="lbl"><span class="lbl-icon">📤</span>Expense</div></div>` : ''}
         <div class="stat stat-cash"><div class="num mono">${fmtMoney(cashInHand)}</div><div class="lbl"><span class="lbl-icon">💵</span>Cash in Hand</div></div>
         <div class="stat stat-bank"><div class="num mono">${fmtMoney(bankBalance)}</div><div class="lbl"><span class="lbl-icon">🏦</span>Bank Balance</div></div>
       </div>
