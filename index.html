@@ -485,7 +485,7 @@ function flatBadgeColor(flatNo){
 }
 
 /* ---- Monthly Common Expense Split ---- */
-const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery','KIRAN 3 Society Expense'];
+const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery','Society Common Expense','KIRAN 3 Society Expense'];
 const TOTAL_FLATS_FIXED = 52;
 let cxMonth = new Date().getMonth()+1;
 let cxYear = new Date().getFullYear();
@@ -1402,6 +1402,7 @@ async function renderExpensesTab(box){
             <option>Electricity</option><option>Water</option><option>Lift Maintenance</option>
             <option>Repair & Maintenance</option><option>Gardening</option><option>Pest Control</option>
             <option>Event</option><option>Admin/Stationery</option><option>Festival</option>
+            <option>Society Common Expense</option>
             <option>KIRAN 3 Society Advance</option><option>KIRAN 3 Society Expense</option>
           </select>
         </div>
