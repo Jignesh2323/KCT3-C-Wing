@@ -2268,7 +2268,7 @@ function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr, re
   ctx.font = '600 13.5px Arial';
   ctx.fillText(`તા. ${startStr} થી તા. ${endStr} સુધી`, rx, ry);
   ry += 42;
-  ctx.fillText(`રોકડા: ${fmtMoney(amount)}`, rx, ry);
+  ctx.fillText(`રોકડા ${fmtMoney(amount)} મળ્યા છે.`, rx, ry);
   ry += 48;
   ctx.font = '700 14px Arial'; ctx.textAlign = 'center';
   ctx.fillText('ફોર, કિરણ કલાસિક ટાવર ૩ કો.ઓ.હા.સ.સો.લી.', rx+150, ry);
