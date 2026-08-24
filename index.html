@@ -2161,14 +2161,14 @@ async function renderBuilderReceiptTab(box){
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
         ${data.pendingFlats.length ? `<button class="primary" onclick="downloadAllBuilderReceipts()">⬇️ Sabhi Receipts Download Karo</button>` : ''}
       </div>
-      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Pehle "Sabhi Receipts Download Karo" dabao — sabki photo save ho jayegi. Phir niche har flat me "Preview" se check karo aur ${WA_ICON} dabao, WhatsApp khulega — downloaded photo attach kar ke ek ek kar ke bhej do. Builder ka payment jaise hi "Bulk Builder Payment" (Collections tab, Purpose: "${data.roundName}") se record karoge, ye list khud update ho jayegi.</p>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Pehle "Sabhi Receipts Download Karo" dabao — sabki photo ek saath save ho jayegi. Ya niche har flat me "Preview" se check kar ke alag se "Download" bhi kar sakte ho. Builder ka payment jaise hi "Bulk Builder Payment" (Collections tab, Purpose: "${data.roundName}") se record karoge, ye list khud update ho jayegi.</p>
     </div>
     ${data.pendingFlats.length ? `<div class="card">
       ${data.pendingFlats.map(f=>`<div class="flat-entry">
         <span class="pill flat-chip" style="background:${flatBadgeColor(f.flat_no)}">${f.flat_no}</span>
         <span class="flat-actions">
           <button onclick="previewBuilderReceipt(${f.flat_no})" title="Preview">👁️</button>
-          <button onclick="sendOneBuilderReceipt(${f.flat_no})" title="WhatsApp">${WA_ICON}</button>
+          <button onclick="downloadOneBuilderReceipt(${f.flat_no})">⬇️ Download</button>
         </span>
       </div>`).join('')}
     </div>` : `<div class="card"><p class="empty">✅ Sabhi Unsold flats ka is mahine ka payment mil chuka hai.</p></div>`}`;
@@ -2360,24 +2360,6 @@ async function downloadAllBuilderReceipts(){
     await new Promise(r=>setTimeout(r, 350));
   }
 }
-/* One flat at a time: re-download that flat's receipt (fresh, so it's
-   ready to attach) then open WhatsApp to the builder with a message
-   naming that flat — admin attaches the just-downloaded photo and
-   sends manually, one by one. */
-function sendOneBuilderReceipt(flatNo){
-  withPin(async ()=>{
-    if(!builderReceiptCache) return;
-    const d = builderReceiptCache;
-    const amount = builderReceiptAmountFor(flatNo);
-    const monthLabel = `${fmtDate(d.startDate)} થી ${fmtDate(d.endDateDisplay)}`;
-    await downloadOneBuilderReceipt(flatNo);
-    const msg = `🙏 નમસ્તે,\n\nFlat C${flatNo} ni ${monthLabel} ni maintenance receipt attach kari rahyo chu (${fmtMoney(amount)}).\n\n🏢 *C-Wing Society Maintenance*`;
-    const link = waLink(BUILDER_WHATSAPP_NUMBER, msg);
-    if(link) window.open(link, '_blank');
-    else alert('Builder ka WhatsApp number sahi format me nahi hai.');
-  });
-}
-
 /* ---- generic delete (with a proper styled confirm popup) ---- */
 function showConfirmModal(message, onYes){
   const old = document.getElementById('confirm-modal');
