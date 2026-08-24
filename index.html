@@ -488,8 +488,15 @@ function flatBadgeColor(flatNo){
 const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery','KIRAN 3 Society Expense'];
 const TOTAL_FLATS_FIXED = 52;
 const BUILDER_WHATSAPP_NUMBER = "9825651157";
-let cxMonth = new Date().getMonth()+1;
-let cxYear = new Date().getFullYear();
+function getPrevMonthYear(){
+  // last calendar month relative to today, e.g. Aug 2026 -> {month:7, year:2026}
+  const now = new Date();
+  let m = now.getMonth() - 1; // 0-indexed
+  let y = now.getFullYear();
+  if(m < 0){ m = 11; y -= 1; }
+  return { month: m + 1, year: y }; // month returned 1-indexed
+}
+let {month: cxMonth, year: cxYear} = getPrevMonthYear();
 
 function cxMonthOptionsHtml(){
   return ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -2094,10 +2101,7 @@ async function renderSettingsTab(box){
 let builderReceiptCache = null;
 async function getBuilderReceiptData(){
   const today = new Date();
-  let prevMonthIdx = today.getMonth() - 1;
-  let prevYear = today.getFullYear();
-  if(prevMonthIdx < 0){ prevMonthIdx = 11; prevYear -= 1; }
-  const prevMonthNum = prevMonthIdx + 1;
+  const {month: prevMonthNum, year: prevYear} = getPrevMonthYear();
   const startDate = `${prevYear}-${String(prevMonthNum).padStart(2,'0')}-01`;
   const endDateExclusive = prevMonthNum===12 ? `${prevYear+1}-01-01` : `${prevYear}-${String(prevMonthNum+1).padStart(2,'0')}-01`;
   const lastDay = new Date(prevYear, prevMonthNum, 0).getDate();
