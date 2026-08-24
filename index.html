@@ -487,6 +487,7 @@ function flatBadgeColor(flatNo){
 /* ---- Monthly Common Expense Split ---- */
 const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery','KIRAN 3 Society Expense'];
 const TOTAL_FLATS_FIXED = 52;
+const BUILDER_WHATSAPP_NUMBER = "9825651157";
 let cxMonth = new Date().getMonth()+1;
 let cxYear = new Date().getFullYear();
 
@@ -791,10 +792,11 @@ const ADMIN_TABS = [
   ['charges','Charges'],
   ['stickerlog','Sticker Log'],
   ['dues','Dues Summary'],
+  ['builderreceipt','Builder Receipt'],
   ['settings','Settings'],
 ];
 
-const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues','settings'];
+const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues','builderreceipt','settings'];
 const NO_PIN_MORE_TABS = ['settings']; // secondary tabs reachable via More without a PIN
 const TAB_ICONS = {
   dashboard: '🏠',
@@ -806,6 +808,7 @@ const TAB_ICONS = {
   charges: '🧾',
   stickerlog: '🏷️',
   dues: '📋',
+  builderreceipt: '🏗️',
   settings: '⚙️',
 };
 
@@ -882,6 +885,7 @@ async function renderTabContent(){
     if(state.tab==='charges') return await renderChargesTab(box);
     if(state.tab==='stickerlog') return await renderStickerLogTab(box);
     if(state.tab==='dues') return await renderDuesTab(box);
+    if(state.tab==='builderreceipt') return await renderBuilderReceiptTab(box);
     if(state.tab==='settings') return await renderSettingsTab(box);
   }catch(err){
     console.error(err);
@@ -2067,6 +2071,216 @@ async function renderSettingsTab(box){
       <h3>ℹ️ Jaankari</h3>
       <p class="config-note" style="margin:0;">Ye sabhi settings sirf isi device/browser par lagu hoti hain — koi bhi Supabase data ya doosre kisi device ki setting nahi badalti.</p>
     </div>`;
+}
+
+/* ---- Builder Receipt — one official-style receipt image per Unsold
+   flat, for last month's maintenance share, sent to the builder's
+   WhatsApp. Per-flat amount = (last month's common-category expense
+   total ÷ 52) — same rate used for Sold flats, just isolated to the
+   Unsold count as requested. ---- */
+let builderReceiptCache = null;
+async function getBuilderReceiptData(){
+  const today = new Date();
+  let prevMonthIdx = today.getMonth() - 1;
+  let prevYear = today.getFullYear();
+  if(prevMonthIdx < 0){ prevMonthIdx = 11; prevYear -= 1; }
+  const prevMonthNum = prevMonthIdx + 1;
+  const startDate = `${prevYear}-${String(prevMonthNum).padStart(2,'0')}-01`;
+  const endDateExclusive = prevMonthNum===12 ? `${prevYear+1}-01-01` : `${prevYear}-${String(prevMonthNum+1).padStart(2,'0')}-01`;
+  const lastDay = new Date(prevYear, prevMonthNum, 0).getDate();
+  const endDateDisplay = `${prevYear}-${String(prevMonthNum).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+  const todayISO = today.toISOString().slice(0,10);
+
+  const [{data:exp}, {data:unsoldFlats}] = await Promise.all([
+    sb.from('expenses').select('amount').in('category', COMMON_EXPENSE_CATEGORIES).gte('expense_date', startDate).lt('expense_date', endDateExclusive),
+    sb.from('v_flats').select('flat_no').eq('status','Unsold').order('flat_no'),
+  ]);
+  const monthTotal = (exp||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+  const perFlat = monthTotal / TOTAL_FLATS_FIXED;
+  const unsoldFlatNos = (unsoldFlats||[]).map(f=>f.flat_no);
+  const unsoldCount = unsoldFlatNos.length;
+  const unsoldTotal = perFlat * unsoldCount;
+  const amountPerFlat = unsoldCount ? unsoldTotal / unsoldCount : 0;
+  return { unsoldFlats: unsoldFlatNos, amountPerFlat, startDate, endDateDisplay, todayISO, unsoldTotal, unsoldCount, monthTotal };
+}
+async function renderBuilderReceiptTab(box){
+  box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
+  const data = await getBuilderReceiptData();
+  builderReceiptCache = data;
+  const monthLabel = `${fmtDate(data.startDate)} થી ${fmtDate(data.endDateDisplay)}`;
+  box.innerHTML = `
+    <div class="card">
+      <h3>🏗️ Builder Receipt — Unsold Flats Maintenance</h3>
+      <p class="config-note" style="margin-top:-6px">Pichhle mahine (${monthLabel}) ke common expense ke hisab se, har Unsold flat ka maintenance share automatically calculate hota hai.</p>
+      <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
+        <div class="stat stat-warning"><div class="num mono">${data.unsoldCount}</div><div class="lbl">Unsold Flats</div></div>
+        <div class="stat stat-neutral"><div class="num mono">${fmtMoney(data.amountPerFlat)}</div><div class="lbl">Per Flat Amount</div></div>
+        <div class="stat stat-bad"><div class="num mono">${fmtMoney(data.unsoldTotal)}</div><div class="lbl">Total (Builder Share)</div></div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+        ${data.unsoldFlats.length ? `<button onclick="previewBuilderReceipt(${data.unsoldFlats[0]})">👁️ Preview Dekho</button>` : ''}
+        <button class="primary" onclick="downloadAllBuilderReceipts()">⬇️ Sabhi Receipts Download Karo</button>
+        <button onclick="openBuilderWhatsApp()">${WA_ICON}Builder ka WhatsApp Kholo</button>
+      </div>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Pehle "Preview" se check kar lo receipt sahi bani hai, phir "Download" dabao, phir WhatsApp khol ke saari downloaded photos ek saath attach kar ke bhej do (ek hi chat hai, sabhi ek sath ja sakti hain).</p>
+    </div>
+    ${data.unsoldFlats.length ? `<div class="card">
+      ${data.unsoldFlats.map(fn=>`<div class="flat-entry">
+        <span class="pill flat-chip" style="background:${flatBadgeColor(fn)}">${fn}</span>
+        <span class="mono" style="font-weight:800; font-size:15.5px; flex:1 1 100px;">${fmtMoney(data.amountPerFlat)}</span>
+        <span class="flat-actions">
+          <button onclick="previewBuilderReceipt(${fn})" title="Preview">👁️</button>
+          <button onclick="downloadOneBuilderReceipt(${fn})">⬇️ Download</button>
+        </span>
+      </div>`).join('')}
+    </div>` : `<div class="card"><p class="empty">Koi Unsold flat nahi mila.</p></div>`}`;
+}
+function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr){
+  const canvas = document.createElement('canvas');
+  canvas.width = 900; canvas.height = 640;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,W,H);
+  const rr = (x,y,w,h,r)=>{ ctx.beginPath(); if(ctx.roundRect){ ctx.roundRect(x,y,w,h,r); } else { ctx.rect(x,y,w,h); } };
+  ctx.strokeStyle = '#14162B'; ctx.lineWidth = 3;
+  rr(14,14,W-28,H-28,16); ctx.stroke();
+
+  ctx.fillStyle = '#14162B';
+  ctx.textAlign = 'center';
+  ctx.font = '700 15px Arial';
+  ctx.fillText('॥ શ્રી ॥', W/2, 46);
+  ctx.font = '800 27px Arial';
+  ctx.fillText('કિરણ કલાસિક ટાવર ૩ કો.ઓ.હા.સ.સો.લી.', W/2, 82);
+  ctx.font = '700 14px Arial';
+  ctx.fillText('No.: REG/SUR/SA(HAA)-20601/2025', W/2, 104);
+  ctx.font = '500 12.5px Arial';
+  ctx.fillText('સર્વે નં.૧૧૫, ટી.પી. સ્કીમ નં. ૫૨, એફ.પી. નં.૬૧ પૈકી સબ પ્લોટ નં.૧, તા. કતારગામ, જિ. સુરત', W/2, 124);
+
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(30, 142); ctx.lineTo(W-30, 142); ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = '600 15px Arial';
+  ctx.fillText('રસીદ નં.: ___________', 40, 180);
+  ctx.textAlign = 'right';
+  ctx.fillText(`તા. ${todayStr}`, W-40, 180);
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 17px Arial';
+  ctx.fillStyle = '#1D5FA8';
+  ctx.fillText('નામ: કિરણ ક્લાસિક ટાવર-૩ બિલ્ડર', 40, 220);
+  ctx.fillStyle = '#14162B';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(40,227); ctx.lineTo(440,227); ctx.stroke();
+
+  ctx.font = '700 15px Arial';
+  ctx.fillText('ફ્લેટ નં.:', 480, 210);
+  ctx.strokeRect(548, 192, 34, 32);
+  ctx.font = '800 18px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('C', 548+17, 213);
+  ctx.strokeRect(586, 192, 90, 32);
+  ctx.fillText(String(flatNo), 586+45, 213);
+
+  ctx.font = '600 14px Arial';
+  ctx.fillText('આજ રોજ આપના તરફથી', W/2, 258);
+
+  const tableX = 40, tableY = 278, tableW = 430, rowH = 34;
+  const rows = ['(૧) મેન્ટેનન્સ ફી','(૨) ટ્રાન્સફર ફી','(૩) વહીવટી ફાળો','(૪) બેન્કવેટ હોલ ફી','(૫) અન્ય ફી','ટોટલ...'];
+  const col2X = tableX + 280;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(tableX, tableY, tableW, rowH*(rows.length+1));
+  ctx.beginPath(); ctx.moveTo(col2X, tableY); ctx.lineTo(col2X, tableY+rowH*(rows.length+1)); ctx.stroke();
+  ctx.font = '700 14px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('વિગત', tableX+140, tableY+22);
+  ctx.fillText('રૂપિયા', col2X+(tableW-280)/2, tableY+22);
+  ctx.beginPath(); ctx.moveTo(tableX, tableY+rowH); ctx.lineTo(tableX+tableW, tableY+rowH); ctx.stroke();
+  rows.forEach((label,i)=>{
+    const y = tableY + rowH*(i+1);
+    ctx.beginPath(); ctx.moveTo(tableX, y+rowH); ctx.lineTo(tableX+tableW, y+rowH); ctx.stroke();
+    ctx.font = '600 13.5px Arial'; ctx.textAlign = 'left';
+    ctx.fillText(label, tableX+10, y+22);
+    if(i===0 || i===rows.length-1){
+      ctx.font = '800 15px Arial'; ctx.textAlign = 'center';
+      ctx.fillText(fmtMoney(amount), col2X+(tableW-280)/2, y+22);
+    }
+  });
+
+  let rx = 500, ry = 298;
+  ctx.textAlign = 'left'; ctx.font = '700 15px Arial';
+  ctx.fillText(`રૂા. ${fmtMoney(amount)}`, rx, ry);
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(rx+40, ry+6); ctx.lineTo(rx+300, ry+6); ctx.stroke();
+  ry += 42;
+  ctx.font = '600 13.5px Arial';
+  ctx.fillText(`તા. ${startStr} થી તા. ${endStr} સુધી`, rx, ry);
+  ry += 42;
+  ctx.fillText('રોકડા / ચેક નં. ___________________', rx, ry);
+  ry += 42;
+  ctx.fillText('બેંક ___________________ થી મળ્યા છે.', rx, ry);
+  ry += 48;
+  ctx.font = '700 14px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('ફોર, કિરણ કલાસિક ટાવર ૩ કો.ઓ.હા.સ.સો.લી.', rx+150, ry);
+  ry += 74;
+  ctx.font = '600 13px Arial';
+  ctx.fillText('પ્રમુખશ્રી / ઉપપ્રમુખશ્રી / સેકેટરીની સહી', rx+150, ry);
+
+  ctx.textAlign = 'left'; ctx.font = 'italic 500 12px Arial'; ctx.fillStyle = '#6B7280';
+  ctx.fillText('*Subject to realization of Cheque', 40, H-30);
+
+  return canvas;
+}
+function previewBuilderReceipt(flatNo){
+  if(!builderReceiptCache) return;
+  const d = builderReceiptCache;
+  const canvas = drawBuilderReceiptCanvas(flatNo, d.amountPerFlat, fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
+  const dataUrl = canvas.toDataURL('image/png');
+  const old = document.getElementById('receipt-preview-modal');
+  if(old) old.remove();
+  const overlay = el(`<div class="modal-backdrop" id="receipt-preview-modal">
+    <div class="modal-box" style="max-width:520px;">
+      <h3>Receipt Preview — Flat C${flatNo}</h3>
+      <div style="max-height:60vh; overflow:auto; border:1px solid var(--rule); border-radius:10px;">
+        <img src="${dataUrl}" style="width:100%; display:block;">
+      </div>
+      <div class="modal-actions">
+        <button onclick="document.getElementById('receipt-preview-modal').remove()">Band Karo</button>
+        <button class="primary" onclick="downloadOneBuilderReceipt(${flatNo}); document.getElementById('receipt-preview-modal').remove();">⬇️ Download</button>
+      </div>
+    </div>
+  </div>`);
+  document.body.appendChild(overlay);
+}
+function downloadOneBuilderReceipt(flatNo){
+  if(!builderReceiptCache) return;
+  const d = builderReceiptCache;
+  const canvas = drawBuilderReceiptCanvas(flatNo, d.amountPerFlat, fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
+  canvas.toBlob((blob)=>{
+    if(!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Builder_Receipt_C${flatNo}_${d.startDate.slice(0,7)}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }, 'image/png');
+}
+async function downloadAllBuilderReceipts(){
+  if(!builderReceiptCache || !builderReceiptCache.unsoldFlats.length){ alert('Koi Unsold flat nahi mila.'); return; }
+  for(const fn of builderReceiptCache.unsoldFlats){
+    downloadOneBuilderReceipt(fn);
+    await new Promise(r=>setTimeout(r, 350));
+  }
+}
+function openBuilderWhatsApp(){
+  withPin(async ()=>{
+    if(!builderReceiptCache) return;
+    const d = builderReceiptCache;
+    const monthLabel = `${fmtDate(d.startDate)} થી ${fmtDate(d.endDateDisplay)}`;
+    const msg = `🙏 નમસ્તે,\n\n${monthLabel} ના Unsold flats ni maintenance ni receipts attach kari rahyo chu (${d.unsoldCount} flats, ${fmtMoney(d.amountPerFlat)} per flat, total ${fmtMoney(d.unsoldTotal)}).\n\n🏢 *C-Wing Society Maintenance*`;
+    const link = waLink(BUILDER_WHATSAPP_NUMBER, msg);
+    if(link) window.open(link, '_blank');
+    else alert('Builder ka WhatsApp number sahi format me nahi hai.');
+  });
 }
 
 /* ---- generic delete (with a proper styled confirm popup) ---- */
