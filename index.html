@@ -506,15 +506,21 @@ function onCxDateChange(){
   cxYear = Number(document.getElementById('cx_year').value);
   renderCommonExpenseSplit();
 }
+function builderRoundNameFor(month, year){
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `Builder Maintenance - ${monthNames[month-1]} ${year}`;
+}
 async function renderCommonExpenseSplit(){
   const resultBox = document.getElementById('cx_result');
   if(!resultBox) return;
   resultBox.innerHTML = 'Loading...';
   const startDate = `${cxYear}-${String(cxMonth).padStart(2,'0')}-01`;
   const endDate = cxMonth===12 ? `${cxYear+1}-01-01` : `${cxYear}-${String(cxMonth+1).padStart(2,'0')}-01`;
-  const [{data:exp, error:expErr}, {data:flats, error:flatsErr}] = await Promise.all([
+  const roundName = builderRoundNameFor(cxMonth, cxYear);
+  const [{data:exp, error:expErr}, {data:flats, error:flatsErr}, {data:dues}] = await Promise.all([
     sb.from('expenses').select('amount').in('category', COMMON_EXPENSE_CATEGORIES).gte('expense_date', startDate).lt('expense_date', endDate),
-    sb.from('v_flats').select('status')
+    sb.from('v_flats').select('status'),
+    sb.from('v_dues_summary').select('pending_amount').eq('round_name', roundName),
   ]);
   if(expErr || flatsErr){
     resultBox.innerHTML = `<div class="msg error">${(expErr||flatsErr).message}</div>`;
@@ -525,7 +531,14 @@ async function renderCommonExpenseSplit(){
   const soldCount = (flats||[]).filter(f=>f.status==='Sold').length;
   const unsoldCount = (flats||[]).filter(f=>f.status==='Unsold').length;
   const soldTotal = perFlat * soldCount;
-  const unsoldTotal = perFlat * unsoldCount;
+  const grossUnsoldTotal = perFlat * unsoldCount;
+  // Once a "Builder Receipt" has been generated for this month (which
+  // creates a matching Charges round), the Unsold total here switches to
+  // whatever is still PENDING under that round — so it drops as soon as
+  // the builder's payment is recorded via Add Collection/Bulk Builder
+  // Payment, instead of always showing the full gross estimate.
+  const hasRound = dues && dues.length > 0;
+  const unsoldTotal = hasRound ? dues.reduce((s,d)=>s+Number(d.pending_amount||0),0) : grossUnsoldTotal;
   resultBox.innerHTML = `
     <div class="grid-stats grid-stats-2col">
       <div class="stat stat-bad"><div class="num mono">${fmtMoney(total)}</div><div class="lbl">Month Total (Common Categories)</div></div>
@@ -533,7 +546,7 @@ async function renderCommonExpenseSplit(){
       <div class="stat stat-good"><div class="num mono">${soldCount}</div><div class="lbl">Sold Flats Count</div></div>
       <div class="stat stat-good"><div class="num mono">${fmtMoney(soldTotal)}</div><div class="lbl">Sold Flats Total</div></div>
       <div class="stat stat-warning"><div class="num mono">${unsoldCount}</div><div class="lbl">Unsold Flats Count</div></div>
-      <div class="stat stat-warning"><div class="num mono">${fmtMoney(unsoldTotal)}</div><div class="lbl">Unsold Flats Total (Builder Share)</div></div>
+      <div class="stat stat-warning"><div class="num mono">${fmtMoney(unsoldTotal)}</div><div class="lbl">Unsold Flats Total (Builder Share)${hasRound?' — Pending':''}</div></div>
     </div>`;
 }
 
@@ -2090,50 +2103,74 @@ async function getBuilderReceiptData(){
   const lastDay = new Date(prevYear, prevMonthNum, 0).getDate();
   const endDateDisplay = `${prevYear}-${String(prevMonthNum).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
   const todayISO = today.toISOString().slice(0,10);
+  const roundName = builderRoundNameFor(prevMonthNum, prevYear);
 
-  const [{data:exp}, {data:unsoldFlats}] = await Promise.all([
+  const [{data:exp}, {data:unsoldFlats}, {data:existingRound}] = await Promise.all([
     sb.from('expenses').select('amount').in('category', COMMON_EXPENSE_CATEGORIES).gte('expense_date', startDate).lt('expense_date', endDateExclusive),
     sb.from('v_flats').select('flat_no').eq('status','Unsold').order('flat_no'),
+    sb.from('charges').select('*').eq('round_name', roundName).maybeSingle(),
   ]);
   const monthTotal = (exp||[]).reduce((s,e)=>s+Number(e.amount||0),0);
   const perFlat = monthTotal / TOTAL_FLATS_FIXED;
-  const unsoldFlatNos = (unsoldFlats||[]).map(f=>f.flat_no);
-  const unsoldCount = unsoldFlatNos.length;
-  const unsoldTotal = perFlat * unsoldCount;
-  const amountPerFlat = unsoldCount ? unsoldTotal / unsoldCount : 0;
-  return { unsoldFlats: unsoldFlatNos, amountPerFlat, startDate, endDateDisplay, todayISO, unsoldTotal, unsoldCount, monthTotal };
+  const unsoldCount = (unsoldFlats||[]).length;
+
+  // A Charges round for this month ("Builder Maintenance - <Month> <Year>",
+  // Unsold Flats Only) is what lets Add Collection / Bulk Builder Payment
+  // track which flats have already paid - create it once, the first time
+  // this tab is opened for a given month, so it exists to record against.
+  let round = existingRound;
+  if(!round && perFlat > 0 && unsoldCount > 0){
+    const {data:ins, error} = await sb.from('charges').insert({
+      round_name: roundName,
+      amount_per_flat: Math.round(perFlat),
+      applies_to: 'Unsold Flats Only',
+      date_started: startDate,
+    }).select().maybeSingle();
+    if(!error) round = ins;
+  }
+
+  let pendingFlats = [];
+  if(round){
+    const {data:dues} = await sb.from('v_dues_summary').select('flat_no, pending_amount').eq('round_name', roundName).gt('pending_amount', 0);
+    pendingFlats = (dues||[]).map(d=>({flat_no:d.flat_no, amount:Number(d.pending_amount)})).sort((a,b)=>a.flat_no-b.flat_no);
+  }
+  const totalPending = pendingFlats.reduce((s,f)=>s+f.amount,0);
+  const amountPerFlat = round ? Number(round.amount_per_flat) : perFlat;
+  return { roundName, unsoldCount, amountPerFlat, pendingFlats, totalPending, startDate, endDateDisplay, todayISO, monthTotal, hasRound: !!round };
 }
 async function renderBuilderReceiptTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
   const data = await getBuilderReceiptData();
   builderReceiptCache = data;
   const monthLabel = `${fmtDate(data.startDate)} થી ${fmtDate(data.endDateDisplay)}`;
+  const paidCount = data.unsoldCount - data.pendingFlats.length;
   box.innerHTML = `
     <div class="card">
       <h3>🏗️ Builder Receipt — Unsold Flats Maintenance</h3>
-      <p class="config-note" style="margin-top:-6px">Pichhle mahine (${monthLabel}) ke common expense ke hisab se, har Unsold flat ka maintenance share automatically calculate hota hai.</p>
+      <p class="config-note" style="margin-top:-6px">Pichhle mahine (${monthLabel}) ke common expense ke hisab se, har Unsold flat ka maintenance share automatically calculate hota hai. Round: "${data.roundName}".</p>
       <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
-        <div class="stat stat-warning"><div class="num mono">${data.unsoldCount}</div><div class="lbl">Unsold Flats</div></div>
+        <div class="stat stat-warning"><div class="num mono">${data.pendingFlats.length}</div><div class="lbl">Baaki (Pending) Flats</div></div>
         <div class="stat stat-neutral"><div class="num mono">${fmtMoney(data.amountPerFlat)}</div><div class="lbl">Per Flat Amount</div></div>
-        <div class="stat stat-bad"><div class="num mono">${fmtMoney(data.unsoldTotal)}</div><div class="lbl">Total (Builder Share)</div></div>
+        <div class="stat stat-bad"><div class="num mono">${fmtMoney(data.totalPending)}</div><div class="lbl">Total Pending</div></div>
       </div>
+      ${paidCount>0 ? `<p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${paidCount} flat(s) ka is mahine ka payment already mil chuka hai — unki receipt yahan nahi dikhegi.</p>` : ''}
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
-        ${data.unsoldFlats.length ? `<button onclick="previewBuilderReceipt(${data.unsoldFlats[0]})">👁️ Preview Dekho</button>` : ''}
+        ${data.pendingFlats.length ? `<button onclick="previewBuilderReceipt(${data.pendingFlats[0].flat_no})">👁️ Preview Dekho</button>` : ''}
         <button class="primary" onclick="downloadAllBuilderReceipts()">⬇️ Sabhi Receipts Download Karo</button>
         <button onclick="openBuilderWhatsApp()">${WA_ICON}Builder ka WhatsApp Kholo</button>
       </div>
-      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Pehle "Preview" se check kar lo receipt sahi bani hai, phir "Download" dabao, phir WhatsApp khol ke saari downloaded photos ek saath attach kar ke bhej do (ek hi chat hai, sabhi ek sath ja sakti hain).</p>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Pehle "Preview" se check kar lo, phir "Download" dabao, phir WhatsApp khol ke saari downloaded photos attach kar ke bhej do. Builder ka payment jaise hi "Bulk Builder Payment" (Collections tab, Purpose: "${data.roundName}") se record karoge, ye list khud update ho jayegi.</p>
     </div>
-    ${data.unsoldFlats.length ? `<div class="card">
-      ${data.unsoldFlats.map(fn=>`<div class="flat-entry">
-        <span class="pill flat-chip" style="background:${flatBadgeColor(fn)}">${fn}</span>
-        <span class="mono" style="font-weight:800; font-size:15.5px; flex:1 1 100px;">${fmtMoney(data.amountPerFlat)}</span>
+    ${data.pendingFlats.length ? `<div class="card">
+      ${data.pendingFlats.map(f=>`<div class="flat-entry">
+        <span class="pill flat-chip" style="background:${flatBadgeColor(f.flat_no)}">${f.flat_no}</span>
+        <span class="mono" style="font-weight:800; font-size:15.5px; flex:1 1 100px;">${fmtMoney(f.amount)}</span>
         <span class="flat-actions">
-          <button onclick="previewBuilderReceipt(${fn})" title="Preview">👁️</button>
-          <button onclick="downloadOneBuilderReceipt(${fn})">⬇️ Download</button>
+          <button onclick="previewBuilderReceipt(${f.flat_no})" title="Preview">👁️</button>
+          <button onclick="downloadOneBuilderReceipt(${f.flat_no})">⬇️ Download</button>
         </span>
       </div>`).join('')}
-    </div>` : `<div class="card"><p class="empty">Koi Unsold flat nahi mila.</p></div>`}`;
+    </div>` : `<div class="card"><p class="empty">✅ Sabhi Unsold flats ka is mahine ka payment mil chuka hai.</p></div>`}`;
 }
 function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr){
   const canvas = document.createElement('canvas');
@@ -2230,10 +2267,16 @@ function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr){
 
   return canvas;
 }
+function builderReceiptAmountFor(flatNo){
+  const d = builderReceiptCache;
+  if(!d) return 0;
+  const f = d.pendingFlats.find(x=>x.flat_no===flatNo);
+  return f ? f.amount : d.amountPerFlat;
+}
 function previewBuilderReceipt(flatNo){
   if(!builderReceiptCache) return;
   const d = builderReceiptCache;
-  const canvas = drawBuilderReceiptCanvas(flatNo, d.amountPerFlat, fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
+  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo), fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
   const dataUrl = canvas.toDataURL('image/png');
   const old = document.getElementById('receipt-preview-modal');
   if(old) old.remove();
@@ -2254,7 +2297,7 @@ function previewBuilderReceipt(flatNo){
 function downloadOneBuilderReceipt(flatNo){
   if(!builderReceiptCache) return;
   const d = builderReceiptCache;
-  const canvas = drawBuilderReceiptCanvas(flatNo, d.amountPerFlat, fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
+  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo), fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
   canvas.toBlob((blob)=>{
     if(!blob) return;
     const url = URL.createObjectURL(blob);
@@ -2265,9 +2308,9 @@ function downloadOneBuilderReceipt(flatNo){
   }, 'image/png');
 }
 async function downloadAllBuilderReceipts(){
-  if(!builderReceiptCache || !builderReceiptCache.unsoldFlats.length){ alert('Koi Unsold flat nahi mila.'); return; }
-  for(const fn of builderReceiptCache.unsoldFlats){
-    downloadOneBuilderReceipt(fn);
+  if(!builderReceiptCache || !builderReceiptCache.pendingFlats.length){ alert('Koi pending Unsold flat nahi mila — sabka payment ho chuka hai.'); return; }
+  for(const f of builderReceiptCache.pendingFlats){
+    downloadOneBuilderReceipt(f.flat_no);
     await new Promise(r=>setTimeout(r, 350));
   }
 }
@@ -2275,8 +2318,9 @@ function openBuilderWhatsApp(){
   withPin(async ()=>{
     if(!builderReceiptCache) return;
     const d = builderReceiptCache;
+    if(!d.pendingFlats.length){ alert('Is mahine sabhi Unsold flats ka payment mil chuka hai — koi receipt bhejni baaki nahi hai.'); return; }
     const monthLabel = `${fmtDate(d.startDate)} થી ${fmtDate(d.endDateDisplay)}`;
-    const msg = `🙏 નમસ્તે,\n\n${monthLabel} ના Unsold flats ni maintenance ni receipts attach kari rahyo chu (${d.unsoldCount} flats, ${fmtMoney(d.amountPerFlat)} per flat, total ${fmtMoney(d.unsoldTotal)}).\n\n🏢 *C-Wing Society Maintenance*`;
+    const msg = `🙏 નમસ્તે,\n\n${monthLabel} ના Unsold flats ni maintenance ni receipts attach kari rahyo chu (${d.pendingFlats.length} flats, total ${fmtMoney(d.totalPending)}).\n\n🏢 *C-Wing Society Maintenance*`;
     const link = waLink(BUILDER_WHATSAPP_NUMBER, msg);
     if(link) window.open(link, '_blank');
     else alert('Builder ka WhatsApp number sahi format me nahi hai.');
