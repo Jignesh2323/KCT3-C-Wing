@@ -2176,7 +2176,7 @@ async function renderBuilderReceiptTab(box){
       </div>`).join('')}
     </div>` : `<div class="card"><p class="empty">✅ Sabhi Unsold flats ka is mahine ka payment mil chuka hai.</p></div>`}`;
 }
-function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr){
+function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr, receiptNo){
   const canvas = document.createElement('canvas');
   canvas.width = 900; canvas.height = 640;
   const ctx = canvas.getContext('2d');
@@ -2202,7 +2202,7 @@ function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr){
 
   ctx.textAlign = 'left';
   ctx.font = '600 15px Arial';
-  ctx.fillText('રસીદ નં.: ___________', 40, 180);
+  ctx.fillText(`રસીદ નં.: ${receiptNo}`, 40, 180);
   ctx.textAlign = 'right';
   ctx.fillText(`તા. ${todayStr}`, W-40, 180);
 
@@ -2241,9 +2241,13 @@ function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr){
     ctx.beginPath(); ctx.moveTo(tableX, y+rowH); ctx.lineTo(tableX+tableW, y+rowH); ctx.stroke();
     ctx.font = '600 13.5px Arial'; ctx.textAlign = 'left';
     ctx.fillText(label, tableX+10, y+22);
+    ctx.font = '800 15px Arial'; ctx.textAlign = 'center';
     if(i===0 || i===rows.length-1){
-      ctx.font = '800 15px Arial'; ctx.textAlign = 'center';
+      // row (1) Maintenance Fee and the Total row carry the per-flat amount;
+      // rows (2)-(5) show a dash, per the fixed receipt-book pattern
       ctx.fillText(fmtMoney(amount), col2X+(tableW-280)/2, y+22);
+    } else {
+      ctx.fillText('-', col2X+(tableW-280)/2, y+22);
     }
   });
 
@@ -2256,7 +2260,7 @@ function drawBuilderReceiptCanvas(flatNo, amount, todayStr, startStr, endStr){
   ctx.font = '600 13.5px Arial';
   ctx.fillText(`તા. ${startStr} થી તા. ${endStr} સુધી`, rx, ry);
   ry += 42;
-  ctx.fillText('રોકડા / ચેક નં. ___________________', rx, ry);
+  ctx.fillText(`રોકડા / ચેક નં. ${fmtMoney(amount)}`, rx, ry);
   ry += 42;
   ctx.fillText('બેંક ___________________ થી મળ્યા છે.', rx, ry);
   ry += 48;
@@ -2277,10 +2281,35 @@ function builderReceiptAmountFor(flatNo){
   const f = d.pendingFlats.find(x=>x.flat_no===flatNo);
   return f ? f.amount : d.amountPerFlat;
 }
-function previewBuilderReceipt(flatNo){
+/* Receipt numbers work like a physical receipt book: start at 1 and
+   count up forever, one number per flat per month, never reused. Each
+   assigned number is stored as a special row in the existing wa_sent
+   table (entity_key "brno|<no>|<roundName>|<flatNo>") so it survives
+   phone/browser changes. Re-previewing the same flat's receipt for the
+   same month reuses its already-assigned number. */
+async function ensureBuilderReceiptNo(flatNo, roundName){
+  const {data, error} = await sb.from('wa_sent').select('entity_key').like('entity_key','brno|%');
+  if(error){ alert(error.message); return null; }
+  const rows = (data||[]).map(r=>{
+    const p = String(r.entity_key).split('|');
+    return {no:Number(p[1]), round:p[2], flat:Number(p[3])};
+  }).filter(r=>Number.isFinite(r.no));
+  const existing = rows.find(r=>r.round===roundName && r.flat===flatNo);
+  if(existing) return existing.no;
+  const next = rows.reduce((m,r)=>Math.max(m,r.no),0) + 1;
+  const {error:insErr} = await sb.from('wa_sent').insert({entity_key:`brno|${next}|${roundName}|${flatNo}`, sent:true, updated_at:new Date().toISOString()});
+  if(insErr){ alert('Receipt number save nahi hua — PIN unlock check kar ke dobara try karo.\n' + insErr.message); return null; }
+  return next;
+}
+async function previewBuilderReceipt(flatNo){
   if(!builderReceiptCache) return;
   const d = builderReceiptCache;
-  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo), fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
+  const receiptNo = await ensureBuilderReceiptNo(flatNo, d.roundName);
+  if(receiptNo === null) return;
+  // receipt date = the day this receipt is actually generated/sent,
+  // not the day the tab was first opened
+  const todayStr = fmtDate(new Date().toISOString().slice(0,10));
+  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo), todayStr, fmtDate(d.startDate), fmtDate(d.endDateDisplay), receiptNo);
   const dataUrl = canvas.toDataURL('image/png');
   const old = document.getElementById('receipt-preview-modal');
   if(old) old.remove();
@@ -2298,10 +2327,13 @@ function previewBuilderReceipt(flatNo){
   </div>`);
   document.body.appendChild(overlay);
 }
-function downloadOneBuilderReceipt(flatNo){
+async function downloadOneBuilderReceipt(flatNo){
   if(!builderReceiptCache) return;
   const d = builderReceiptCache;
-  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo), fmtDate(d.todayISO), fmtDate(d.startDate), fmtDate(d.endDateDisplay));
+  const receiptNo = await ensureBuilderReceiptNo(flatNo, d.roundName);
+  if(receiptNo === null) return;
+  const todayStr = fmtDate(new Date().toISOString().slice(0,10));
+  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo), todayStr, fmtDate(d.startDate), fmtDate(d.endDateDisplay), receiptNo);
   canvas.toBlob((blob)=>{
     if(!blob) return;
     const url = URL.createObjectURL(blob);
@@ -2314,7 +2346,7 @@ function downloadOneBuilderReceipt(flatNo){
 async function downloadAllBuilderReceipts(){
   if(!builderReceiptCache || !builderReceiptCache.pendingFlats.length){ alert('Koi pending Unsold flat nahi mila — sabka payment ho chuka hai.'); return; }
   for(const f of builderReceiptCache.pendingFlats){
-    downloadOneBuilderReceipt(f.flat_no);
+    await downloadOneBuilderReceipt(f.flat_no);
     await new Promise(r=>setTimeout(r, 350));
   }
 }
