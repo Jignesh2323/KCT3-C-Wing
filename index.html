@@ -2280,17 +2280,17 @@ async function renderBuilderReceiptTab(box){
   box.innerHTML = `
     <div class="card">
       <h3>🏗️ Builder Receipt — Unsold Flats Maintenance</h3>
-      <p class="config-note" style="margin-top:-6px">Pichhle mahine (${monthLabel}) ke common expense ke hisab se, har Unsold flat ka maintenance share automatically calculate hota hai. Round: "${data.roundName}".</p>
+      <p class="config-note" style="margin-top:-6px">ગત મહિનાના (${monthLabel}) સામાન્ય ખર્ચ પ્રમાણે, દરેક Unsold ફ્લેટનો મેન્ટેનન્સ ભાગ આપોઆપ ગણાય છે. રાઉન્ડ: "${data.roundName}".</p>
       <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
         <div class="stat stat-warning"><div class="num mono">${data.pendingFlats.length}</div><div class="lbl">Baaki (Pending) Flats</div></div>
         <div class="stat stat-neutral"><div class="num mono">${fmtMoney(data.amountPerFlat)}</div><div class="lbl">Per Flat Amount</div></div>
         <div class="stat stat-bad"><div class="num mono">${fmtMoney(data.totalPending)}</div><div class="lbl">Total Pending</div></div>
       </div>
-      ${paidCount>0 ? `<p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${paidCount} flat(s) ka is mahine ka payment already mil chuka hai — unki receipt yahan nahi dikhegi.</p>` : ''}
+      ${paidCount>0 ? `<p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${paidCount} ફ્લેટ(સ)નું આ મહિનાનું પેમેન્ટ પહેલેથી જ મળી ગયું છે — તેમની રસીદ અહીં નહીં દેખાય.</p>` : ''}
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
         ${data.pendingFlats.length ? `<button class="primary" onclick="downloadAllBuilderReceipts()">⬇️ Sabhi Receipts Download Karo</button>` : ''}
       </div>
-      <p class="config-note" style="margin-top:8px; margin-bottom:0;">Pehle "Sabhi Receipts Download Karo" dabao — sabki photo ek saath save ho jayegi. Ya niche har flat me "Preview" se check kar ke alag se "Download" bhi kar sakte ho. Builder ka payment jaise hi "Bulk Builder Payment" (Collections tab, Purpose: "${data.roundName}") se record karoge, ye list khud update ho jayegi.</p>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">પહેલા "Sabhi Receipts Download Karo" દબાવો — બધાનો ફોટો એકસાથે સેવ થઈ જશે. અથવા નીચે દરેક ફ્લેટમાં "Preview" થી ચેક કરીને અલગથી "Download" પણ કરી શકો છો. Builder નું પેમેન્ટ જેવું જ "Bulk Builder Payment" (Collections tab, Purpose: "${data.roundName}") થી રેકોર્ડ કરશો, આ લિસ્ટ પોતાની મેળે અપડેટ થઈ જશે.</p>
     </div>
     ${data.pendingFlats.length ? `<div class="card">
       ${data.pendingFlats.map(f=>`<div class="flat-entry">
@@ -2300,7 +2300,7 @@ async function renderBuilderReceiptTab(box){
           <button onclick="downloadOneBuilderReceipt(${f.flat_no})">⬇️ Download</button>
         </span>
       </div>`).join('')}
-    </div>` : `<div class="card"><p class="empty">✅ Sabhi Unsold flats ka is mahine ka payment mil chuka hai.</p></div>`}`;
+    </div>` : `<div class="card"><p class="empty">✅ બધા Unsold ફ્લેટ્સનું આ મહિનાનું પેમેન્ટ મળી ગયું છે.</p></div>`}`;
 }
 /* Secretary's signature (blue ink), taken from the real receipt-book
    photo — stamped on every builder receipt above the સહી line. */
