@@ -652,10 +652,31 @@ function pinStillValid(){
    Otherwise a PIN modal appears; the action only runs after the
    correct PIN is entered and the hidden account signs in. */
 async function withPin(action){
-  if(pinStillValid() && state.user){ await action(); return; }
+  if(pinStillValid()){
+    if(!state.user){
+      // This device is marked Unlocked (localStorage) but state.user
+      // hasn't caught up yet -- e.g. right after a fresh page load, or
+      // after the tab sat backgrounded for a while. Re-sync from the
+      // real Supabase session before assuming a fresh PIN is needed,
+      // so "Unlocked" buttons like Edit don't silently fail/re-prompt.
+      const {data:{session}} = await sb.auth.getSession();
+      if(session) state.user = session.user;
+    }
+    if(state.user){ await action(); return; }
+  }
   if(state.user && !pinStillValid()){ await sb.auth.signOut(); state.user = null; }
   showPinModal(action);
 }
+/* Same self-heal as above, but proactive: run it as soon as the app/tab
+   becomes visible again (phone unlocked, switched back from WhatsApp,
+   etc.) so the topbar and Add/Edit forms don't sit showing a stale
+   "locked-looking" state until the next button tap. */
+document.addEventListener('visibilitychange', async ()=>{
+  if(document.visibilityState === 'visible' && pinStillValid() && !state.user){
+    const {data:{session}} = await sb.auth.getSession();
+    if(session){ state.user = session.user; render(); }
+  }
+});
 
 function showPinModal(action){
   const old = document.getElementById('pin-modal');
@@ -1124,8 +1145,13 @@ function populateFlatForm(flatNo){
   document.getElementById('f_no').scrollIntoView({behavior:'smooth', block:'center'});
 }
 async function editFlat(flatNo){
-  if(pinStillValid() && state.user){ populateFlatForm(flatNo); return; }
-  await withPin(async ()=>{ await render(); populateFlatForm(flatNo); });
+  await withPin(async ()=>{
+    // withPin() may have just self-healed state.user without a render
+    // happening yet -- if the Add/Edit form isn't in the DOM (rendered
+    // while this device looked locked), render once so it exists.
+    if(!document.getElementById('f_no')) await render();
+    populateFlatForm(flatNo);
+  });
 }
 function resetFlatForm(){
   ['f_no','f_floor','f_owner','f_contact','f_remarks'].forEach(id=>document.getElementById(id).value='');
@@ -1538,8 +1564,13 @@ function populateExpenseForm(id){
   document.getElementById('e_date').scrollIntoView({behavior:'smooth', block:'center'});
 }
 async function editExpense(id){
-  if(pinStillValid() && state.user){ populateExpenseForm(id); return; }
-  await withPin(async ()=>{ await render(); populateExpenseForm(id); });
+  await withPin(async ()=>{
+    // withPin() may have just self-healed state.user without a render
+    // happening yet -- if the Add/Edit form isn't in the DOM (rendered
+    // while this device looked locked), render once so it exists.
+    if(!document.getElementById('e_date')) await render();
+    populateExpenseForm(id);
+  });
 }
 function resetExpenseForm(){
   editingExpenseId = null;
