@@ -352,6 +352,15 @@ function friendlyDbError(error){
   if(/network|fetch|timeout/i.test(msg)) return 'Internet connection me dikkat aa rahi hai — dobara try karo.';
   return msg;
 }
+/* 10-digit mobile numbers display as "12345 67890" (space after the
+   5th digit). Anything else (toll-free numbers, already-spaced text
+   like "1800 258 5500") is shown exactly as stored. */
+function fmtContactMobile(num){
+  if(!num) return '';
+  const digits = String(num).replace(/\s/g,'');
+  if(/^\d{10}$/.test(digits)) return digits.slice(0,5) + ' ' + digits.slice(5);
+  return String(num);
+}
 function fmtDate(d){
   if(!d) return '';
   const [y,m,dd] = String(d).slice(0,10).split('-');
@@ -1072,7 +1081,7 @@ async function renderDashboardTab(box){
           <div style="font-weight:700;">${c.service_name}</div>
           ${c.person_name?`<div class="config-note" style="margin:0;">${c.person_name}</div>`:''}
         </span>
-        ${c.mobile_no ? `<a href="tel:${c.mobile_no.replace(/\s/g,'')}" class="btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:800; white-space:nowrap;">📞 ${c.mobile_no}</a>` : ''}
+        ${c.mobile_no ? `<a href="tel:${c.mobile_no.replace(/\s/g,'')}" class="btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:800; white-space:nowrap;">📞 ${fmtContactMobile(c.mobile_no)}</a>` : ''}
       </div>`).join('')}
     </div>` : ''}
     ${unlocked ? `<div class="card"><h3>By Payment Mode</h3>
@@ -2257,7 +2266,7 @@ async function renderSettingsTab(box){
         ${serviceContactsCache.length ? serviceContactsCache.map(c=>`<div class="flat-entry">
           <span style="flex:1 1 140px; min-width:0;">
             <div style="font-weight:700;">${c.service_name}</div>
-            <div class="config-note" style="margin:0;">${c.person_name||''}${c.mobile_no?' · '+c.mobile_no:''}</div>
+            <div class="config-note" style="margin:0;">${c.person_name||''}${c.mobile_no?' · '+fmtContactMobile(c.mobile_no):''}</div>
           </span>
           ${unlocked ? `<span class="flat-actions">
             <button onclick="editContact(${c.id})">Edit</button>
