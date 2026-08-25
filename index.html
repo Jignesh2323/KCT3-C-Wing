@@ -1006,12 +1006,13 @@ async function renderTabContent(){
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}] = await Promise.all([
+  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}] = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
     sb.from('v_expense_by_category').select('*'),
     sb.from('fund_transfers').select('amount'),
     sb.from('expenses').select('amount, mode, category'),
     sb.from('collections').select('amount, mode'),
+    sb.from('service_contacts').select('*').order('sort_order').order('id'),
   ]);
   // "KIRAN 3 Society Expense" entries report how much of an already-given
   // "KIRAN 3 Society Advance" was actually consumed - they are NOT new
@@ -1063,6 +1064,17 @@ async function renderDashboardTab(box){
       </div>
       <p class="config-note" style="margin-top:10px">રોકડ હાથમાં = રોકડ જમા − રોકડ ખર્ચ. બેંક બેલેન્સ = બાકીનું બધું (UPI/બેંક ટ્રાન્સફર/ચેક) જમા − ખર્ચ ભેગું.</p>
     </div>
+    ${(contacts && contacts.length) ? `<div class="card">
+      <h3>📞 જરૂરી નંબરો</h3>
+      <p class="config-note" style="margin-top:-6px">કોઈ પણ સર્વિસ/કામ માટે સીધા નંબર પર દબાવીને ફોન કરો.</p>
+      ${contacts.map(c=>`<div class="flat-entry">
+        <span style="flex:1 1 140px; min-width:0;">
+          <div style="font-weight:700;">${c.service_name}</div>
+          ${c.person_name?`<div class="config-note" style="margin:0;">${c.person_name}</div>`:''}
+        </span>
+        ${c.mobile_no ? `<a href="tel:${c.mobile_no.replace(/\s/g,'')}" class="btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:800; white-space:nowrap;">📞 ${c.mobile_no}</a>` : ''}
+      </div>`).join('')}
+    </div>` : ''}
     ${unlocked ? `<div class="card"><h3>By Payment Mode</h3>
       <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
       ${(byMode||[]).map(m=>`<tr><td style="font-weight:600">${m.mode}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:#15803D;">${fmtMoney(m.collected)}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:var(--danger);">${fmtMoney(m.spent)}</td></tr>`).join('')}
@@ -2171,10 +2183,23 @@ function sendWaQueueItem(){
 function skipWaQueue(){ waQueueIndex++; showWaQueueModal(); }
 function closeWaQueueModal(){ document.getElementById('wa-queue-modal')?.remove(); waQueue = []; waQueueIndex = 0; }
 
-/* ---- Settings tab — device-local preferences only, nothing here
-   touches Supabase data. Reachable via More without a PIN. ---- */
+/* ---- Settings tab — mostly device-local preferences, plus (below)
+   the Service Contacts manager which DOES touch Supabase data and is
+   shown to everyone on the Dashboard. Reachable via More without a
+   PIN, but the Contacts add/edit form itself needs one, same as any
+   other data-editing tab. ---- */
+let serviceContactsCache = [];
+let editingContactId = null;
 async function renderSettingsTab(box){
+  // Fresh render always starts a clean "Add Contact" form -- same fix
+  // as editingExpenseId/editingChargeRoundName, so leaving an edit
+  // half-done and coming back doesn't silently overwrite a different
+  // contact.
+  editingContactId = null;
+  const unlocked = pinStillValid() && state.user;
   const theme = getTheme();
+  const {data:contacts, error} = await sb.from('service_contacts').select('*').order('sort_order').order('id');
+  serviceContactsCache = contacts || [];
   box.innerHTML = `
     <div class="card">
       <h3>🎨 Theme</h3>
@@ -2211,9 +2236,77 @@ async function renderSettingsTab(box){
       </label>
     </div>
     <div class="card">
-      <h3>ℹ️ Jaankari</h3>
-      <p class="config-note" style="margin:0;">Ye sabhi settings sirf isi device/browser par lagu hoti hain — koi bhi Supabase data ya doosre kisi device ki setting nahi badalti.</p>
+      <h3>📞 જરૂરી નંબરો (Service Contacts)</h3>
+      <p class="config-note" style="margin-top:-6px">આ લિસ્ટ Dashboard પર બધાને (PIN વગર પણ) દેખાય છે, જેથી કોઈ પણ સીધો ફોન કરી શકે.</p>
+      ${!unlocked ? `<p class="config-note">🔒 Add/Edit ફોર્મ ફક્ત Unlock કર્યા પછી જ દેખાય છે.</p>` : `
+      <div class="accordion-header" onclick="toggleAccordion('acc_contacts')" style="margin-top:10px;">
+        <h3 id="contacts-form-title">કોન્ટેક્ટ ઉમેરો</h3>
+        <span class="accordion-caret" id="acc_contacts_caret">▾</span>
+      </div>
+      <div class="accordion-body" id="acc_contacts_body" style="display:none; margin-top:12px;">
+        <div class="form-row">
+          <div class="field"><label>સર્વિસ / કામ</label><input id="ct_service" placeholder="દા.ત. લિફ્ટ સર્વિસ"></div>
+          <div class="field"><label>નામ</label><input id="ct_person" placeholder="દા.ત. યોગેશભાઈ"></div>
+          <div class="field"><label>મોબાઈલ નંબર</label><input id="ct_mobile" placeholder="દા.ત. 9824643190"></div>
+          <div class="field" style="flex:0"><button class="primary" onclick="addContact()">Save</button></div>
+          <div class="field" style="flex:0"><button onclick="resetContactForm()">Clear</button></div>
+        </div>
+      </div>`}
+      ${error?`<div class="msg error" style="margin-top:10px;">${friendlyDbError(error)}</div>`:''}
+      <div style="margin-top:10px;">
+        ${serviceContactsCache.length ? serviceContactsCache.map(c=>`<div class="flat-entry">
+          <span style="flex:1 1 140px; min-width:0;">
+            <div style="font-weight:700;">${c.service_name}</div>
+            <div class="config-note" style="margin:0;">${c.person_name||''}${c.mobile_no?' · '+c.mobile_no:''}</div>
+          </span>
+          ${unlocked ? `<span class="flat-actions">
+            <button onclick="editContact(${c.id})">Edit</button>
+            <button class="danger" onclick="deleteRow('service_contacts','id',${c.id})" title="Delete">🗑️</button>
+          </span>` : ''}
+        </div>`).join('') : `<p class="empty">કોઈ કોન્ટેક્ટ નથી.</p>`}
+      </div>
+    </div>
+    <div class="card">
+      <h3>ℹ️ જાણકારી</h3>
+      <p class="config-note" style="margin:0;">Theme/Notifications/Default Tab/Auto-fill ફક્ત આ ડિવાઈસ/બ્રાઉઝર પર જ લાગુ થાય છે. Service Contacts લિસ્ટ Supabase માં સેવ થાય છે અને Dashboard પર બધાને દેખાય છે.</p>
     </div>`;
+}
+function populateContactForm(id){
+  const c = serviceContactsCache.find(x=>x.id===id);
+  if(!c || !document.getElementById('ct_service')) return;
+  openAccordion('acc_contacts');
+  editingContactId = id;
+  document.getElementById('ct_service').value = c.service_name || '';
+  document.getElementById('ct_person').value = c.person_name || '';
+  document.getElementById('ct_mobile').value = c.mobile_no || '';
+  document.getElementById('contacts-form-title').textContent = `"${c.service_name}" સુધારો`;
+  document.getElementById('ct_service').scrollIntoView({behavior:'smooth', block:'center'});
+}
+async function editContact(id){
+  await withPin(async ()=>{
+    if(!document.getElementById('ct_service')) await render();
+    populateContactForm(id);
+  });
+}
+function resetContactForm(){
+  editingContactId = null;
+  ['ct_service','ct_person','ct_mobile'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const title = document.getElementById('contacts-form-title'); if(title) title.textContent = 'કોન્ટેક્ટ ઉમેરો';
+}
+async function addContact(){
+  const serviceVal = document.getElementById('ct_service').value.trim();
+  if(!serviceVal){ alert('સર્વિસ/કામ નું નામ ખાલી ના હોઈ શકે.'); return; }
+  await withPin(async ()=>{
+    const payload = {
+      service_name: serviceVal,
+      person_name: document.getElementById('ct_person').value.trim() || null,
+      mobile_no: document.getElementById('ct_mobile').value.trim() || null,
+    };
+    const {error} = editingContactId
+      ? await sb.from('service_contacts').update(payload).eq('id', editingContactId)
+      : await sb.from('service_contacts').insert(payload);
+    if(error) alert(friendlyDbError(error)); else { editingContactId = null; refreshTab(); }
+  });
 }
 
 /* ---- Builder Receipt — one official-style receipt image per Unsold
