@@ -517,6 +517,25 @@ function builderRoundNameFor(month, year){
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   return `Builder Maintenance - ${monthNames[month-1]} ${year}`;
 }
+/* Once a month's "Builder Maintenance" Charges round is created, its
+   amount_per_flat is a stored/frozen value. If a common-category expense
+   (e.g. Lift Maintenance) gets added or edited AFTER that, the live
+   "Per Flat" figure updates immediately but the round's frozen rate does
+   not — so "Unsold Flats Total" silently stays stale. This keeps the
+   round's stored rate in sync with the live total every time it's
+   checked, so both figures always agree. Returns the round's up-to-date
+   amount_per_flat, or null if no round exists yet for this month. */
+async function syncBuilderRoundRate(roundName, livePerFlat){
+  if(!(livePerFlat > 0)) return null;
+  const {data:round, error} = await sb.from('charges').select('id, amount_per_flat').eq('round_name', roundName).maybeSingle();
+  if(error || !round) return null;
+  const stored = Number(round.amount_per_flat || 0);
+  if(Math.abs(stored - livePerFlat) > 0.005){
+    const {error:updErr} = await sb.from('charges').update({amount_per_flat: livePerFlat}).eq('id', round.id);
+    if(!updErr) return livePerFlat;
+  }
+  return stored;
+}
 async function renderCommonExpenseSplit(){
   const resultBox = document.getElementById('cx_result');
   if(!resultBox) return;
@@ -524,10 +543,9 @@ async function renderCommonExpenseSplit(){
   const startDate = `${cxYear}-${String(cxMonth).padStart(2,'0')}-01`;
   const endDate = cxMonth===12 ? `${cxYear+1}-01-01` : `${cxYear}-${String(cxMonth+1).padStart(2,'0')}-01`;
   const roundName = builderRoundNameFor(cxMonth, cxYear);
-  const [{data:exp, error:expErr}, {data:flats, error:flatsErr}, {data:dues}] = await Promise.all([
+  const [{data:exp, error:expErr}, {data:flats, error:flatsErr}] = await Promise.all([
     sb.from('expenses').select('amount').in('category', COMMON_EXPENSE_CATEGORIES).gte('expense_date', startDate).lt('expense_date', endDate),
     sb.from('v_flats').select('status'),
-    sb.from('v_dues_summary').select('pending_amount').eq('round_name', roundName),
   ]);
   if(expErr || flatsErr){
     resultBox.innerHTML = `<div class="msg error">${(expErr||flatsErr).message}</div>`;
@@ -535,6 +553,11 @@ async function renderCommonExpenseSplit(){
   }
   const total = (exp||[]).reduce((sum,e)=>sum+Number(e.amount||0),0);
   const perFlat = total / TOTAL_FLATS_FIXED;
+  // If a round already exists for this month, refresh its stored rate to
+  // match the live total (see syncBuilderRoundRate) before reading dues,
+  // so a just-added/edited expense is reflected immediately below.
+  await syncBuilderRoundRate(roundName, perFlat);
+  const {data:dues} = await sb.from('v_dues_summary').select('pending_amount').eq('round_name', roundName);
   const soldCount = (flats||[]).filter(f=>f.status==='Sold').length;
   const unsoldCount = (flats||[]).filter(f=>f.status==='Unsold').length;
   const soldTotal = perFlat * soldCount;
@@ -2131,6 +2154,12 @@ async function getBuilderReceiptData(){
       date_started: startDate,
     }).select().maybeSingle();
     if(!error) round = ins;
+  } else if(round){
+    // Round already existed — refresh its stored rate to match the live
+    // total in case an expense was added/edited after it was first
+    // created (see syncBuilderRoundRate), so Pending amounts stay correct.
+    const synced = await syncBuilderRoundRate(roundName, perFlat);
+    if(synced !== null) round.amount_per_flat = synced;
   }
 
   let pendingFlats = [];
