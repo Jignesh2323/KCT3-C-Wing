@@ -527,11 +527,13 @@ function builderRoundNameFor(month, year){
    amount_per_flat, or null if no round exists yet for this month. */
 async function syncBuilderRoundRate(roundName, livePerFlat){
   if(!(livePerFlat > 0)) return null;
-  const {data:round, error} = await sb.from('charges').select('id, amount_per_flat').eq('round_name', roundName).maybeSingle();
+  // charges has no id column -- round_name is its natural unique key,
+  // same as everywhere else this table is looked up.
+  const {data:round, error} = await sb.from('charges').select('amount_per_flat').eq('round_name', roundName).maybeSingle();
   if(error || !round) return null;
   const stored = Number(round.amount_per_flat || 0);
   if(Math.abs(stored - livePerFlat) > 0.005){
-    const {error:updErr} = await sb.from('charges').update({amount_per_flat: livePerFlat}).eq('id', round.id);
+    const {error:updErr} = await sb.from('charges').update({amount_per_flat: livePerFlat}).eq('round_name', roundName);
     if(!updErr) return livePerFlat;
   }
   return stored;
