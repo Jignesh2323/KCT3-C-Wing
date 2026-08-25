@@ -338,6 +338,20 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function fmtMoney(n){ n = Number(n||0); return '₹' + n.toLocaleString('en-IN'); }
+/* Turns a raw Postgres/PostgREST error into a plain-language sentence a
+   non-technical secretary can actually act on, instead of constraint
+   names and RLS policy text. Falls back to the original message for
+   anything unrecognized so nothing important gets hidden. */
+function friendlyDbError(error){
+  if(!error) return 'Kuch gadbad ho gayi. Dobara try karo.';
+  const msg = String(error.message || error);
+  const code = error.code || '';
+  if(code === '23505' || /duplicate key/i.test(msg)) return 'Ye entry pehle se maujood hai — dobara nahi daal sakte.';
+  if(code === '23502' || /null value/i.test(msg)) return 'Ek zaroori field khali reh gayi hai — sab bharo aur dobara try karo.';
+  if(code === '42501' || /row-level security/i.test(msg)) return 'Permission nahi hai — Unlock karke dobara try karo.';
+  if(/network|fetch|timeout/i.test(msg)) return 'Internet connection me dikkat aa rahi hai — dobara try karo.';
+  return msg;
+}
 function fmtDate(d){
   if(!d) return '';
   const [y,m,dd] = String(d).slice(0,10).split('-');
@@ -380,13 +394,13 @@ function downloadCSV(filename, csv){
 }
 async function exportCollectionsCSV(){
   const {data, error} = await sb.from('collections').select('*, flats(owner_name)').order('collection_date',{ascending:false});
-  if(error){ alert(error.message); return; }
+  if(error){ alert(friendlyDbError(error)); return; }
   const rows = (data||[]).map(c=>[fmtDate(c.collection_date), c.flat_no, c.flats?.owner_name||'', c.amount, c.mode, c.purpose||'', c.remarks||'']);
   downloadCSV(`Collections_${new Date().toISOString().slice(0,10)}.csv`, toCSV(['Date','Flat No','Owner','Amount','Mode','Purpose','Remarks'], rows));
 }
 async function exportExpensesCSV(){
   const {data, error} = await sb.from('expenses').select('*').order('expense_date',{ascending:false});
-  if(error){ alert(error.message); return; }
+  if(error){ alert(friendlyDbError(error)); return; }
   const rows = (data||[]).map(e=>[fmtDate(e.expense_date), e.category, e.description||'', e.amount, e.paid_to||'', e.mode||'']);
   downloadCSV(`Expenses_${new Date().toISOString().slice(0,10)}.csv`, toCSV(['Date','Category','Description','Amount','Paid To','Mode'], rows));
 }
@@ -447,7 +461,7 @@ async function setWaSent(key, val){
   const {error} = val
     ? await sb.from('wa_sent').upsert({entity_key: key, sent: true, updated_at: new Date().toISOString()})
     : await sb.from('wa_sent').delete().eq('entity_key', key);
-  if(error) alert(error.message);
+  if(error) alert(friendlyDbError(error));
 }
 function waSentPillHtml(key, pillId){
   const sent = isWaSent(key);
@@ -532,7 +546,12 @@ async function syncBuilderRoundRate(roundName, livePerFlat){
   const {data:round, error} = await sb.from('charges').select('amount_per_flat').eq('round_name', roundName).maybeSingle();
   if(error || !round) return null;
   const stored = Number(round.amount_per_flat || 0);
-  if(Math.abs(stored - livePerFlat) > 0.005){
+  // Dashboard (where this also runs from) is intentionally viewable by
+  // anyone without a PIN -- so only actually persist the corrected rate
+  // when this device is genuinely unlocked. An anonymous viewer still
+  // sees whatever the round's stored rate already is; the write itself
+  // stays admin-only, same as every other write in the app.
+  if(Math.abs(stored - livePerFlat) > 0.005 && pinStillValid() && state.user){
     const {error:updErr} = await sb.from('charges').update({amount_per_flat: livePerFlat}).eq('round_name', roundName);
     if(!updErr) return livePerFlat;
   }
@@ -550,7 +569,7 @@ async function renderCommonExpenseSplit(){
     sb.from('v_flats').select('status'),
   ]);
   if(expErr || flatsErr){
-    resultBox.innerHTML = `<div class="msg error">${(expErr||flatsErr).message}</div>`;
+    resultBox.innerHTML = `<div class="msg error">${friendlyDbError(expErr||flatsErr)}</div>`;
     return;
   }
   const total = (exp||[]).reduce((sum,e)=>sum+Number(e.amount||0),0);
@@ -651,7 +670,18 @@ function pinStillValid(){
    If already unlocked (and not expired), the action runs immediately.
    Otherwise a PIN modal appears; the action only runs after the
    correct PIN is entered and the hidden account signs in. */
+let pinActionInFlight = false;
 async function withPin(action){
+  // A rapid second tap on Save/Add/Delete (easy to do on a slow mobile
+  // connection) would otherwise re-enter the same handler before the
+  // first write finishes and create a duplicate row. One shared guard
+  // here covers every withPin()-gated write in the app at once.
+  if(pinActionInFlight) return;
+  const guardedAction = async ()=>{
+    pinActionInFlight = true;
+    try{ await action(); }
+    finally{ pinActionInFlight = false; }
+  };
   if(pinStillValid()){
     if(!state.user){
       // This device is marked Unlocked (localStorage) but state.user
@@ -662,10 +692,10 @@ async function withPin(action){
       const {data:{session}} = await sb.auth.getSession();
       if(session) state.user = session.user;
     }
-    if(state.user){ await action(); return; }
+    if(state.user){ await guardedAction(); return; }
   }
   if(state.user && !pinStillValid()){ await sb.auth.signOut(); state.user = null; }
-  showPinModal(action);
+  showPinModal(guardedAction);
 }
 /* Same self-heal as above, but proactive: run it as soon as the app/tab
    becomes visible again (phone unlocked, switched back from WhatsApp,
@@ -881,6 +911,17 @@ const TAB_ICONS = {
 };
 
 async function renderAdmin(){
+  // A hidden/secondary tab that needs a PIN (everything in HIDDEN_TAB_KEYS
+  // except settings) must only ever be reached via onMoreTabSelect()'s
+  // withPin() check. state.tab can land on one of these WITHOUT going
+  // through that check though -- e.g. the Settings > Default Tab picker
+  // can be set to any tab including these, and the boot sequence applies
+  // it directly via state.tab = getDefaultTab(); render() with no PIN
+  // gate of its own. Re-verify here, every render, so that path (and any
+  // other way state.tab could end up here) can't bypass the PIN.
+  if(HIDDEN_TAB_KEYS.includes(state.tab) && !NO_PIN_MORE_TABS.includes(state.tab) && !(pinStillValid() && state.user)){
+    state.tab = 'dashboard';
+  }
   const primaryTabs = ADMIN_TABS.filter(([k])=> !HIDDEN_TAB_KEYS.includes(k));
   const secondaryTabs = ADMIN_TABS.filter(([k])=> HIDDEN_TAB_KEYS.includes(k));
   const onSecondary = HIDDEN_TAB_KEYS.includes(state.tab);
@@ -1087,7 +1128,7 @@ async function renderFlatsTab(box){
       </div>
       </div>
     </div>`}
-    ${error?`<div class="card"><div class="msg error">${error.message}</div></div>`:''}
+    ${error?`<div class="card"><div class="msg error">${friendlyDbError(error)}</div></div>`:''}
     <p class="config-note" style="text-align:center; margin-top:2px;">📋 નંબર પર દબાવી રાખો તો કૉપિ થઈ જશે</p>
     ${flatsByFloorHtml(data||[])}`;
 }
@@ -1127,7 +1168,7 @@ function flatEntryHtml(f){
 async function updateFlatStatusInline(flatNo, value){
   await withPin(async ()=>{
     const {error} = await sb.from('flats').update({status_override: value}).eq('flat_no', flatNo);
-    if(error) alert(error.message);
+    if(error) alert(friendlyDbError(error));
     refreshTab();
   });
 }
@@ -1169,7 +1210,7 @@ async function upsertFlat(){
       remarks: document.getElementById('f_remarks').value || null,
     };
     const {error} = await sb.from('flats').upsert(payload);
-    if(error) alert(error.message); else refreshTab();
+    if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
 
@@ -1282,7 +1323,7 @@ async function renderCollectionsTab(box){
       </div>
     </div>`}
     <div class="card">
-      ${error?`<div class="msg error">${error.message}</div>`:''}
+      ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
       <div id="collections-tbody">${collectionsRowsHtml(collectionsCache)}</div>
     </div>`;
   document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
@@ -1391,7 +1432,7 @@ async function searchFlatPayments(){
     sb.from('collections').select('*').eq('flat_no', flatNo).order('collection_date',{ascending:false}),
     sb.from('v_dues_summary').select('*').eq('flat_no', flatNo)
   ]);
-  if(e1 || e2){ box.innerHTML = `<div class="msg error">${(e1||e2).message}</div>`; return; }
+  if(e1 || e2){ box.innerHTML = `<div class="msg error">${friendlyDbError(e1||e2)}</div>`; return; }
   const totalPaid = (payments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
   const totalPending = (dues||[]).reduce((s,d)=>s+Number(d.pending_amount||0),0);
   box.innerHTML = `
@@ -1414,6 +1455,8 @@ async function addCollection(){
   if(!flatVal){ alert('Is round me koi bhi flat pending nahi hai — dusra Purpose (Round) select karo.'); return; }
   const flatNo = Number(flatVal);
   const purpose = document.getElementById('c_purpose').value;
+  const amountVal = Number(document.getElementById('c_amount').value);
+  if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
   const {data: existing} = await sb.from('collections').select('*').eq('flat_no', flatNo).eq('purpose', purpose);
   if(existing && existing.length){
     const prior = existing[0];
@@ -1424,13 +1467,13 @@ async function addCollection(){
     const payload = {
       flat_no: flatNo,
       collection_date: document.getElementById('c_date').value || new Date().toISOString().slice(0,10),
-      amount: Number(document.getElementById('c_amount').value),
+      amount: amountVal,
       mode: document.getElementById('c_mode').value,
       purpose: purpose,
       remarks: document.getElementById('c_remarks').value || null,
     };
     const {error} = await sb.from('collections').insert(payload);
-    if(error) alert(error.message); else refreshTab();
+    if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
 async function bulkBuilderPayment(){
@@ -1446,7 +1489,7 @@ async function bulkBuilderPayment(){
     sb.from('v_flats').select('flat_no').eq('status','Unsold'),
     sb.from('collections').select('flat_no').eq('purpose', purpose)
   ]);
-  if(e1 || e2){ alert((e1||e2).message); return; }
+  if(e1 || e2){ alert(friendlyDbError(e1||e2)); return; }
   if(!unsoldFlats || !unsoldFlats.length){ alert('Koi Unsold flat nahi mila.'); return; }
 
   const alreadyDone = new Set((existing||[]).map(c=>c.flat_no));
@@ -1468,7 +1511,7 @@ async function bulkBuilderPayment(){
       remarks: remarks,
     }));
     const {error} = await sb.from('collections').insert(payload);
-    if(error) alert(error.message);
+    if(error) alert(friendlyDbError(error));
     else { alert(`${targetFlats.length} collection entries add ho gayi.${skipped?` (${skipped} already-existing flat(s) skipped.)`:''}`); refreshTab(); }
   });
 }
@@ -1477,6 +1520,13 @@ async function bulkBuilderPayment(){
 let expensesCache = [];
 let editingExpenseId = null;
 async function renderExpensesTab(box){
+  // Any fresh render of this tab (tab switch, refreshTab, re-lock/unlock)
+  // starts a clean "Add Expense" — editingExpenseId only gets set back
+  // to a real id inside the SAME edit flow, right after this render, by
+  // editExpense()->populateExpenseForm(). Without this reset, leaving an
+  // edit half-done and coming back to this tab would silently turn the
+  // next Save into an UPDATE of the OLD row instead of a new entry.
+  editingExpenseId = null;
   const unlocked = pinStillValid() && state.user;
   const [{data, error}] = await Promise.all([
     sb.from('expenses').select('*').order('expense_date',{ascending:false}).order('id',{ascending:false}),
@@ -1515,7 +1565,7 @@ async function renderExpensesTab(box){
       </div>
     </div>`}
     <div class="card">
-      ${error?`<div class="msg error">${error.message}</div>`:''}
+      ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
       <div>${(data||[]).map(e=>{
         const waMsg = `📢 *C-Wing Society – નવો ખર્ચ*\n\n🗂️ કેટેગરી: ${e.category}\n${e.description?`📝 વિગત: ${e.description}\n`:''}💰 રકમ: ${fmtMoney(e.amount)}\n📅 તારીખ: ${fmtDate(e.expense_date)}\n\nઆપની જાણકારી માટે 🙏\n\n🏢 *C-Wing Society Maintenance*`;
         const waLinkHref = waShareLink(waMsg);
@@ -1587,7 +1637,7 @@ async function uploadExpenseBills(files){
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `bill_${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
     const {error} = await sb.storage.from('expense-bills').upload(path, file, {cacheControl:'3600', upsert:false});
-    if(error){ alert('Bill photo upload nahi ho paya: ' + error.message); return null; }
+    if(error){ alert('Bill photo upload nahi ho paya: ' + friendlyDbError(error)); return null; }
     const {data} = sb.storage.from('expense-bills').getPublicUrl(path);
     urls.push(data.publicUrl);
   }
@@ -1600,12 +1650,14 @@ function billLinksHtml(billUrl){
   return urls.map((u,i)=>`<a href="${u}" target="_blank" class="config-note" style="margin:0;">📎 બિલ${urls.length>1?' '+(i+1):''}</a>`).join('');
 }
 async function addExpense(){
+  const amountVal = Number(document.getElementById('e_amount').value);
+  if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
   await withPin(async ()=>{
     const payload = {
       expense_date: document.getElementById('e_date').value || new Date().toISOString().slice(0,10),
       category: document.getElementById('e_cat').value,
       description: document.getElementById('e_desc').value || null,
-      amount: Number(document.getElementById('e_amount').value),
+      amount: amountVal,
       paid_to: document.getElementById('e_paidto').value || null,
       mode: document.getElementById('e_mode').value,
     };
@@ -1618,7 +1670,7 @@ async function addExpense(){
     const {error} = editingExpenseId
       ? await sb.from('expenses').update(payload).eq('id', editingExpenseId)
       : await sb.from('expenses').insert(payload);
-    if(error) alert(error.message); else { editingExpenseId = null; refreshTab(); }
+    if(error) alert(friendlyDbError(error)); else { editingExpenseId = null; refreshTab(); }
   });
 }
 /* ---- Fund Transfer tab (Cash <-> Bank) ---- */
@@ -1639,7 +1691,7 @@ async function renderTransfersTab(box){
         <div class="field"><label>Remarks</label><input id="tr_remarks" placeholder="e.g. Cash deposit slip no."></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addFundTransfer()">Add</button></div>
       </div>
-      ${error?`<div class="msg error">${error.message}</div>`:''}
+      ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
       </div>
       <div class="grid-stats" style="margin-bottom:14px">
         <div class="stat stat-bank"><div class="num mono">${fmtMoney(total)}</div><div class="lbl">🏦 Total Transferred to Bank</div></div>
@@ -1653,14 +1705,16 @@ async function renderTransfersTab(box){
     </div>`;
 }
 async function addFundTransfer(){
+  const amountVal = Number(document.getElementById('tr_amount').value);
+  if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
   await withPin(async ()=>{
     const payload = {
       transfer_date: document.getElementById('tr_date').value || new Date().toISOString().slice(0,10),
-      amount: Number(document.getElementById('tr_amount').value),
+      amount: amountVal,
       remarks: document.getElementById('tr_remarks').value || null,
     };
     const {error} = await sb.from('fund_transfers').insert(payload);
-    if(error) alert(error.message); else refreshTab();
+    if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
 
@@ -1698,7 +1752,7 @@ async function renderVehiclesTab(box){
         <div class="field"><input id="v_search" class="search-safe" placeholder="Vehicle No / Flat No"></div>
       </div>
       <p class="config-note" style="text-align:center; margin-top:2px;">📋 નંબર પર દબાવી રાખો તો કૉપિ થઈ જશે</p>
-      ${error?`<div class="msg error">${error.message}</div>`:''}
+      ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
       <div id="vehicles-results-wrap"></div>
     </div>`;
   document.getElementById('v_search').addEventListener('input', filterVehicleResults);
@@ -1745,7 +1799,7 @@ async function addVehicle(){
       remarks: document.getElementById('v_remarks').value || null,
     };
     const {error} = await sb.from('vehicles').insert(payload);
-    if(error) alert(error.message); else refreshTab();
+    if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
 
@@ -1753,6 +1807,12 @@ async function addVehicle(){
 let chargeRoundsCache = [];
 let editingChargeRoundName = null;
 async function renderChargesTab(box){
+  // Same reason as editingExpenseId in renderExpensesTab: a fresh render
+  // of this tab always starts a clean "Add Charge Round" — leaving an
+  // edit half-done and switching tabs must not leave a stale round name
+  // armed, or the next Save could rename/reassign a DIFFERENT round's
+  // collections onto whatever gets typed in next.
+  editingChargeRoundName = null;
   const {data, error} = await sb.from('charges').select('*').order('date_started',{ascending:false});
   chargeRoundsCache = data || [];
   box.innerHTML = `
@@ -1770,7 +1830,7 @@ async function renderChargesTab(box){
         <div class="field" style="flex:0"><button class="primary" onclick="addCharge()">Save</button></div>
         <div class="field" style="flex:0"><button onclick="resetChargeForm()">Clear</button></div>
       </div>
-      ${error?`<div class="msg error">${error.message}</div>`:''}
+      ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
       </div>
     </div>
     ${data && data.length ? data.map(c=>`
@@ -1807,11 +1867,15 @@ function resetChargeForm(){
   document.getElementById('charges-form-title').textContent = 'Add Charge Round';
 }
 async function addCharge(){
+  const newNameVal = document.getElementById('ch_name').value.trim();
+  if(!newNameVal){ alert('Round Name khali nahi ho sakta.'); return; }
+  const amountVal = Number(document.getElementById('ch_amount').value);
+  if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
   await withPin(async ()=>{
-    const newName = document.getElementById('ch_name').value;
+    const newName = newNameVal;
     const payload = {
       round_name: newName,
-      amount_per_flat: Number(document.getElementById('ch_amount').value),
+      amount_per_flat: amountVal,
       applies_to: document.getElementById('ch_applies').value,
       date_started: document.getElementById('ch_date').value || null,
     };
@@ -1820,17 +1884,17 @@ async function addCharge(){
       // entry to it, then remove the old name — this order never leaves a
       // collections.purpose value pointing at a round_name that doesn't exist.
       const insertRes = await sb.from('charges').insert(payload);
-      if(insertRes.error){ alert(insertRes.error.message); return; }
+      if(insertRes.error){ alert(friendlyDbError(insertRes.error)); return; }
       const moveRes = await sb.from('collections').update({purpose: newName}).eq('purpose', editingChargeRoundName);
-      if(moveRes.error){ alert('Round renamed, lekin collections entries move karte waqt error: ' + moveRes.error.message); return; }
+      if(moveRes.error){ alert('Round renamed, lekin collections entries move karte waqt error: ' + friendlyDbError(moveRes.error)); return; }
       const deleteRes = await sb.from('charges').delete().eq('round_name', editingChargeRoundName);
-      if(deleteRes.error){ alert('Warning: purani round "' + editingChargeRoundName + '" delete nahi ho payi: ' + deleteRes.error.message); }
+      if(deleteRes.error){ alert('Warning: purani round "' + editingChargeRoundName + '" delete nahi ho payi: ' + friendlyDbError(deleteRes.error)); }
       editingChargeRoundName = null; refreshTab(); return;
     }
     const {error} = editingChargeRoundName
       ? await sb.from('charges').update(payload).eq('round_name', editingChargeRoundName)
       : await sb.from('charges').insert(payload);
-    if(error) alert(error.message); else { editingChargeRoundName = null; refreshTab(); }
+    if(error) alert(friendlyDbError(error)); else { editingChargeRoundName = null; refreshTab(); }
   });
 }
 
@@ -1882,7 +1946,7 @@ async function renderStickerLogTab(box){
         </div>
         <div class="field" style="flex:0"><button class="primary" onclick="addStickerLog()">Add</button></div>
       </div>
-      ${error?`<div class="msg error">${error.message}</div>`:''}
+      ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
       </div>
     </div>
     ${groups.length ? groups.map(g=>`
@@ -1947,7 +2011,7 @@ async function addStickerLog(){
       reason: reason,
     };
     const {error} = await sb.from('sticker_log').insert(payload);
-    if(error) alert(error.message); else refreshTab();
+    if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
 
@@ -1981,7 +2045,7 @@ async function renderDuesTab(box){
       <div class="grid-stats" style="margin:10px 0 0">
         <div class="stat ${grandTotal>0?'stat-bad':'stat-good'}"><div class="num mono">${fmtMoney(grandTotal)}</div><div class="lbl">⚖️ Total Pending (All Flats)</div></div>
       </div>
-      ${e1||e2?`<div class="msg error">${(e1||e2).message}</div>`:''}
+      ${e1||e2?`<div class="msg error">${friendlyDbError(e1||e2)}</div>`:''}
     </div>
     ${grandTotal>0 ? `<div class="card">
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -2362,7 +2426,7 @@ function builderReceiptAmountFor(flatNo){
    same month reuses its already-assigned number. */
 async function ensureBuilderReceiptNo(flatNo, roundName){
   const {data, error} = await sb.from('wa_sent').select('entity_key').like('entity_key','brno|%');
-  if(error){ alert(error.message); return null; }
+  if(error){ alert(friendlyDbError(error)); return null; }
   const rows = (data||[]).map(r=>{
     const p = String(r.entity_key).split('|');
     return {no:Number(p[1]), round:p[2], flat:Number(p[3])};
@@ -2371,7 +2435,7 @@ async function ensureBuilderReceiptNo(flatNo, roundName){
   if(existing) return existing.no;
   const next = rows.reduce((m,r)=>Math.max(m,r.no),0) + 1;
   const {error:insErr} = await sb.from('wa_sent').insert({entity_key:`brno|${next}|${roundName}|${flatNo}`, sent:true, updated_at:new Date().toISOString()});
-  if(insErr){ alert('Receipt number save nahi hua — PIN unlock check kar ke dobara try karo.\n' + insErr.message); return null; }
+  if(insErr){ alert('Receipt number save nahi hua — PIN unlock check kar ke dobara try karo.\n' + friendlyDbError(insErr)); return null; }
   return next;
 }
 async function previewBuilderReceipt(flatNo){
@@ -2464,7 +2528,7 @@ async function deleteRow(table, col, val, isString){
       // snapshot the full row BEFORE deleting, so it can be restored later
       const {data:snapshot} = await sb.from(table).select('*').eq(col, val).maybeSingle();
       const {error} = await sb.from(table).delete().eq(col, val);
-      if(error) { alert(error.message); return; }
+      if(error) { alert(friendlyDbError(error)); return; }
       if(snapshot){
         await sb.from('deleted_items').insert({
           table_name: table,
@@ -2487,7 +2551,7 @@ async function deleteRow(table, col, val, isString){
 async function renderDeletedItemsTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
   const {data, error} = await sb.from('deleted_items').select('*').order('deleted_at', {ascending:false}).limit(200);
-  if(error){ box.innerHTML = `<div class="card"><div class="msg error">${error.message}</div></div>`; return; }
+  if(error){ box.innerHTML = `<div class="card"><div class="msg error">${friendlyDbError(error)}</div></div>`; return; }
   const items = data || [];
   box.innerHTML = `
     <div class="card">
@@ -2513,11 +2577,11 @@ async function renderDeletedItemsTab(box){
 function restoreDeletedItem(id){
   withPin(async ()=>{
     const {data:item, error} = await sb.from('deleted_items').select('*').eq('id', id).maybeSingle();
-    if(error || !item){ alert((error&&error.message) || 'Ye item nahi mila.'); return; }
+    if(error || !item){ alert((error && friendlyDbError(error)) || 'Ye item nahi mila.'); return; }
     const payload = {...item.row_data};
     delete payload.id; // let the DB assign a fresh id, avoids clashing with a re-used old one
     const {error:insErr} = await sb.from(item.table_name).insert(payload);
-    if(insErr){ alert('Restore nahi ho paya: ' + insErr.message); return; }
+    if(insErr){ alert('Restore nahi ho paya: ' + friendlyDbError(insErr)); return; }
     await sb.from('deleted_items').delete().eq('id', id);
     refreshTab();
   });
@@ -2526,7 +2590,7 @@ function forgetDeletedItem(id){
   withPin(async ()=>{
     showConfirmModal('Ye history se hamesha ke liye hat jayega — is entry ko phir restore nahi kar paoge.', async ()=>{
       const {error} = await sb.from('deleted_items').delete().eq('id', id);
-      if(error) { alert(error.message); return; }
+      if(error) { alert(friendlyDbError(error)); return; }
       refreshTab();
     });
   });
