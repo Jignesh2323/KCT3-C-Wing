@@ -1240,6 +1240,7 @@ let collectionsCache = [];
 let chargesCache = [];
 let flatsListCache = [];
 let pendingFlatsByRoundCache = {};
+let unsoldFlatNoSetCache = new Set();
 async function renderCollectionsTab(box){
   const unlocked = pinStillValid() && state.user;
   const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}] = await Promise.all([
@@ -1247,7 +1248,7 @@ async function renderCollectionsTab(box){
     sb.from('charges').select('round_name, amount_per_flat, applies_to'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
     sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').gt('pending_amount', 0),
-    sb.from('v_flats').select('status'),
+    sb.from('v_flats').select('flat_no, status'),
     loadWaSentCache(),
   ]);
   collectionsCache = data || [];
@@ -1257,6 +1258,10 @@ async function renderCollectionsTab(box){
   (pending||[]).forEach(r=>{
     (pendingFlatsByRoundCache[r.round_name] = pendingFlatsByRoundCache[r.round_name] || []).push(r.flat_no);
   });
+  // Unsold flats are builder-owned -- their collections are the builder's
+  // maintenance payment, not a resident's, so the "payment received"
+  // WhatsApp message (addressed to an owner by name) doesn't apply.
+  unsoldFlatNoSetCache = new Set((flatStatuses||[]).filter(f=>f.status==='Unsold').map(f=>f.flat_no));
   const totalFlatsCount = (flatStatuses||[]).length;
   const soldFlatsCount = (flatStatuses||[]).filter(f=>f.status==='Sold').length;
   const unsoldFlatsCount = (flatStatuses||[]).filter(f=>f.status==='Unsold').length;
@@ -1399,7 +1404,9 @@ function collectionsRowsHtml(list){
   return (list||[]).map(c=>{
     const pc = purposeColor(c.purpose);
     const msg = `🙏 નમસ્તે ${c.flats?.owner_name||''},\n\nઆપનું *Flat ${c.flat_no}* નું પેમેન્ટ સફળતાપૂર્વક સ્વીકારવામાં આવ્યું છે ✅\n\n💰 રકમ: ${fmtMoney(c.amount)} (${c.mode})\n🧾 હેતુ: "${c.purpose||''}"\n📅 તારીખ: ${fmtDate(c.collection_date)}\n\nઆપના સમયસર સહયોગ બદલ હાર્દિક આભાર 🙏🏻\n\n🏢 *C-Wing Society Maintenance*`;
-    const link = waLink(c.flats?.contact_no, msg);
+    // Unsold flats belong to the builder, not a resident -- no
+    // "your payment was received" WhatsApp for those entries.
+    const link = unsoldFlatNoSetCache.has(c.flat_no) ? null : waLink(c.flats?.contact_no, msg);
     const waKey = `collection:${c.id}`;
     const pillId = `coll-wa-${c.id}`;
     return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
@@ -2379,10 +2386,22 @@ async function renderBuilderReceiptTab(box){
   builderReceiptCache = data;
   const monthLabel = `${fmtDate(data.startDate)} થી ${fmtDate(data.endDateDisplay)}`;
   const paidCount = data.unsoldCount - data.pendingFlats.length;
+  // Once every Unsold flat's payment is recorded, "Per Flat Amount" (the
+  // RATE used, not an amount still owed) sitting next to "0 Pending" and
+  // "₹0 Total Pending" reads as if money is still due. Show a clear
+  // fully-paid summary instead of that stat grid in that case.
+  const fullyPaid = data.unsoldCount > 0 && data.pendingFlats.length === 0;
   box.innerHTML = `
     <div class="card">
       <h3>🏗️ Builder Receipt — Unsold Flats Maintenance</h3>
       <p class="config-note" style="margin-top:-6px">ગત મહિનાના (${monthLabel}) સામાન્ય ખર્ચ પ્રમાણે, દરેક Unsold ફ્લેટનો મેન્ટેનન્સ ભાગ આપોઆપ ગણાય છે. રાઉન્ડ: "${data.roundName}".</p>
+      ${fullyPaid ? `
+      <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
+        <div class="stat stat-good"><div class="num mono">${data.unsoldCount}</div><div class="lbl">ફ્લેટ્સ — બધાનું પેમેન્ટ મળી ગયું</div></div>
+        <div class="stat stat-good"><div class="num mono">${fmtMoney(data.amountPerFlat * data.unsoldCount)}</div><div class="lbl">કુલ મળ્યું (@ ${fmtMoney(data.amountPerFlat)}/ફ્લેટ)</div></div>
+      </div>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${monthLabel} ના ${data.unsoldCount} Unsold ફ્લેટ્સની આખી મેન્ટેનન્સ રકમ Builder પાસેથી મળી ગઈ છે. કોઈ પણ રસીદ બાકી નથી.</p>
+      ` : `
       <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
         <div class="stat stat-warning"><div class="num mono">${data.pendingFlats.length}</div><div class="lbl">Baaki (Pending) Flats</div></div>
         <div class="stat stat-neutral"><div class="num mono">${fmtMoney(data.amountPerFlat)}</div><div class="lbl">Per Flat Amount</div></div>
@@ -2390,9 +2409,10 @@ async function renderBuilderReceiptTab(box){
       </div>
       ${paidCount>0 ? `<p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${paidCount} ફ્લેટ(સ)નું આ મહિનાનું પેમેન્ટ પહેલેથી જ મળી ગયું છે — તેમની રસીદ અહીં નહીં દેખાય.</p>` : ''}
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
-        ${data.pendingFlats.length ? `<button class="primary" onclick="downloadAllBuilderReceipts()">⬇️ Sabhi Receipts Download Karo</button>` : ''}
+        <button class="primary" onclick="downloadAllBuilderReceipts()">⬇️ Sabhi Receipts Download Karo</button>
       </div>
       <p class="config-note" style="margin-top:8px; margin-bottom:0;">પહેલા "Sabhi Receipts Download Karo" દબાવો — બધાનો ફોટો એકસાથે સેવ થઈ જશે. અથવા નીચે દરેક ફ્લેટમાં "Preview" થી ચેક કરીને અલગથી "Download" પણ કરી શકો છો. Builder નું પેમેન્ટ જેવું જ "Bulk Builder Payment" (Collections tab, Purpose: "${data.roundName}") થી રેકોર્ડ કરશો, આ લિસ્ટ પોતાની મેળે અપડેટ થઈ જશે.</p>
+      `}
     </div>
     ${data.pendingFlats.length ? `<div class="card">
       ${data.pendingFlats.map(f=>`<div class="flat-entry">
@@ -2402,7 +2422,7 @@ async function renderBuilderReceiptTab(box){
           <button onclick="downloadOneBuilderReceipt(${f.flat_no})">⬇️ Download</button>
         </span>
       </div>`).join('')}
-    </div>` : `<div class="card"><p class="empty">✅ બધા Unsold ફ્લેટ્સનું આ મહિનાનું પેમેન્ટ મળી ગયું છે.</p></div>`}`;
+    </div>` : (data.unsoldCount===0 ? `<div class="card"><p class="empty">કોઈ Unsold ફ્લેટ નથી.</p></div>` : '')}`;
 }
 /* Secretary's signature (blue ink), taken from the real receipt-book
    photo — stamped on every builder receipt above the સહી line. */
