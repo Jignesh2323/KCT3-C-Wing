@@ -548,7 +548,7 @@ function builderRoundNameFor(month, year){
    round's stored rate in sync with the live total every time it's
    checked, so both figures always agree. Returns the round's up-to-date
    amount_per_flat, or null if no round exists yet for this month. */
-async function syncBuilderRoundRate(roundName, livePerFlat){
+async function syncBuilderRoundRate(roundName, livePerFlat, allowAnonWrite){
   if(!(livePerFlat > 0)) return null;
   // charges has no id column -- round_name is its natural unique key,
   // same as everywhere else this table is looked up.
@@ -556,11 +556,13 @@ async function syncBuilderRoundRate(roundName, livePerFlat){
   if(error || !round) return null;
   const stored = Number(round.amount_per_flat || 0);
   // Dashboard (where this also runs from) is intentionally viewable by
-  // anyone without a PIN -- so only actually persist the corrected rate
-  // when this device is genuinely unlocked. An anonymous viewer still
-  // sees whatever the round's stored rate already is; the write itself
-  // stays admin-only, same as every other write in the app.
-  if(Math.abs(stored - livePerFlat) > 0.005 && pinStillValid() && state.user){
+  // anyone without a PIN -- so by default only actually persist the
+  // corrected rate when this device is genuinely unlocked. Builder
+  // Receipt is ALSO PIN-free (view-only, no edit form) but its round
+  // rows are already anonymously writable (round creation always was),
+  // so it passes allowAnonWrite=true to keep its numbers live for
+  // everyone instead of only for whoever happens to be unlocked.
+  if(Math.abs(stored - livePerFlat) > 0.005 && (allowAnonWrite || (pinStillValid() && state.user))){
     const {error:updErr} = await sb.from('charges').update({amount_per_flat: livePerFlat}).eq('round_name', roundName);
     if(!updErr) return livePerFlat;
   }
@@ -903,7 +905,7 @@ const ADMIN_TABS = [
 ];
 
 const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues','builderreceipt','deleteditems','settings'];
-const NO_PIN_MORE_TABS = ['settings']; // secondary tabs reachable via More without a PIN
+const NO_PIN_MORE_TABS = ['settings','builderreceipt']; // secondary tabs reachable via More without a PIN -- builderreceipt has no edit form, just view/preview/download
 const TAB_ICONS = {
   dashboard: '🏠',
   flats: '🏢',
@@ -2379,7 +2381,7 @@ async function getBuilderReceiptData(){
     // match the live total in case an expense was added/edited after it
     // was first created (see syncBuilderRoundRate). Older, already-
     // settled months are left as historical record, not re-synced.
-    const synced = await syncBuilderRoundRate(currentRoundName, perFlat);
+    const synced = await syncBuilderRoundRate(currentRoundName, perFlat, true);
     if(synced !== null) currentRound.amount_per_flat = synced;
   }
 
