@@ -824,24 +824,35 @@ async function ensureNotifBaseline(){
   localStorage.setItem(NOTIF_LAST_COLL_KEY, String(maxColl?.[0]?.id || 0));
   localStorage.setItem(NOTIF_LAST_EXP_KEY, String(maxExp?.[0]?.id || 0));
 }
+// Boot fires this from two places in close succession (renderAdmin()'s own
+// check, and the boot sequence's explicit call right after
+// ensureNotifBaseline()) -- whichever timing order they land in, the
+// second caller just awaits the first call's in-flight work instead of
+// re-running the same collections+expenses "what's new" queries.
+let notifRefreshInFlight = null;
 async function refreshNotifBadge(){
-  const lastColl = Number(localStorage.getItem(NOTIF_LAST_COLL_KEY) || 0);
-  const lastExp = Number(localStorage.getItem(NOTIF_LAST_EXP_KEY) || 0);
-  const [{data:newColl}, {data:newExp}] = await Promise.all([
-    sb.from('collections').select('id, flat_no, amount, purpose, collection_date, flats(owner_name)').gt('id', lastColl).order('id',{ascending:false}),
-    sb.from('expenses').select('id, category, amount, description, expense_date').gt('id', lastExp).order('id',{ascending:false}),
-  ]);
-  notifNewItems = [
-    ...(newColl||[]).map(c=>({type:'collection', id:c.id, text:`💰 ફ્લેટ ${c.flat_no}${c.flats?.owner_name?' — '+c.flats.owner_name:''}: ${fmtMoney(c.amount)} (${c.purpose||''})`, date:c.collection_date})),
-    ...(newExp||[]).map(e=>({type:'expense', id:e.id, text:`📤 ${e.category}: ${fmtMoney(e.amount)}${e.description?' — '+e.description:''}`, date:e.expense_date})),
-  ];
-  const count = notifNewItems.length;
-  const badge = document.getElementById('notif-badge');
-  if(badge){ badge.style.display = count>0 ? 'flex' : 'none'; badge.textContent = count>99?'99+':String(count); }
-  document.querySelector('.bell-wrap')?.classList.toggle('has-notif', count>0);
-  if(navigator.setAppBadge){
-    try{ count>0 ? navigator.setAppBadge(count) : navigator.clearAppBadge(); }catch(e){}
-  }
+  if(notifRefreshInFlight) return notifRefreshInFlight;
+  notifRefreshInFlight = (async () => {
+    const lastColl = Number(localStorage.getItem(NOTIF_LAST_COLL_KEY) || 0);
+    const lastExp = Number(localStorage.getItem(NOTIF_LAST_EXP_KEY) || 0);
+    const [{data:newColl}, {data:newExp}] = await Promise.all([
+      sb.from('collections').select('id, flat_no, amount, purpose, collection_date, flats(owner_name)').gt('id', lastColl).order('id',{ascending:false}),
+      sb.from('expenses').select('id, category, amount, description, expense_date').gt('id', lastExp).order('id',{ascending:false}),
+    ]);
+    notifNewItems = [
+      ...(newColl||[]).map(c=>({type:'collection', id:c.id, text:`💰 ફ્લેટ ${c.flat_no}${c.flats?.owner_name?' — '+c.flats.owner_name:''}: ${fmtMoney(c.amount)} (${c.purpose||''})`, date:c.collection_date})),
+      ...(newExp||[]).map(e=>({type:'expense', id:e.id, text:`📤 ${e.category}: ${fmtMoney(e.amount)}${e.description?' — '+e.description:''}`, date:e.expense_date})),
+    ];
+    const count = notifNewItems.length;
+    const badge = document.getElementById('notif-badge');
+    if(badge){ badge.style.display = count>0 ? 'flex' : 'none'; badge.textContent = count>99?'99+':String(count); }
+    document.querySelector('.bell-wrap')?.classList.toggle('has-notif', count>0);
+    if(navigator.setAppBadge){
+      try{ count>0 ? navigator.setAppBadge(count) : navigator.clearAppBadge(); }catch(e){}
+    }
+  })();
+  try{ await notifRefreshInFlight; }
+  finally{ notifRefreshInFlight = null; }
 }
 function toggleNotifPanel(e){
   e.stopPropagation();

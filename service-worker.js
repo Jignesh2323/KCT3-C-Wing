@@ -22,21 +22,29 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first for the app shell so residents always see the latest build;
-// falls back to cache only when offline. Supabase API calls are left untouched
-// (not intercepted) since maintenance data must always be live.
+// Stale-while-revalidate for the app shell: a repeat open shows the
+// already-cached page INSTANTLY (no network round-trip before the first
+// paint), while a fresh copy downloads in the background for next time --
+// so residents never wait on the shell itself, and still get the latest
+// build within a visit or two of it shipping. First-ever visit (nothing
+// cached yet) falls through to a normal network fetch. Supabase API calls
+// are left untouched (not intercepted) since maintenance data must always
+// be live.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(event.request);
+      const networkFetch = fetch(event.request)
+        .then((response) => {
+          cache.put(event.request, response.clone());
+          return response;
+        })
+        .catch(() => cached);
+      return cached || networkFetch;
+    })
   );
 });
