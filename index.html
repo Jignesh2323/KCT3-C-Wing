@@ -921,10 +921,11 @@ const ADMIN_TABS = [
   ['builderreceipt','Builder Receipt'],
   ['deleteditems','Deleted Items'],
   ['settings','Settings'],
+  ['guide','Guide'],
 ];
 
-const HIDDEN_TAB_KEYS = ['flats','transfers','charges','stickerlog','dues','builderreceipt','deleteditems','settings'];
-const NO_PIN_MORE_TABS = ['settings','builderreceipt','flats']; // secondary tabs reachable via More without a PIN -- builderreceipt has no edit form, just view; flats' own list is already publicly viewable (only its Add/Update form is PIN-gated), same reasoning Collections/Expenses lists use
+const HIDDEN_TAB_KEYS = ['flats','transfers','charges','stickerlog','dues','builderreceipt','deleteditems','settings','guide'];
+const NO_PIN_MORE_TABS = ['settings','builderreceipt','flats','guide']; // secondary tabs reachable via More without a PIN -- builderreceipt has no edit form, just view; flats' own list is already publicly viewable (only its Add/Update form is PIN-gated), same reasoning Collections/Expenses lists use; guide is a read-only how-to-use page, no data to protect
 const TAB_ICONS = {
   dashboard: '🏠',
   flats: '🏢',
@@ -939,6 +940,7 @@ const TAB_ICONS = {
   builderreceipt: '🏗️',
   deleteditems: '♻️',
   settings: '⚙️',
+  guide: '📖',
 };
 
 async function renderAdmin(){
@@ -1029,6 +1031,7 @@ async function renderTabContent(){
     if(state.tab==='builderreceipt') return await renderBuilderReceiptTab(box);
     if(state.tab==='deleteditems') return await renderDeletedItemsTab(box);
     if(state.tab==='settings') return await renderSettingsTab(box);
+    if(state.tab==='guide') return await renderGuideTab(box);
   }catch(err){
     console.error(err);
     box.innerHTML = `<div class="msg error"><b>Something broke:</b> ${err.message || err}</div>`;
@@ -2376,7 +2379,7 @@ const APP_GUIDE_SECTIONS = [
     <p class="config-note" style="margin:0 0 6px;">Category: Flat Expense, Security, Housekeeping, Electricity, Water, Lift Maintenance, Repair &amp; Maintenance, Gardening, Pest Control, Admin/Stationery, Event, Festival, KIRAN 3 Society Advance, KIRAN 3 Society Expense.</p>
     <p class="config-note" style="margin:0;">🔒 ફોર્મ ફક્ત Unlock પછી; List બધાને દેખાય.</p>`},
   { id:'statement', icon:'📒', title:'Statement', body:`
-    <p class="config-note" style="margin:0 0 6px;">બેંક પાસબુક જેવું — ⚖️ Total, 💵 Cash, 🏦 Bank, 🏢 KIRAN 3 — ચાર views. દરેક એન્ટ્રી પહેલા/પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
+    <p class="config-note" style="margin:0 0 6px;">બેંક પાસબુક જેવું — 💵 Cash, 🏦 Bank, 🏢 KIRAN 3 — ત્રણ views. દરેક એન્ટ્રી પહેલા/પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
     <p class="config-note" style="margin:0;">🔓 View-only, PIN વગર જોઈ શકાય.</p>`},
   { id:'veh', icon:'🚗', title:'Vehicles', body:`
     <p class="config-note" style="margin:0 0 6px;">દરેક ફ્લેટના વાહનોની yaadi, સ્ટીકર status સાથે. 🔓 ઉપર Search થી વાહન નંબર/ફ્લેટ નંબરથી કોઈ પણ શોધી શકે, PIN વગર.</p>
@@ -2505,6 +2508,16 @@ async function renderSettingsTab(box){
       </div>
     </div>
     <div class="card">
+      <h3>ℹ️ જાણકારી</h3>
+      <p class="config-note" style="margin:0;">Theme/Notifications/Default Tab/Auto-fill ફક્ત આ ડિવાઈસ/બ્રાઉઝર પર જ લાગુ થાય છે. Service Contacts લિસ્ટ Supabase માં સેવ થાય છે અને Dashboard પર બધાને દેખાય છે. App કેવી રીતે વાપરવી (KIRAN 3 Common Fund સહિત) એ More → 📖 Guide માં જુઓ.</p>
+    </div>`;
+}
+/* ---- Guide tab (More menu) — read-only how-to-use reference, moved
+   out of Settings so it's its own quick destination instead of buried
+   at the bottom of a preferences screen. ---- */
+async function renderGuideTab(box){
+  box.innerHTML = `
+    <div class="card">
       <h3>📖 App Guide — બધા Tabs કેવી રીતે વાપરવા?</h3>
       <p class="config-note" style="margin-top:-6px">દરેક Tab નીચે ટૂંકમાં સમજાવેલું છે — શેના માટે છે, કઈ Field શું છે, PIN જોઈએ કે નહીં. જે Tab વિશે જાણવું હોય એના પર દબાવો.</p>
       ${appGuideAccordionHtml()}
@@ -2595,10 +2608,6 @@ async function renderSettingsTab(box){
         <li>ભૂલથી ખોટી entry પડી ગઈ હોય તો <b>✏️ Edit</b> બટનથી સુધારી શકાય છે (નવી entry બનાવવાની જરૂર નથી).</li>
         <li>"KIRAN 3 Society Advance" / "KIRAN 3 Society Expense" (Expenses tab) — આ અલગ વસ્તુ છે: એ ફક્ત C-Wing એ ફંડને પોતે શું આપ્યું/શેનો ઉપયોગ કર્યો એનો રેકોર્ડ છે, આ ÷4 ગણતરીમાં ભાગ નથી લેતું.</li>
       </ul>
-    </div>
-    <div class="card">
-      <h3>ℹ️ જાણકારી</h3>
-      <p class="config-note" style="margin:0;">Theme/Notifications/Default Tab/Auto-fill ફક્ત આ ડિવાઈસ/બ્રાઉઝર પર જ લાગુ થાય છે. Service Contacts લિસ્ટ Supabase માં સેવ થાય છે અને Dashboard પર બધાને દેખાય છે. KIRAN 3 Common Balance હવે Collections tab ના "🏢 KIRAN 3 Common Fund" entries પરથી આપોઆપ ગણાય છે.</p>
     </div>`;
 }
 function populateContactForm(id){
@@ -2647,7 +2656,7 @@ async function addContact(){
    Total view; Cash/Bank views also fold in Fund Transfers, which move
    money between the two but don't change the Total. ---- */
 let statementDataCache = null;
-let statementView = 'total';
+let statementView = 'cash';
 async function renderStatementTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
   const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3income, error:e4}] = await Promise.all([
@@ -2698,12 +2707,7 @@ function buildStatementEntries(view){
   const isCash = m => (m||'').toLowerCase() === 'cash';
   // Same exclusion Dashboard uses for real cash-flow figures.
   const realExpenses = d.expenses.filter(e => e.category !== 'KIRAN 3 Society Expense');
-  if(view === 'total'){
-    d.collections.forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
-      label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''}`}));
-    realExpenses.forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
-      label:`${e.category}${e.description?' — '+e.description:''}`}));
-  } else if(view === 'cash'){
+  if(view === 'cash'){
     d.collections.filter(c=>isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
       label:`ફ્લેટ ${c.flat_no} — ${c.purpose||'Cash'}`}));
     realExpenses.filter(e=>isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
@@ -2739,13 +2743,12 @@ function setStatementView(view){
 function renderStatementView(box){
   const entries = buildStatementEntries(statementView);
   const currentBalance = entries.length ? entries[entries.length-1].balanceAfter : 0;
-  const viewLabel = {total:'⚖️ Total', cash:'💵 Cash', bank:'🏦 Bank', kiran3:'🏢 KIRAN 3 Common'}[statementView];
+  const viewLabel = {cash:'💵 Cash', bank:'🏦 Bank', kiran3:'🏢 KIRAN 3 Common'}[statementView];
   box.innerHTML = `
     <div class="card">
       <h3>📒 સ્ટેટમેન્ટ — Running Balance</h3>
       <p class="config-note" style="margin-top:-6px">બેંક સ્ટેટમેન્ટ ની જેમ — દરેક એન્ટ્રી પહેલા અને પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-        <button class="${statementView==='total'?'primary':''}" onclick="setStatementView('total')">⚖️ Total</button>
         <button class="${statementView==='cash'?'primary':''}" onclick="setStatementView('cash')">💵 Cash</button>
         <button class="${statementView==='bank'?'primary':''}" onclick="setStatementView('bank')">🏦 Bank</button>
         <button class="${statementView==='kiran3'?'primary':''}" onclick="setStatementView('kiran3')">🏢 KIRAN 3</button>
