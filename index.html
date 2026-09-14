@@ -2492,46 +2492,69 @@ let statementDataCache = null;
 let statementView = 'total';
 async function renderStatementTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
-  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3log, error:e4}] = await Promise.all([
+  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3log, error:e4}, {data:k3income, error:e5}] = await Promise.all([
     sb.from('collections').select('id, amount, mode, collection_date, purpose, flat_no'),
     sb.from('expenses').select('id, amount, mode, expense_date, category, description'),
     sb.from('fund_transfers').select('id, amount, transfer_date, remarks'),
     sb.from('kiran3_balance_log').select('id, balance, log_date, note'),
+    sb.from('kiran3_income').select('id, amount, mode, income_date, remarks'),
   ]);
-  const err = e1||e2||e3||e4;
+  const err = e1||e2||e3||e4||e5;
   if(err){ box.innerHTML = `<div class="card"><div class="msg error">${friendlyDbError(err)}</div></div>`; return; }
   statementDataCache = {
     collections: collections || [],
     expenses: expenses || [],
     transfers: transfers || [],
     k3log: k3log || [],
+    k3income: k3income || [],
   };
   renderStatementView(box);
 }
 function buildStatementEntries(view){
   const d = statementDataCache;
   if(!d) return [];
-  // KIRAN 3 is a directly-set reconciliation log (C-Wing's ~1/4 share of
-  // the whole-complex paper register), not a running total of C-Wing's
-  // own transactions -- each entry already carries its own balance, so
-  // it skips the generic credit/debit accumulation below entirely.
+  // KIRAN 3 view shows every real transaction (Advance given, Common
+  // Expense, Common Income) chronologically, same as Cash/Bank do --
+  // PLUS the directly-set reconciliation log entries mixed in by date.
+  // A reconciliation entry doesn't add/subtract like a transaction --
+  // it SNAPS the running total to its own stored value (like a bank
+  // reconciling its passbook against a physical register), since the
+  // individual transactions alone can never add up to the true
+  // whole-complex total (they don't include the other 3 wings'
+  // contributions). The headline "current balance" in
+  // renderStatementView always uses the LATEST reconciliation entry's
+  // value directly, regardless of any not-yet-reconciled transactions
+  // that come after it date-wise, below.
   if(view === 'kiran3'){
-    const rows = [...d.k3log].sort((a,b)=>{
-      if(a.log_date !== b.log_date) return a.log_date < b.log_date ? -1 : 1;
-      return a.id - b.id;
+    const txns = [
+      ...d.expenses.filter(e=>e.category==='KIRAN 3 Society Advance').map(e=>({date:e.expense_date, sortKey:'a'+e.id, amount:Number(e.amount||0), credit:true,
+        label:`C-Wing એ Advance આપ્યું${e.description?' — '+e.description:''}`})),
+      ...d.expenses.filter(e=>e.category==='KIRAN 3 Society Expense').map(e=>({date:e.expense_date, sortKey:'b'+e.id, amount:Number(e.amount||0), credit:false,
+        label:`Common Fund માંથી ખર્ચ${e.description?' — '+e.description:''}`})),
+      ...d.k3income.map(k=>({date:k.income_date, sortKey:'c'+k.id, amount:Number(k.amount||0), credit:true,
+        label:`🏢 KIRAN 3 Common Income${k.remarks?' — '+k.remarks:''}`})),
+    ].map(t=>({...t, isReconcile:false}));
+    const reconciles = d.k3log.map(k=>({date:k.log_date, sortKey:'d'+k.id, targetBalance:Number(k.balance||0),
+      label:`🏢 ${k.note || 'KIRAN 3 Common Balance update'}`, isReconcile:true}));
+    const merged = [...txns, ...reconciles].sort((a,b)=>{
+      if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+      // Same date: real transactions first, reconciliation absorbs them.
+      if(a.isReconcile !== b.isReconcile) return a.isReconcile ? 1 : -1;
+      return a.sortKey < b.sortKey ? -1 : 1;
     });
-    let prevBalance = 0;
-    return rows.map(k=>{
-      const balance = Number(k.balance||0);
-      const entry = {
-        date: k.log_date, id: k.id,
-        amount: Math.abs(balance - prevBalance),
-        credit: balance >= prevBalance,
-        label: `🏢 ${k.note || 'KIRAN 3 Common Balance update'}`,
-        balanceBefore: prevBalance, balanceAfter: balance,
-      };
-      prevBalance = balance;
-      return entry;
+    let running = 0;
+    return merged.map(e=>{
+      const balanceBefore = running;
+      let amount, credit;
+      if(e.isReconcile){
+        running = e.targetBalance;
+        amount = Math.abs(running - balanceBefore);
+        credit = running >= balanceBefore;
+      } else {
+        running += e.credit ? e.amount : -e.amount;
+        amount = e.amount; credit = e.credit;
+      }
+      return {date:e.date, amount, credit, label:e.label, balanceBefore, balanceAfter:running};
     });
   }
   const entries = [];
@@ -2578,7 +2601,19 @@ function setStatementView(view){
 }
 function renderStatementView(box){
   const entries = buildStatementEntries(statementView);
-  const currentBalance = entries.length ? entries[entries.length-1].balanceAfter : 0;
+  // For KIRAN 3, "current balance" is always the LATEST reconciled
+  // register figure -- not the passbook's last line, since transactions
+  // dated after that reconciliation (this period's activity, not yet
+  // rolled into a new register total) shouldn't move the headline number.
+  const kiran3Latest = statementView === 'kiran3'
+    ? [...(statementDataCache?.k3log||[])].sort((a,b)=>{
+        if(a.log_date !== b.log_date) return a.log_date < b.log_date ? -1 : 1;
+        return a.id - b.id;
+      }).slice(-1)[0]
+    : null;
+  const currentBalance = statementView === 'kiran3'
+    ? (kiran3Latest ? Number(kiran3Latest.balance) : 0)
+    : (entries.length ? entries[entries.length-1].balanceAfter : 0);
   const viewLabel = {total:'⚖️ Total', cash:'💵 Cash', bank:'🏦 Bank', kiran3:'🏢 KIRAN 3 Common'}[statementView];
   box.innerHTML = `
     <div class="card">
