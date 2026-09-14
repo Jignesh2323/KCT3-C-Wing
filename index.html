@@ -1031,14 +1031,14 @@ async function renderTabContent(){
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3log}] = await Promise.all([
+  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3income}] = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
     sb.from('v_expense_by_category').select('*'),
     sb.from('fund_transfers').select('amount'),
     sb.from('expenses').select('amount, mode, category'),
     sb.from('collections').select('amount, mode'),
     sb.from('service_contacts').select('*').order('sort_order').order('id'),
-    sb.from('kiran3_balance_log').select('*').order('log_date',{ascending:false}).order('id',{ascending:false}).limit(1),
+    sb.from('kiran3_income').select('amount, kind'),
   ]);
   // "KIRAN 3 Society Expense" entries report how much of an already-given
   // "KIRAN 3 Society Advance" was actually consumed - they are NOT new
@@ -1065,13 +1065,17 @@ async function renderDashboardTab(box){
   const bankRows = byMode.filter(m => (m.mode||'').toLowerCase() !== 'cash');
   const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0) + totalTransferred;
   // KIRAN 3 Common Balance is C-Wing's ~1/4 share of the whole-complex
-  // shared fund, tracked in a separate paper register across all 4 Wings
-  // -- it is NOT derived from C-Wing's own collections/expenses and does
-  // NOT touch C-Wing's own Cash/Bank at all. The secretary reconciles it
-  // periodically (Settings tab) against that register; this just shows
-  // whatever was most recently logged.
-  const kiran3Row = (k3log||[])[0] || null;
-  const kiran3Balance = kiran3Row ? Number(kiran3Row.balance) : null;
+  // shared fund, tracked in a separate paper register across all 4 Wings.
+  // Each kiran3_income row is a FULL, whole-complex amount (e.g. all 4
+  // wings' monthly contribution, or a common expense) -- summing them and
+  // dividing by 4 gives C-Wing's share automatically, traceably. It does
+  // NOT touch C-Wing's own Cash/Bank/Collected/Expense at all, and is
+  // unrelated to "KIRAN 3 Society Advance/Expense" below (those are only
+  // C-Wing's own individual transactions with the fund).
+  const kiran3IncomeTotal = (k3income||[]).filter(k=>k.kind!=='expense').reduce((s,k)=>s+Number(k.amount||0),0);
+  const kiran3ExpenseTotal = (k3income||[]).filter(k=>k.kind==='expense').reduce((s,k)=>s+Number(k.amount||0),0);
+  const kiran3HasEntries = (k3income||[]).length > 0;
+  const kiran3Balance = (kiran3IncomeTotal - kiran3ExpenseTotal) / 4;
   const totalCollectedReal = (allCollections||[]).reduce((s,c)=>s+Number(c.amount||0),0);
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
@@ -1082,8 +1086,8 @@ async function renderDashboardTab(box){
         <div class="stat stat-cash"><div class="num mono">${fmtMoney(cashInHand)}</div><div class="lbl"><span class="lbl-icon">💵</span>Cash in Hand</div></div>
         <div class="stat stat-bank"><div class="num mono">${fmtMoney(bankBalance)}</div><div class="lbl"><span class="lbl-icon">🏦</span>Bank Balance</div></div>
       </div>
-      ${kiran3Row ? `<div class="grid-stats" style="margin-bottom:10px;">
-        <div class="stat ${kiran3Balance>=0?'stat-good':'stat-bad'}"><div class="num mono">${kiran3Balance>=0?'+':'−'}${fmtMoney(Math.abs(kiran3Balance))}</div><div class="lbl"><span class="lbl-icon">🏢</span>KIRAN 3 Common Balance${kiran3Row.log_date?' ('+fmtDate(kiran3Row.log_date)+')':''}</div></div>
+      ${kiran3HasEntries ? `<div class="grid-stats" style="margin-bottom:10px;">
+        <div class="stat ${kiran3Balance>=0?'stat-good':'stat-bad'}"><div class="num mono">${kiran3Balance>=0?'+':'−'}${fmtMoney(Math.abs(kiran3Balance))}</div><div class="lbl"><span class="lbl-icon">🏢</span>KIRAN 3 Common Balance</div></div>
       </div>` : ''}
       <div class="grid-stats" style="margin-bottom:10px;">
         <div class="stat stat-info"><div class="num mono">${s?.total_flats??'-'}</div><div class="lbl"><span class="lbl-icon">🏢</span>Total Flats</div></div>
@@ -1376,18 +1380,21 @@ async function renderCollectionsTab(box){
     </div>
     <div class="card">
       <div class="accordion-header" onclick="toggleAccordion('acc_coll_k3')">
-        <h3>🏢 KIRAN 3 Common Income (bીજી Wing/Source માંથી)</h3>
+        <h3>🏢 KIRAN 3 Common Fund (poore Complex ka Income/Expense)</h3>
         <span class="accordion-caret" id="acc_coll_k3_caret">▾</span>
       </div>
       <div class="accordion-body" id="acc_coll_k3_body" style="display:none; margin-top:12px;">
-      <p class="config-note" style="margin-top:-6px">Jab poore KIRAN 3 complex (A+B+C+D) ke shared fund me koi income aaye (jaise banquet hall rent), sirf record/yaad rakhne ke liye yaha entry karo. Ye C-Wing ke apne Cash/Bank/Total Balance ya KIRAN 3 Common Balance — kisi ko bhi affect nahi karti; wo balance Settings tab se register reconcile karke alag se update hoti hai. Kisi flat se related nahi hai.</p>
+      <p class="config-note" style="margin-top:-6px">Yaha KIRAN 3 (poore A+B+C+D complex) ke register ki HAR income/expense ki PUURI (poore complex ki) amount daalo — jaise "sabhi 4 wings ka is mahine ka contribution" ya "common expense" (guard/cleaning/gardener/light bill). Ye C-Wing ke apne Cash/Bank/Total Balance ko bilkul affect nahi karta; app khud saari entries ka (Income − Expense) ÷ 4 karke "KIRAN 3 Common Balance" nikalta hai — Dashboard aur Statement dono jagah automatically, poori history ke saath traceable.</p>
       <div class="form-row">
+        <div class="field"><label>Type</label>
+          <select id="k3_kind"><option value="income">Income (+)</option><option value="expense">Expense (−)</option></select>
+        </div>
         <div class="field"><label>Date</label><input id="k3_date" type="date"></div>
-        <div class="field"><label>Amount</label><input id="k3_amount" type="number"></div>
+        <div class="field"><label>Amount (poore complex ki)</label><input id="k3_amount" type="number"></div>
         <div class="field"><label>Mode</label>
           <select id="k3_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
         </div>
-        <div class="field"><label>Remarks (kis wing/source se)</label><input id="k3_remarks" placeholder="e.g. A-Wing se"></div>
+        <div class="field"><label>Remarks</label><input id="k3_remarks" placeholder="e.g. 4 wings' August contribution @50,000 each"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addKiran3CommonIncome()">Add</button></div>
       </div>
       <p class="config-note" style="margin-top:10px">Add karne ke baad ye entry niche "🏢" chinh ke saath, baaki saari collections ke sath hi list me dikhegi.</p>
@@ -1459,15 +1466,16 @@ function collectionsRowsHtml(list, k3list){
   });
   return combined.map(c=>{
     if(c.__k3){
+      const isExp = c.kind === 'expense';
       return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <span class="pill flat-chip" style="background:#6d28d9;">🏢</span>
-          <span class="owner-name" style="flex:1 1 100px; min-width:0;">KIRAN 3 Common Income${c.remarks?' — '+c.remarks:''}</span>
-          <span class="mono" style="font-weight:800; font-size:16px; color:#15803D;">${fmtMoney(c.amount)}</span>
+          <span class="pill flat-chip" style="background:${isExp?'#b91c1c':'#6d28d9'};">🏢</span>
+          <span class="owner-name" style="flex:1 1 100px; min-width:0;">KIRAN 3 Common ${isExp?'Expense':'Income'}${c.remarks?' — '+c.remarks:''}</span>
+          <span class="mono" style="font-weight:800; font-size:16px; color:${isExp?'var(--danger)':'#15803D'};">${isExp?'−':'+'}${fmtMoney(c.amount)}</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
           <span class="config-note" style="margin:0;">${fmtDate(c.collection_date)}</span>
-          <span class="config-note" style="margin:0; color:#6d28d9; font-weight:700;">${c.mode||''}</span>
+          <span class="config-note" style="margin:0; color:${isExp?'var(--danger)':'#6d28d9'}; font-weight:700;">${c.mode||''}</span>
           <span class="flat-actions" style="margin-left:auto;">
             <button class="danger" onclick="deleteRow('kiran3_income','id',${c.id})" title="Delete">🗑️</button>
           </span>
@@ -1629,6 +1637,7 @@ async function addKiran3CommonIncome(){
     const payload = {
       income_date: document.getElementById('k3_date').value || new Date().toISOString().slice(0,10),
       amount: amount,
+      kind: document.getElementById('k3_kind').value,
       mode: document.getElementById('k3_mode').value,
       remarks: document.getElementById('k3_remarks').value || null,
     };
@@ -2299,7 +2308,6 @@ function closeWaQueueModal(){ document.getElementById('wa-queue-modal')?.remove(
    other data-editing tab. ---- */
 let serviceContactsCache = [];
 let editingContactId = null;
-let kiran3LogCache = [];
 async function renderSettingsTab(box){
   // Fresh render always starts a clean "Add Contact" form -- same fix
   // as editingExpenseId/editingChargeRoundName, so leaving an edit
@@ -2308,30 +2316,10 @@ async function renderSettingsTab(box){
   editingContactId = null;
   const unlocked = pinStillValid() && state.user;
   const theme = getTheme();
-  const [{data:contacts, error}, {data:k3log}] = await Promise.all([
+  const [{data:contacts, error}] = await Promise.all([
     sb.from('service_contacts').select('*').order('sort_order').order('id'),
-    sb.from('kiran3_balance_log').select('*').order('log_date',{ascending:false}).order('id',{ascending:false}),
   ]);
   serviceContactsCache = contacts || [];
-  kiran3LogCache = k3log || [];
-  const kiran3Current = kiran3LogCache[0] || null;
-  // Same before-→after passbook style as the Statement tab's "KIRAN 3"
-  // view: walk the log oldest-to-newest to compute each entry's
-  // before/after balance, then show newest-first.
-  const kiran3LogWithBalances = (() => {
-    const asc = [...kiran3LogCache].sort((a,b)=>{
-      if(a.log_date !== b.log_date) return a.log_date < b.log_date ? -1 : 1;
-      return a.id - b.id;
-    });
-    let prev = 0;
-    const out = asc.map(k=>{
-      const balance = Number(k.balance||0);
-      const entry = {...k, balanceBefore:prev, balanceAfter:balance, amount:Math.abs(balance-prev), credit:balance>=prev};
-      prev = balance;
-      return entry;
-    });
-    return out.reverse();
-  })();
   box.innerHTML = `
     <div class="card">
       <h3>🎨 Theme</h3>
@@ -2399,49 +2387,9 @@ async function renderSettingsTab(box){
       </div>
     </div>
     <div class="card">
-      <h3>🏢 KIRAN 3 Common Balance</h3>
-      <p class="config-note" style="margin-top:-6px">Ye poore KIRAN 3 complex (A+B+C+D Wing) ke shared register ka number he — C-Wing ke apne Cash/Bank se bilkul alag, unko koi asar nahi karta. Jab bhi register update ho, yaha naya balance daal do (jaise register ka total ÷ 4 wings).</p>
-      <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
-        <div class="stat ${kiran3Current && Number(kiran3Current.balance)>=0 ? 'stat-good' : (kiran3Current ? 'stat-bad' : 'stat-neutral')}"><div class="num mono">${kiran3Current ? fmtMoney(kiran3Current.balance) : '—'}</div><div class="lbl">Abhi ka Balance${kiran3Current?.log_date?' ('+fmtDate(kiran3Current.log_date)+')':''}</div></div>
-      </div>
-      ${!unlocked ? `<p class="config-note" style="margin-top:8px;">🔒 Update form sirf Unlock kiye ke baad dikhta hai.</p>` : `
-      <div class="form-row" style="margin-top:10px;">
-        <div class="field"><label>Naya Balance</label><input id="k3log_balance" type="number" placeholder="e.g. 40302.50" step="0.01"></div>
-        <div class="field"><label>Date</label><input id="k3log_date" type="date"></div>
-        <div class="field"><label>Note</label><input id="k3log_note" placeholder="e.g. Aug 2026 register: 1,61,210 / 4 wings"></div>
-        <div class="field" style="flex:0"><button class="primary" onclick="addKiran3BalanceLog()">Update</button></div>
-      </div>`}
-      ${kiran3LogWithBalances.length ? `<div style="margin-top:10px;">
-        ${kiran3LogWithBalances.map(k=>`<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:4px;">
-          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <span style="flex:1 1 140px; min-width:0; font-weight:600;">${k.note||'KIRAN 3 Common Balance update'}</span>
-            <span class="mono" style="font-weight:800; font-size:15px; color:${k.credit?'#15803D':'var(--danger)'};">${k.credit?'+':'−'}${fmtMoney(k.amount)}</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            <span class="config-note" style="margin:0;">${fmtDate(k.log_date)}</span>
-            <span class="config-note" style="margin:0; margin-left:auto;">${fmtMoney(k.balanceBefore)} → <b style="color:var(--ink);">${fmtMoney(k.balanceAfter)}</b></span>
-            ${unlocked ? `<button class="danger" onclick="deleteRow('kiran3_balance_log','id',${k.id})" title="Delete">🗑️</button>` : ''}
-          </div>
-        </div>`).join('')}
-      </div>` : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
-    </div>
-    <div class="card">
       <h3>ℹ️ જાણકારી</h3>
-      <p class="config-note" style="margin:0;">Theme/Notifications/Default Tab/Auto-fill ફક્ત આ ડિવાઈસ/બ્રાઉઝર પર જ લાગુ થાય છે. Service Contacts લિસ્ટ અને KIRAN 3 Common Balance Supabase માં સેવ થાય છે અને Dashboard પર બધાને દેખાય છે.</p>
+      <p class="config-note" style="margin:0;">Theme/Notifications/Default Tab/Auto-fill ફક્ત આ ડિવાઈસ/બ્રાઉઝર પર જ લાગુ થાય છે. Service Contacts લિસ્ટ Supabase માં સેવ થાય છે અને Dashboard પર બધાને દેખાય છે. KIRAN 3 Common Balance હવે Collections tab ના "🏢 KIRAN 3 Common Fund" entries પરથી આપોઆપ ગણાય છે.</p>
     </div>`;
-}
-async function addKiran3BalanceLog(){
-  const balanceVal = document.getElementById('k3log_balance').value;
-  if(balanceVal === '' || isNaN(Number(balanceVal))){ alert('Valid balance daalo.'); return; }
-  await withPin(async ()=>{
-    const payload = {
-      balance: Number(balanceVal),
-      log_date: document.getElementById('k3log_date').value || new Date().toISOString().slice(0,10),
-      note: document.getElementById('k3log_note').value || null,
-    };
-    const {error} = await sb.from('kiran3_balance_log').insert(payload);
-    if(error) alert(friendlyDbError(error)); else refreshTab();
-  });
 }
 function populateContactForm(id){
   const c = serviceContactsCache.find(x=>x.id===id);
@@ -2492,20 +2440,18 @@ let statementDataCache = null;
 let statementView = 'total';
 async function renderStatementTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
-  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3log, error:e4}, {data:k3income, error:e5}] = await Promise.all([
+  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3income, error:e4}] = await Promise.all([
     sb.from('collections').select('id, amount, mode, collection_date, purpose, flat_no'),
     sb.from('expenses').select('id, amount, mode, expense_date, category, description'),
     sb.from('fund_transfers').select('id, amount, transfer_date, remarks'),
-    sb.from('kiran3_balance_log').select('id, balance, log_date, note'),
-    sb.from('kiran3_income').select('id, amount, mode, income_date, remarks'),
+    sb.from('kiran3_income').select('id, amount, kind, mode, income_date, remarks'),
   ]);
-  const err = e1||e2||e3||e4||e5;
+  const err = e1||e2||e3||e4;
   if(err){ box.innerHTML = `<div class="card"><div class="msg error">${friendlyDbError(err)}</div></div>`; return; }
   statementDataCache = {
     collections: collections || [],
     expenses: expenses || [],
     transfers: transfers || [],
-    k3log: k3log || [],
     k3income: k3income || [],
   };
   renderStatementView(box);
@@ -2513,48 +2459,29 @@ async function renderStatementTab(box){
 function buildStatementEntries(view){
   const d = statementDataCache;
   if(!d) return [];
-  // KIRAN 3 view shows every real transaction (Advance given, Common
-  // Expense, Common Income) chronologically, same as Cash/Bank do --
-  // PLUS the directly-set reconciliation log entries mixed in by date.
-  // A reconciliation entry doesn't add/subtract like a transaction --
-  // it SNAPS the running total to its own stored value (like a bank
-  // reconciling its passbook against a physical register), since the
-  // individual transactions alone can never add up to the true
-  // whole-complex total (they don't include the other 3 wings'
-  // contributions). The headline "current balance" in
-  // renderStatementView always uses the LATEST reconciliation entry's
-  // value directly, regardless of any not-yet-reconciled transactions
-  // that come after it date-wise, below.
+  // KIRAN 3 view is a full whole-complex ledger: each kiran3_income row
+  // is a FULL (all-4-wings) income or expense amount -- C-Wing's share
+  // of it is amount/4. Summing these chronologically, in C-Wing's-share
+  // terms, gives "KIRAN 3 Common Balance" automatically and traceably
+  // (every register line visible), same running-balance style as
+  // Cash/Bank. Unrelated to "KIRAN 3 Society Advance/Expense" (those
+  // are only C-Wing's own individual transactions with the fund).
   if(view === 'kiran3'){
-    const txns = [
-      ...d.expenses.filter(e=>e.category==='KIRAN 3 Society Advance').map(e=>({date:e.expense_date, sortKey:'a'+e.id, amount:Number(e.amount||0), credit:true,
-        label:`C-Wing એ Advance આપ્યું${e.description?' — '+e.description:''}`})),
-      ...d.expenses.filter(e=>e.category==='KIRAN 3 Society Expense').map(e=>({date:e.expense_date, sortKey:'b'+e.id, amount:Number(e.amount||0), credit:false,
-        label:`Common Fund માંથી ખર્ચ${e.description?' — '+e.description:''}`})),
-      ...d.k3income.map(k=>({date:k.income_date, sortKey:'c'+k.id, amount:Number(k.amount||0), credit:true,
-        label:`🏢 KIRAN 3 Common Income${k.remarks?' — '+k.remarks:''}`})),
-    ].map(t=>({...t, isReconcile:false}));
-    const reconciles = d.k3log.map(k=>({date:k.log_date, sortKey:'d'+k.id, targetBalance:Number(k.balance||0),
-      label:`🏢 ${k.note || 'KIRAN 3 Common Balance update'}`, isReconcile:true}));
-    const merged = [...txns, ...reconciles].sort((a,b)=>{
-      if(a.date !== b.date) return a.date < b.date ? -1 : 1;
-      // Same date: real transactions first, reconciliation absorbs them.
-      if(a.isReconcile !== b.isReconcile) return a.isReconcile ? 1 : -1;
-      return a.sortKey < b.sortKey ? -1 : 1;
+    const rows = [...d.k3income].sort((a,b)=>{
+      if(a.income_date !== b.income_date) return a.income_date < b.income_date ? -1 : 1;
+      return a.id - b.id;
     });
     let running = 0;
-    return merged.map(e=>{
+    return rows.map(k=>{
+      const share = Number(k.amount||0) / 4;
+      const credit = k.kind !== 'expense';
       const balanceBefore = running;
-      let amount, credit;
-      if(e.isReconcile){
-        running = e.targetBalance;
-        amount = Math.abs(running - balanceBefore);
-        credit = running >= balanceBefore;
-      } else {
-        running += e.credit ? e.amount : -e.amount;
-        amount = e.amount; credit = e.credit;
-      }
-      return {date:e.date, amount, credit, label:e.label, balanceBefore, balanceAfter:running};
+      running += credit ? share : -share;
+      return {
+        date: k.income_date, amount: share, credit,
+        label: `🏢 KIRAN 3 Common ${credit?'Income':'Expense'}${k.remarks?' — '+k.remarks:''} (÷4)`,
+        balanceBefore, balanceAfter: running,
+      };
     });
   }
   const entries = [];
@@ -2601,19 +2528,7 @@ function setStatementView(view){
 }
 function renderStatementView(box){
   const entries = buildStatementEntries(statementView);
-  // For KIRAN 3, "current balance" is always the LATEST reconciled
-  // register figure -- not the passbook's last line, since transactions
-  // dated after that reconciliation (this period's activity, not yet
-  // rolled into a new register total) shouldn't move the headline number.
-  const kiran3Latest = statementView === 'kiran3'
-    ? [...(statementDataCache?.k3log||[])].sort((a,b)=>{
-        if(a.log_date !== b.log_date) return a.log_date < b.log_date ? -1 : 1;
-        return a.id - b.id;
-      }).slice(-1)[0]
-    : null;
-  const currentBalance = statementView === 'kiran3'
-    ? (kiran3Latest ? Number(kiran3Latest.balance) : 0)
-    : (entries.length ? entries[entries.length-1].balanceAfter : 0);
+  const currentBalance = entries.length ? entries[entries.length-1].balanceAfter : 0;
   const viewLabel = {total:'⚖️ Total', cash:'💵 Cash', bank:'🏦 Bank', kiran3:'🏢 KIRAN 3 Common'}[statementView];
   box.innerHTML = `
     <div class="card">
