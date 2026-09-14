@@ -2372,7 +2372,93 @@ const APP_GUIDE_SECTIONS = [
     <p class="config-note" style="margin:0 0 6px;">ફ્લેટ મેમ્બરના મેન્ટેનન્સ પેમેન્ટ નોંધવા માટે. 🔓 ઉપર "Search by Flat No" થી કોઈ પણ પોતાનું history/બાકી PIN વગર જોઈ શકે.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Collection</b>: Purpose (Round), Flat No (ફક્ત જેનું આ round માં pending હોય એ જ દેખાય), Date, Amount, Mode, Remarks.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Bulk Builder Payment</b>: Unsold ફ્લેટ્સ માટે એક જ એન્ટ્રીમાં Total Amount નાખો — બધા બાકી Unsold ફ્લેટમાં સરખું આપોઆપ વહેંચાઈ જાય છે.</p>
-    <p class="config-note" style="margin:0;"><b>🏢 KIRAN 3 Common Fund</b> — નીચે અલગથી પૂરી વિગત સાથે સમજાવેલું છે. 🔒 Add/Bulk ફોર્મ ફક્ત Unlock પછી.</p>`},
+    <p class="config-note" style="margin:0 0 10px;">🔒 Add/Bulk ફોર્મ ફક્ત Unlock પછી.</p>
+    <hr style="border:none; border-top:1px solid var(--rule); margin:12px 0;">
+    <p style="margin:0 0 4px; font-weight:700;">🏢 KIRAN 3 Common Fund — કેવી રીતે કામ કરે છે?</p>
+    <p class="config-note" style="margin:0 0 10px;">આ સમજૂતી કોઈ પણ વ્યક્તિ (ભવિષ્યમાં તમે પોતે પણ) એક નજરમાં સમજી શકે એ માટે છે.</p>
+
+    <p style="margin:14px 0 4px; font-weight:700;">1️⃣ આ ફંડ શું છે?</p>
+    <p class="config-note" style="margin:0;">આખા <b>KIRAN CLASSIC TOWER-3 કોમ્પ્લેક્સ</b> (A + B + C + D — ચારેય વિંગ) નું એક શેર કરેલું ફંડ છે — વોચમેન, સફાઈ, બગીચો, કોમન લાઈટ બિલ જેવા સહિયારા ખર્ચા આમાંથી થાય છે, અને દરેક વિંગ એમાં ફાળો આપે છે. <b>આ C-Wing ના પોતાના Cash in Hand / Bank Balance થી સાવ અલગ છે</b> — એને કોઈ અસર નથી કરતું.</p>
+
+    <p style="margin:14px 0 6px; font-weight:700;">2️⃣ Entry ક્યાં નાખવી?</p>
+    <p class="config-note" style="margin:0 0 8px;"><b>Collections Tab → "🏢 KIRAN 3 Common Fund"</b> ખોલો. રજિસ્ટરની દરેક લાઈનની <b>પૂરી (ચારેય વિંગ ભેગી) રકમ</b> નાખો — C-Wing ના ભાગની નહીં:</p>
+    <svg viewBox="0 0 600 232" style="width:100%; max-width:520px; display:block; margin:0 auto;">
+      <rect x="1" y="1" width="598" height="230" rx="14" fill="var(--white-card)" stroke="var(--rule)"/>
+      <rect x="1" y="1" width="6" height="230" rx="3" fill="#4F46E5"/>
+      <text x="26" y="30" font-size="16" font-weight="700" fill="var(--ink)" font-family="system-ui, sans-serif">🏢 KIRAN 3 Common Fund</text>
+      <!-- Type field -->
+      <text x="26" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Type</text>
+      <rect x="24" y="62" width="110" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
+      <text x="34" y="82" font-size="13" fill="#15803D" font-weight="700" font-family="system-ui, sans-serif">Income (+)</text>
+      <!-- Date field -->
+      <text x="150" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Date</text>
+      <rect x="148" y="62" width="120" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
+      <text x="158" y="82" font-size="13" fill="var(--ink)" font-family="system-ui, sans-serif">31/07/2026</text>
+      <!-- Amount field -->
+      <text x="284" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Amount (પૂરી, ચારેય વિંગની)</text>
+      <rect x="282" y="62" width="150" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
+      <text x="292" y="82" font-size="13" fill="var(--ink)" font-weight="700" font-family="system-ui, sans-serif">3,00,000</text>
+      <!-- Mode field -->
+      <text x="448" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Mode</text>
+      <rect x="446" y="62" width="126" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
+      <text x="456" y="82" font-size="13" fill="var(--ink)" font-family="system-ui, sans-serif">Bank Transfer</text>
+      <!-- Remarks field -->
+      <text x="26" y="112" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Remarks (ગુજરાતીમાં પણ લખી શકાય)</text>
+      <rect x="24" y="118" width="548" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
+      <text x="34" y="138" font-size="13" fill="var(--ink)" font-family="system-ui, sans-serif">જુલાઈ 2026 - ચારેય વિંગનું ફાળો (દરેક વિંગ ₹75,000 લેખે)</text>
+      <!-- Add button -->
+      <rect x="24" y="162" width="90" height="34" rx="8" fill="#4F46E5"/>
+      <text x="69" y="184" font-size="14" font-weight="700" fill="#fff" text-anchor="middle" font-family="system-ui, sans-serif">Add</text>
+      <text x="128" y="184" font-size="11.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">← દબાવો, entry Collections list માં ઉમેરાઈ જશે</text>
+      <text x="26" y="218" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Income = ફંડમાં પૈસા આવ્યા (વિંગોનું ફાળો, ભાડું)   ·   Expense = ફંડમાંથી ખર્ચ થયો (વોચમેન/સફાઈ/લાઈટ બિલ)</text>
+    </svg>
+
+    <p style="margin:16px 0 6px; font-weight:700;">3️⃣ હિસાબ કેવી રીતે થાય?</p>
+    <p class="config-note" style="margin:0 0 8px;">App બધી entries ભેગી કરીને આ ગણતરી ખુદ કરે છે — <b>(કુલ Income − કુલ Expense) ÷ 4 = C-Wing નો ભાગ</b>:</p>
+    <svg viewBox="0 0 600 150" style="width:100%; max-width:520px; display:block; margin:0 auto;">
+      <rect x="1" y="1" width="598" height="148" rx="14" fill="var(--white-card)" stroke="var(--rule)"/>
+      <text x="300" y="32" font-size="14" fill="var(--ink-soft)" text-anchor="middle" font-family="system-ui, sans-serif">Summary — Dashboard</text>
+      <rect x="24" y="52" width="270" height="80" rx="10" fill="#ECFDF3"/>
+      <text x="44" y="92" font-size="22" font-weight="700" fill="#15803D" font-family="'IBM Plex Mono', monospace">+₹40,302.5</text>
+      <text x="44" y="114" font-size="12" font-weight="600" fill="#15803D" font-family="system-ui, sans-serif">🏢 KIRAN 3 Common Balance</text>
+      <text x="316" y="80" font-size="12.5" fill="var(--ink)" font-family="system-ui, sans-serif">= (₹5,47,300 − ₹3,86,090)</text>
+      <text x="316" y="100" font-size="12.5" fill="var(--ink)" font-family="system-ui, sans-serif">÷ 4 wings</text>
+      <text x="316" y="120" font-size="12.5" font-weight="700" fill="#15803D" font-family="system-ui, sans-serif">= ₹40,302.5 (C-Wing નો ભાગ)</text>
+    </svg>
+
+    <p style="margin:16px 0 6px; font-weight:700;">4️⃣ પૂરી વિગત ક્યાં દેખાય?</p>
+    <p class="config-note" style="margin:0 0 8px;"><b>More → Statement Tab → "🏢 KIRAN 3"</b> બટન દબાવો — દરેક entry ની પોતાની ÷4 રકમ, અને entry પહેલા-પછી કેટલું બેલેન્સ હતું એ history માં દેખાય છે (બેંક પાસબુક જેવું):</p>
+    <svg viewBox="0 0 600 250" style="width:100%; max-width:520px; display:block; margin:0 auto;">
+      <rect x="1" y="1" width="598" height="248" rx="14" fill="var(--white-card)" stroke="var(--rule)"/>
+      <text x="20" y="26" font-size="12.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">🏢 KIRAN 3 Common — અત્યારે નું બેલેન્સ</text>
+      <text x="20" y="50" font-size="20" font-weight="700" fill="var(--ink)" font-family="'IBM Plex Mono', monospace">₹40,302.5</text>
+      <line x1="16" y1="62" x2="584" y2="62" stroke="var(--rule)"/>
+      <!-- row 1 -->
+      <text x="20" y="84" font-size="12" fill="var(--ink)" font-family="system-ui, sans-serif">🏢 Banquet hall ભાડું (÷4)</text>
+      <text x="580" y="84" font-size="12" font-weight="700" fill="#15803D" text-anchor="end" font-family="system-ui, sans-serif">+₹11,825</text>
+      <text x="20" y="100" font-size="10.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">05/08/2026</text>
+      <text x="580" y="100" font-size="10.5" fill="var(--ink-soft)" text-anchor="end" font-family="system-ui, sans-serif">₹18,235 → ₹30,060</text>
+      <line x1="16" y1="110" x2="584" y2="110" stroke="var(--rule)" stroke-dasharray="3,3"/>
+      <!-- row 2 -->
+      <text x="20" y="132" font-size="12" fill="var(--ink)" font-family="system-ui, sans-serif">Common Fund માંથી ખર્ચ — જુલાઈ (÷4)</text>
+      <text x="580" y="132" font-size="12" font-weight="700" fill="var(--danger)" text-anchor="end" font-family="system-ui, sans-serif">−₹56,765</text>
+      <text x="20" y="148" font-size="10.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">31/07/2026</text>
+      <text x="580" y="148" font-size="10.5" fill="var(--ink-soft)" text-anchor="end" font-family="system-ui, sans-serif">₹75,000 → ₹18,235</text>
+      <line x1="16" y1="158" x2="584" y2="158" stroke="var(--rule)" stroke-dasharray="3,3"/>
+      <!-- row 3 -->
+      <text x="20" y="180" font-size="12" fill="var(--ink)" font-family="system-ui, sans-serif">🏢 જુલાઈ 2026 - 4 વિંગનું ફાળો (÷4)</text>
+      <text x="580" y="180" font-size="12" font-weight="700" fill="#15803D" text-anchor="end" font-family="system-ui, sans-serif">+₹75,000</text>
+      <text x="20" y="196" font-size="10.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">31/07/2026</text>
+      <text x="580" y="196" font-size="10.5" fill="var(--ink-soft)" text-anchor="end" font-family="system-ui, sans-serif">₹0 → ₹75,000</text>
+      <text x="20" y="228" font-size="11" fill="var(--ink-soft)" font-style="italic" font-family="system-ui, sans-serif">... (list newest-first ચાલુ રહે છે, ↑ ઉપરની row સૌથી નવી)</text>
+    </svg>
+
+    <p style="margin:16px 0 4px; font-weight:700;">5️⃣ યાદ રાખવા જેવું</p>
+    <ul class="config-note" style="margin:0; padding-left:18px;">
+      <li>આ entries C-Wing ના પોતાના <b>Cash in Hand / Bank Balance / Total Balance</b> ને બિલકુલ અસર નથી કરતી — સાવ અલગ હિસાબ છે.</li>
+      <li>ભૂલથી ખોટી entry પડી ગઈ હોય તો <b>✏️ Edit</b> બટનથી સુધારી શકાય છે (નવી entry બનાવવાની જરૂર નથી).</li>
+      <li>"KIRAN 3 Society Advance" / "KIRAN 3 Society Expense" (Expenses tab) — આ અલગ વસ્તુ છે: એ ફક્ત C-Wing એ ફંડને પોતે શું આપ્યું/શેનો ઉપયોગ કર્યો એનો રેકોર્ડ છે, આ ÷4 ગણતરીમાં ભાગ નથી લેતું.</li>
+    </ul>`},
   { id:'exp', icon:'📤', title:'Expenses', body:`
     <p class="config-note" style="margin:0 0 6px;">સોસાયટીના ખર્ચા નોંધવા, બિલ ફોટો સાથે.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Expense</b>: Date, Category, Description, Amount, Paid To, Mode, Bill Photos (એક કરતાં વધુ પસંદ કરી શકાય).</p>
@@ -2521,93 +2607,6 @@ async function renderGuideTab(box){
       <h3>📖 App Guide — બધા Tabs કેવી રીતે વાપરવા?</h3>
       <p class="config-note" style="margin-top:-6px">દરેક Tab નીચે ટૂંકમાં સમજાવેલું છે — શેના માટે છે, કઈ Field શું છે, PIN જોઈએ કે નહીં. જે Tab વિશે જાણવું હોય એના પર દબાવો.</p>
       ${appGuideAccordionHtml()}
-    </div>
-    <div class="card">
-      <h3>🏢 KIRAN 3 Common Fund — કેવી રીતે કામ કરે છે?</h3>
-      <p class="config-note" style="margin-top:-6px">આ સમજૂતી કોઈ પણ વ્યક્તિ (ભવિષ્યમાં તમે પોતે પણ) એક નજરમાં સમજી શકે એ માટે છે.</p>
-
-      <p style="margin:14px 0 4px; font-weight:700;">1️⃣ આ ફંડ શું છે?</p>
-      <p class="config-note" style="margin:0;">આખા <b>KIRAN CLASSIC TOWER-3 કોમ્પ્લેક્સ</b> (A + B + C + D — ચારેય વિંગ) નું એક શેર કરેલું ફંડ છે — વોચમેન, સફાઈ, બગીચો, કોમન લાઈટ બિલ જેવા સહિયારા ખર્ચા આમાંથી થાય છે, અને દરેક વિંગ એમાં ફાળો આપે છે. <b>આ C-Wing ના પોતાના Cash in Hand / Bank Balance થી સાવ અલગ છે</b> — એને કોઈ અસર નથી કરતું.</p>
-
-      <p style="margin:14px 0 6px; font-weight:700;">2️⃣ Entry ક્યાં નાખવી?</p>
-      <p class="config-note" style="margin:0 0 8px;"><b>Collections Tab → "🏢 KIRAN 3 Common Fund"</b> ખોલો. રજિસ્ટરની દરેક લાઈનની <b>પૂરી (ચારેય વિંગ ભેગી) રકમ</b> નાખો — C-Wing ના ભાગની નહીં:</p>
-      <svg viewBox="0 0 600 232" style="width:100%; max-width:520px; display:block; margin:0 auto;">
-        <rect x="1" y="1" width="598" height="230" rx="14" fill="var(--white-card)" stroke="var(--rule)"/>
-        <rect x="1" y="1" width="6" height="230" rx="3" fill="#4F46E5"/>
-        <text x="26" y="30" font-size="16" font-weight="700" fill="var(--ink)" font-family="system-ui, sans-serif">🏢 KIRAN 3 Common Fund</text>
-        <!-- Type field -->
-        <text x="26" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Type</text>
-        <rect x="24" y="62" width="110" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
-        <text x="34" y="82" font-size="13" fill="#15803D" font-weight="700" font-family="system-ui, sans-serif">Income (+)</text>
-        <!-- Date field -->
-        <text x="150" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Date</text>
-        <rect x="148" y="62" width="120" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
-        <text x="158" y="82" font-size="13" fill="var(--ink)" font-family="system-ui, sans-serif">31/07/2026</text>
-        <!-- Amount field -->
-        <text x="284" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Amount (પૂરી, ચારેય વિંગની)</text>
-        <rect x="282" y="62" width="150" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
-        <text x="292" y="82" font-size="13" fill="var(--ink)" font-weight="700" font-family="system-ui, sans-serif">3,00,000</text>
-        <!-- Mode field -->
-        <text x="448" y="56" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Mode</text>
-        <rect x="446" y="62" width="126" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
-        <text x="456" y="82" font-size="13" fill="var(--ink)" font-family="system-ui, sans-serif">Bank Transfer</text>
-        <!-- Remarks field -->
-        <text x="26" y="112" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Remarks (ગુજરાતીમાં પણ લખી શકાય)</text>
-        <rect x="24" y="118" width="548" height="30" rx="7" fill="var(--paper-dark)" stroke="var(--rule)"/>
-        <text x="34" y="138" font-size="13" fill="var(--ink)" font-family="system-ui, sans-serif">જુલાઈ 2026 - ચારેય વિંગનું ફાળો (દરેક વિંગ ₹75,000 લેખે)</text>
-        <!-- Add button -->
-        <rect x="24" y="162" width="90" height="34" rx="8" fill="#4F46E5"/>
-        <text x="69" y="184" font-size="14" font-weight="700" fill="#fff" text-anchor="middle" font-family="system-ui, sans-serif">Add</text>
-        <text x="128" y="184" font-size="11.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">← દબાવો, entry Collections list માં ઉમેરાઈ જશે</text>
-        <text x="26" y="218" font-size="11" fill="var(--ink-soft)" font-family="system-ui, sans-serif">Income = ફંડમાં પૈસા આવ્યા (વિંગોનું ફાળો, ભાડું)   ·   Expense = ફંડમાંથી ખર્ચ થયો (વોચમેન/સફાઈ/લાઈટ બિલ)</text>
-      </svg>
-
-      <p style="margin:16px 0 6px; font-weight:700;">3️⃣ હિસાબ કેવી રીતે થાય?</p>
-      <p class="config-note" style="margin:0 0 8px;">App બધી entries ભેગી કરીને આ ગણતરી ખુદ કરે છે — <b>(કુલ Income − કુલ Expense) ÷ 4 = C-Wing નો ભાગ</b>:</p>
-      <svg viewBox="0 0 600 150" style="width:100%; max-width:520px; display:block; margin:0 auto;">
-        <rect x="1" y="1" width="598" height="148" rx="14" fill="var(--white-card)" stroke="var(--rule)"/>
-        <text x="300" y="32" font-size="14" fill="var(--ink-soft)" text-anchor="middle" font-family="system-ui, sans-serif">Summary — Dashboard</text>
-        <rect x="24" y="52" width="270" height="80" rx="10" fill="#ECFDF3"/>
-        <text x="44" y="92" font-size="22" font-weight="700" fill="#15803D" font-family="'IBM Plex Mono', monospace">+₹40,302.5</text>
-        <text x="44" y="114" font-size="12" font-weight="600" fill="#15803D" font-family="system-ui, sans-serif">🏢 KIRAN 3 Common Balance</text>
-        <text x="316" y="80" font-size="12.5" fill="var(--ink)" font-family="system-ui, sans-serif">= (₹5,47,300 − ₹3,86,090)</text>
-        <text x="316" y="100" font-size="12.5" fill="var(--ink)" font-family="system-ui, sans-serif">÷ 4 wings</text>
-        <text x="316" y="120" font-size="12.5" font-weight="700" fill="#15803D" font-family="system-ui, sans-serif">= ₹40,302.5 (C-Wing નો ભાગ)</text>
-      </svg>
-
-      <p style="margin:16px 0 6px; font-weight:700;">4️⃣ પૂરી વિગત ક્યાં દેખાય?</p>
-      <p class="config-note" style="margin:0 0 8px;"><b>More → Statement Tab → "🏢 KIRAN 3"</b> બટન દબાવો — દરેક entry ની પોતાની ÷4 રકમ, અને entry પહેલા-પછી કેટલું બેલેન્સ હતું એ history માં દેખાય છે (બેંક પાસબુક જેવું):</p>
-      <svg viewBox="0 0 600 250" style="width:100%; max-width:520px; display:block; margin:0 auto;">
-        <rect x="1" y="1" width="598" height="248" rx="14" fill="var(--white-card)" stroke="var(--rule)"/>
-        <text x="20" y="26" font-size="12.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">🏢 KIRAN 3 Common — અત્યારે નું બેલેન્સ</text>
-        <text x="20" y="50" font-size="20" font-weight="700" fill="var(--ink)" font-family="'IBM Plex Mono', monospace">₹40,302.5</text>
-        <line x1="16" y1="62" x2="584" y2="62" stroke="var(--rule)"/>
-        <!-- row 1 -->
-        <text x="20" y="84" font-size="12" fill="var(--ink)" font-family="system-ui, sans-serif">🏢 Banquet hall ભાડું (÷4)</text>
-        <text x="580" y="84" font-size="12" font-weight="700" fill="#15803D" text-anchor="end" font-family="system-ui, sans-serif">+₹11,825</text>
-        <text x="20" y="100" font-size="10.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">05/08/2026</text>
-        <text x="580" y="100" font-size="10.5" fill="var(--ink-soft)" text-anchor="end" font-family="system-ui, sans-serif">₹18,235 → ₹30,060</text>
-        <line x1="16" y1="110" x2="584" y2="110" stroke="var(--rule)" stroke-dasharray="3,3"/>
-        <!-- row 2 -->
-        <text x="20" y="132" font-size="12" fill="var(--ink)" font-family="system-ui, sans-serif">Common Fund માંથી ખર્ચ — જુલાઈ (÷4)</text>
-        <text x="580" y="132" font-size="12" font-weight="700" fill="var(--danger)" text-anchor="end" font-family="system-ui, sans-serif">−₹56,765</text>
-        <text x="20" y="148" font-size="10.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">31/07/2026</text>
-        <text x="580" y="148" font-size="10.5" fill="var(--ink-soft)" text-anchor="end" font-family="system-ui, sans-serif">₹75,000 → ₹18,235</text>
-        <line x1="16" y1="158" x2="584" y2="158" stroke="var(--rule)" stroke-dasharray="3,3"/>
-        <!-- row 3 -->
-        <text x="20" y="180" font-size="12" fill="var(--ink)" font-family="system-ui, sans-serif">🏢 જુલાઈ 2026 - 4 વિંગનું ફાળો (÷4)</text>
-        <text x="580" y="180" font-size="12" font-weight="700" fill="#15803D" text-anchor="end" font-family="system-ui, sans-serif">+₹75,000</text>
-        <text x="20" y="196" font-size="10.5" fill="var(--ink-soft)" font-family="system-ui, sans-serif">31/07/2026</text>
-        <text x="580" y="196" font-size="10.5" fill="var(--ink-soft)" text-anchor="end" font-family="system-ui, sans-serif">₹0 → ₹75,000</text>
-        <text x="20" y="228" font-size="11" fill="var(--ink-soft)" font-style="italic" font-family="system-ui, sans-serif">... (list newest-first ચાલુ રહે છે, ↑ ઉપરની row સૌથી નવી)</text>
-      </svg>
-
-      <p style="margin:16px 0 4px; font-weight:700;">5️⃣ યાદ રાખવા જેવું</p>
-      <ul class="config-note" style="margin:0; padding-left:18px;">
-        <li>આ entries C-Wing ના પોતાના <b>Cash in Hand / Bank Balance / Total Balance</b> ને બિલકુલ અસર નથી કરતી — સાવ અલગ હિસાબ છે.</li>
-        <li>ભૂલથી ખોટી entry પડી ગઈ હોય તો <b>✏️ Edit</b> બટનથી સુધારી શકાય છે (નવી entry બનાવવાની જરૂર નથી).</li>
-        <li>"KIRAN 3 Society Advance" / "KIRAN 3 Society Expense" (Expenses tab) — આ અલગ વસ્તુ છે: એ ફક્ત C-Wing એ ફંડને પોતે શું આપ્યું/શેનો ઉપયોગ કર્યો એનો રેકોર્ડ છે, આ ÷4 ગણતરીમાં ભાગ નથી લેતું.</li>
-      </ul>
     </div>`;
 }
 function populateContactForm(id){
