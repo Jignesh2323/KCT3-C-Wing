@@ -1390,18 +1390,12 @@ async function renderCollectionsTab(box){
         <div class="field"><label>Remarks (kis wing/source se)</label><input id="k3_remarks" placeholder="e.g. A-Wing se"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addKiran3CommonIncome()">Add</button></div>
       </div>
-      ${kiran3IncomeCache.length ? kiran3IncomeCache.map(k=>`<div class="flat-entry">
-        <span style="flex:1 1 140px; min-width:0;">${k.remarks||''}</span>
-        <span class="config-note" style="margin:0;">${k.mode||''}</span>
-        <span class="mono" style="font-weight:800; color:#15803D;">+${fmtMoney(k.amount)}</span>
-        <span class="config-note" style="margin:0;">${fmtDate(k.income_date)}</span>
-        <span class="flat-actions"><button class="danger" onclick="deleteRow('kiran3_income','id',${k.id})" title="Delete">🗑️</button></span>
-      </div>`).join('') : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
+      <p class="config-note" style="margin-top:10px">Add karne ke baad ye entry niche "🏢" chinh ke saath, baaki saari collections ke sath hi list me dikhegi.</p>
       </div>
     </div>`}
     <div class="card">
       ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
-      <div id="collections-tbody">${collectionsRowsHtml(collectionsCache)}</div>
+      <div id="collections-tbody">${collectionsRowsHtml(collectionsCache, kiran3IncomeCache)}</div>
     </div>`;
   document.getElementById('pay_search_flat').addEventListener('input', searchFlatPayments);
   document.getElementById('coll_purpose_filter').addEventListener('change', filterCollectionsTable);
@@ -1451,8 +1445,35 @@ async function updateBulkBuilderTotal(){
     ? `${fmtMoney(perFlat)} × ${targetCount} unsold flat(s) still due for "${purpose}" = ${fmtMoney(total)} (auto-calculated — badal sakte ho agar zaroorat ho)`
     : `Sabhi Unsold flats ka "${purpose}" ke liye collection pehle se hi entered hai.`;
 }
-function collectionsRowsHtml(list){
-  return (list||[]).map(c=>{
+function collectionsRowsHtml(list, k3list){
+  // KIRAN 3 Common Income has no flat/purpose -- it's not a per-flat
+  // collection, but the user wants it visible in the SAME list as
+  // everything else, sorted in with the regular entries by date.
+  const combined = [
+    ...(list||[]).map(c=>({...c, __k3:false})),
+    ...(k3list||[]).map(k=>({...k, __k3:true, collection_date:k.income_date})),
+  ];
+  combined.sort((a,b)=>{
+    if(a.collection_date !== b.collection_date) return a.collection_date < b.collection_date ? 1 : -1;
+    return b.id - a.id;
+  });
+  return combined.map(c=>{
+    if(c.__k3){
+      return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span class="pill flat-chip" style="background:#6d28d9;">🏢</span>
+          <span class="owner-name" style="flex:1 1 100px; min-width:0;">KIRAN 3 Common Income${c.remarks?' — '+c.remarks:''}</span>
+          <span class="mono" style="font-weight:800; font-size:16px; color:#15803D;">${fmtMoney(c.amount)}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
+          <span class="config-note" style="margin:0;">${fmtDate(c.collection_date)}</span>
+          <span class="config-note" style="margin:0; color:#6d28d9; font-weight:700;">${c.mode||''}</span>
+          <span class="flat-actions" style="margin-left:auto;">
+            <button class="danger" onclick="deleteRow('kiran3_income','id',${c.id})" title="Delete">🗑️</button>
+          </span>
+        </div>
+      </div>`;
+    }
     const pc = purposeColor(c.purpose);
     const msg = `🙏 નમસ્તે ${c.flats?.owner_name||''},\n\nઆપનું *Flat ${c.flat_no}* નું પેમેન્ટ સફળતાપૂર્વક સ્વીકારવામાં આવ્યું છે ✅\n\n💰 રકમ: ${fmtMoney(c.amount)} (${c.mode})\n🧾 હેતુ: "${c.purpose||''}"\n📅 તારીખ: ${fmtDate(c.collection_date)}\n\nઆપના સમયસર સહયોગ બદલ હાર્દિક આભાર 🙏🏻\n\n🏢 *C-Wing Society Maintenance*`;
     // Unsold flats belong to the builder, not a resident -- no
@@ -1480,7 +1501,9 @@ function collectionsRowsHtml(list){
 function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
   const list = purpose ? collectionsCache.filter(c=>c.purpose===purpose) : collectionsCache;
-  document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list);
+  // KIRAN 3 Common Income has no purpose -- only show it in the
+  // unfiltered ("All") view, same reasoning as the round filter itself.
+  document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list, purpose ? [] : kiran3IncomeCache);
   renderPendingFlatsForRound();
 }
 function renderPendingFlatsForRound(){
