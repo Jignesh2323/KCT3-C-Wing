@@ -1031,14 +1031,14 @@ async function renderTabContent(){
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3income}] = await Promise.all([
+  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3log}] = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
     sb.from('v_expense_by_category').select('*'),
     sb.from('fund_transfers').select('amount'),
     sb.from('expenses').select('amount, mode, category'),
     sb.from('collections').select('amount, mode'),
     sb.from('service_contacts').select('*').order('sort_order').order('id'),
-    sb.from('kiran3_income').select('amount, mode'),
+    sb.from('kiran3_balance_log').select('*').order('log_date',{ascending:false}).order('id',{ascending:false}).limit(1),
   ]);
   // "KIRAN 3 Society Expense" entries report how much of an already-given
   // "KIRAN 3 Society Advance" was actually consumed - they are NOT new
@@ -1053,13 +1053,6 @@ async function renderDashboardTab(box){
     if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
     modeMap[m].collected += Number(c.amount||0);
   });
-  // KIRAN 3 Common Income (another Wing/outside source) really does land in
-  // C-Wing's own Cash/Bank, so it counts toward "collected" here too.
-  (k3income||[]).forEach(k=>{
-    const m = k.mode || 'Other';
-    if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
-    modeMap[m].collected += Number(k.amount||0);
-  });
   realExpenses.forEach(e=>{
     const m = e.mode || 'Other';
     if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
@@ -1071,17 +1064,15 @@ async function renderDashboardTab(box){
   const cashInHand = (Number(cashRow?.collected||0)) - (Number(cashRow?.spent||0)) - totalTransferred;
   const bankRows = byMode.filter(m => (m.mode||'').toLowerCase() !== 'cash');
   const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0) + totalTransferred;
-  const kiran3Advance = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Advance').reduce((s,e)=>s+Number(e.amount||0),0);
-  const kiran3Expense = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Expense').reduce((s,e)=>s+Number(e.amount||0),0);
-  // Money another Wing/outside source puts into the shared KIRAN 3 fund --
-  // it really does land in C-Wing's own Cash/Bank (already counted above
-  // via k3income), so it's a credit here too.
-  const kiran3OtherIncome = (k3income||[]).reduce((s,k)=>s+Number(k.amount||0),0);
-  const kiran3Balance = kiran3Advance + kiran3OtherIncome - kiran3Expense;
-  // v_dashboard_summary.total_collected only sums the collections table --
-  // computed client-side instead (same as Cash/Bank) so it also reflects
-  // KIRAN 3 Common Income, which is real money collected too.
-  const totalCollectedReal = (allCollections||[]).reduce((s,c)=>s+Number(c.amount||0),0) + kiran3OtherIncome;
+  // KIRAN 3 Common Balance is C-Wing's ~1/4 share of the whole-complex
+  // shared fund, tracked in a separate paper register across all 4 Wings
+  // -- it is NOT derived from C-Wing's own collections/expenses and does
+  // NOT touch C-Wing's own Cash/Bank at all. The secretary reconciles it
+  // periodically (Settings tab) against that register; this just shows
+  // whatever was most recently logged.
+  const kiran3Row = (k3log||[])[0] || null;
+  const kiran3Balance = kiran3Row ? Number(kiran3Row.balance) : null;
+  const totalCollectedReal = (allCollections||[]).reduce((s,c)=>s+Number(c.amount||0),0);
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
       <div class="grid-stats" style="margin-bottom:10px;">
@@ -1091,8 +1082,8 @@ async function renderDashboardTab(box){
         <div class="stat stat-cash"><div class="num mono">${fmtMoney(cashInHand)}</div><div class="lbl"><span class="lbl-icon">💵</span>Cash in Hand</div></div>
         <div class="stat stat-bank"><div class="num mono">${fmtMoney(bankBalance)}</div><div class="lbl"><span class="lbl-icon">🏦</span>Bank Balance</div></div>
       </div>
-      ${(kiran3Advance>0 || kiran3Expense>0 || kiran3OtherIncome>0) ? `<div class="grid-stats" style="margin-bottom:10px;">
-        <div class="stat ${kiran3Balance>=0?'stat-good':'stat-bad'}"><div class="num mono">${kiran3Balance>=0?'+':'−'}${fmtMoney(Math.abs(kiran3Balance))}</div><div class="lbl"><span class="lbl-icon">🏢</span>KIRAN 3 Common Balance</div></div>
+      ${kiran3Row ? `<div class="grid-stats" style="margin-bottom:10px;">
+        <div class="stat ${kiran3Balance>=0?'stat-good':'stat-bad'}"><div class="num mono">${kiran3Balance>=0?'+':'−'}${fmtMoney(Math.abs(kiran3Balance))}</div><div class="lbl"><span class="lbl-icon">🏢</span>KIRAN 3 Common Balance${kiran3Row.log_date?' ('+fmtDate(kiran3Row.log_date)+')':''}</div></div>
       </div>` : ''}
       <div class="grid-stats" style="margin-bottom:10px;">
         <div class="stat stat-info"><div class="num mono">${s?.total_flats??'-'}</div><div class="lbl"><span class="lbl-icon">🏢</span>Total Flats</div></div>
@@ -1273,20 +1264,17 @@ let chargesCache = [];
 let flatsListCache = [];
 let pendingFlatsByRoundCache = {};
 let unsoldFlatNoSetCache = new Set();
-let kiran3IncomeCache = [];
 async function renderCollectionsTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}, {data:k3income}] = await Promise.all([
+  const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
     sb.from('charges').select('round_name, amount_per_flat, applies_to'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
     sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').gt('pending_amount', 0),
     sb.from('v_flats').select('flat_no, status'),
-    sb.from('kiran3_income').select('*').order('income_date',{ascending:false}).order('id',{ascending:false}),
     loadWaSentCache(),
   ]);
   collectionsCache = data || [];
-  kiran3IncomeCache = k3income || [];
   chargesCache = charges || [];
   flatsListCache = flats || [];
   pendingFlatsByRoundCache = {};
@@ -1381,31 +1369,6 @@ async function renderCollectionsTab(box){
         <div class="field" style="flex:0"><button class="primary" onclick="bulkBuilderPayment()">Add</button></div>
       </div>
       <p id="bb_calc_note" class="config-note" style="margin-top:-6px"></p>
-      </div>
-    </div>
-    <div class="card">
-      <div class="accordion-header" onclick="toggleAccordion('acc_coll_k3')">
-        <h3>🏢 KIRAN 3 Common Income (bીજી Wing/Source માંથી)</h3>
-        <span class="accordion-caret" id="acc_coll_k3_caret">▾</span>
-      </div>
-      <div class="accordion-body" id="acc_coll_k3_body" style="display:none; margin-top:12px;">
-      <p class="config-note" style="margin-top:-6px">Jab koi doosri wing ya bahar se KIRAN 3 Common fund me paisa aaye (C-Wing ke Cash/Bank me hi jama hota hai), yaha entry karo — Cash in Hand/Bank Balance aur KIRAN 3 Common Balance dono automatically update ho jayenge. Kisi flat se related nahi hai.</p>
-      <div class="form-row">
-        <div class="field"><label>Date</label><input id="k3_date" type="date"></div>
-        <div class="field"><label>Amount</label><input id="k3_amount" type="number"></div>
-        <div class="field"><label>Mode</label>
-          <select id="k3_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
-        </div>
-        <div class="field"><label>Remarks (kis wing/source se)</label><input id="k3_remarks" placeholder="e.g. A-Wing se"></div>
-        <div class="field" style="flex:0"><button class="primary" onclick="addKiran3CommonIncome()">Add</button></div>
-      </div>
-      ${kiran3IncomeCache.length ? kiran3IncomeCache.map(k=>`<div class="flat-entry">
-        <span style="flex:1 1 140px; min-width:0;">${k.remarks||''}</span>
-        <span class="config-note" style="margin:0;">${k.mode||''}</span>
-        <span class="mono" style="font-weight:800; color:#15803D;">+${fmtMoney(k.amount)}</span>
-        <span class="config-note" style="margin:0;">${fmtDate(k.income_date)}</span>
-        <span class="flat-actions"><button class="danger" onclick="deleteRow('kiran3_income','id',${k.id})" title="Delete">🗑️</button></span>
-      </div>`).join('') : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
       </div>
     </div>`}
     <div class="card">
@@ -1601,20 +1564,6 @@ async function bulkBuilderPayment(){
     const {error} = await sb.from('collections').insert(payload);
     if(error) alert(friendlyDbError(error));
     else { alert(`${targetFlats.length} collection entries add ho gayi.${skipped?` (${skipped} already-existing flat(s) skipped.)`:''}`); refreshTab(); }
-  });
-}
-async function addKiran3CommonIncome(){
-  const amountVal = Number(document.getElementById('k3_amount').value);
-  if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
-  await withPin(async ()=>{
-    const payload = {
-      income_date: document.getElementById('k3_date').value || new Date().toISOString().slice(0,10),
-      amount: amountVal,
-      mode: document.getElementById('k3_mode').value,
-      remarks: document.getElementById('k3_remarks').value || null,
-    };
-    const {error} = await sb.from('kiran3_income').insert(payload);
-    if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
 
@@ -2280,6 +2229,7 @@ function closeWaQueueModal(){ document.getElementById('wa-queue-modal')?.remove(
    other data-editing tab. ---- */
 let serviceContactsCache = [];
 let editingContactId = null;
+let kiran3LogCache = [];
 async function renderSettingsTab(box){
   // Fresh render always starts a clean "Add Contact" form -- same fix
   // as editingExpenseId/editingChargeRoundName, so leaving an edit
@@ -2288,8 +2238,13 @@ async function renderSettingsTab(box){
   editingContactId = null;
   const unlocked = pinStillValid() && state.user;
   const theme = getTheme();
-  const {data:contacts, error} = await sb.from('service_contacts').select('*').order('sort_order').order('id');
+  const [{data:contacts, error}, {data:k3log}] = await Promise.all([
+    sb.from('service_contacts').select('*').order('sort_order').order('id'),
+    sb.from('kiran3_balance_log').select('*').order('log_date',{ascending:false}).order('id',{ascending:false}),
+  ]);
   serviceContactsCache = contacts || [];
+  kiran3LogCache = k3log || [];
+  const kiran3Current = kiran3LogCache[0] || null;
   box.innerHTML = `
     <div class="card">
       <h3>🎨 Theme</h3>
@@ -2357,9 +2312,44 @@ async function renderSettingsTab(box){
       </div>
     </div>
     <div class="card">
+      <h3>🏢 KIRAN 3 Common Balance</h3>
+      <p class="config-note" style="margin-top:-6px">Ye poore KIRAN 3 complex (A+B+C+D Wing) ke shared register ka number he — C-Wing ke apne Cash/Bank se bilkul alag, unko koi asar nahi karta. Jab bhi register update ho, yaha naya balance daal do (jaise register ka total ÷ 4 wings).</p>
+      <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
+        <div class="stat ${kiran3Current && Number(kiran3Current.balance)>=0 ? 'stat-good' : (kiran3Current ? 'stat-bad' : 'stat-neutral')}"><div class="num mono">${kiran3Current ? fmtMoney(kiran3Current.balance) : '—'}</div><div class="lbl">Abhi ka Balance${kiran3Current?.log_date?' ('+fmtDate(kiran3Current.log_date)+')':''}</div></div>
+      </div>
+      ${!unlocked ? `<p class="config-note" style="margin-top:8px;">🔒 Update form sirf Unlock kiye ke baad dikhta hai.</p>` : `
+      <div class="form-row" style="margin-top:10px;">
+        <div class="field"><label>Naya Balance</label><input id="k3log_balance" type="number" placeholder="e.g. 40302.50" step="0.01"></div>
+        <div class="field"><label>Date</label><input id="k3log_date" type="date"></div>
+        <div class="field"><label>Note</label><input id="k3log_note" placeholder="e.g. Aug 2026 register: 1,61,210 / 4 wings"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addKiran3BalanceLog()">Update</button></div>
+      </div>`}
+      ${kiran3LogCache.length ? `<div style="margin-top:10px;">
+        ${kiran3LogCache.map(k=>`<div class="flat-entry">
+          <span style="flex:1 1 140px; min-width:0;">${k.note||''}</span>
+          <span class="mono" style="font-weight:800;">${fmtMoney(k.balance)}</span>
+          <span class="config-note" style="margin:0;">${fmtDate(k.log_date)}</span>
+          ${unlocked ? `<span class="flat-actions"><button class="danger" onclick="deleteRow('kiran3_balance_log','id',${k.id})" title="Delete">🗑️</button></span>` : ''}
+        </div>`).join('')}
+      </div>` : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
+    </div>
+    <div class="card">
       <h3>ℹ️ જાણકારી</h3>
-      <p class="config-note" style="margin:0;">Theme/Notifications/Default Tab/Auto-fill ફક્ત આ ડિવાઈસ/બ્રાઉઝર પર જ લાગુ થાય છે. Service Contacts લિસ્ટ Supabase માં સેવ થાય છે અને Dashboard પર બધાને દેખાય છે.</p>
+      <p class="config-note" style="margin:0;">Theme/Notifications/Default Tab/Auto-fill ફક્ત આ ડિવાઈસ/બ્રાઉઝર પર જ લાગુ થાય છે. Service Contacts લિસ્ટ અને KIRAN 3 Common Balance Supabase માં સેવ થાય છે અને Dashboard પર બધાને દેખાય છે.</p>
     </div>`;
+}
+async function addKiran3BalanceLog(){
+  const balanceVal = document.getElementById('k3log_balance').value;
+  if(balanceVal === '' || isNaN(Number(balanceVal))){ alert('Valid balance daalo.'); return; }
+  await withPin(async ()=>{
+    const payload = {
+      balance: Number(balanceVal),
+      log_date: document.getElementById('k3log_date').value || new Date().toISOString().slice(0,10),
+      note: document.getElementById('k3log_note').value || null,
+    };
+    const {error} = await sb.from('kiran3_balance_log').insert(payload);
+    if(error) alert(friendlyDbError(error)); else refreshTab();
+  });
 }
 function populateContactForm(id){
   const c = serviceContactsCache.find(x=>x.id===id);
@@ -2410,11 +2400,11 @@ let statementDataCache = null;
 let statementView = 'total';
 async function renderStatementTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
-  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3income, error:e4}] = await Promise.all([
+  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3log, error:e4}] = await Promise.all([
     sb.from('collections').select('id, amount, mode, collection_date, purpose, flat_no'),
     sb.from('expenses').select('id, amount, mode, expense_date, category, description'),
     sb.from('fund_transfers').select('id, amount, transfer_date, remarks'),
-    sb.from('kiran3_income').select('id, amount, mode, income_date, remarks'),
+    sb.from('kiran3_balance_log').select('id, balance, log_date, note'),
   ]);
   const err = e1||e2||e3||e4;
   if(err){ box.innerHTML = `<div class="card"><div class="msg error">${friendlyDbError(err)}</div></div>`; return; }
@@ -2422,30 +2412,48 @@ async function renderStatementTab(box){
     collections: collections || [],
     expenses: expenses || [],
     transfers: transfers || [],
-    k3income: k3income || [],
+    k3log: k3log || [],
   };
   renderStatementView(box);
 }
 function buildStatementEntries(view){
   const d = statementDataCache;
   if(!d) return [];
+  // KIRAN 3 is a directly-set reconciliation log (C-Wing's ~1/4 share of
+  // the whole-complex paper register), not a running total of C-Wing's
+  // own transactions -- each entry already carries its own balance, so
+  // it skips the generic credit/debit accumulation below entirely.
+  if(view === 'kiran3'){
+    const rows = [...d.k3log].sort((a,b)=>{
+      if(a.log_date !== b.log_date) return a.log_date < b.log_date ? -1 : 1;
+      return a.id - b.id;
+    });
+    let prevBalance = 0;
+    return rows.map(k=>{
+      const balance = Number(k.balance||0);
+      const entry = {
+        date: k.log_date, id: k.id,
+        amount: Math.abs(balance - prevBalance),
+        credit: balance >= prevBalance,
+        label: `🏢 ${k.note || 'KIRAN 3 Common Balance update'}`,
+        balanceBefore: prevBalance, balanceAfter: balance,
+      };
+      prevBalance = balance;
+      return entry;
+    });
+  }
   const entries = [];
   const isCash = m => (m||'').toLowerCase() === 'cash';
-  // Same exclusion Dashboard uses for real cash-flow figures: this
-  // reports money already accounted for elsewhere, not new cash out --
-  // doesn't apply to the "kiran3" view itself, which wants it as a debit.
+  // Same exclusion Dashboard uses for real cash-flow figures.
   const realExpenses = d.expenses.filter(e => e.category !== 'KIRAN 3 Society Expense');
-  const k3IncomeLabel = k => `🏢 KIRAN 3 Common Income${k.remarks?' — '+k.remarks:''}`;
   if(view === 'total'){
     d.collections.forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
       label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''}`}));
-    d.k3income.forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
     realExpenses.forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''}`}));
   } else if(view === 'cash'){
     d.collections.filter(c=>isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
       label:`ફ્લેટ ${c.flat_no} — ${c.purpose||'Cash'}`}));
-    d.k3income.filter(k=>isCash(k.mode)).forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
     realExpenses.filter(e=>isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''}`}));
     d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:false,
@@ -2453,17 +2461,10 @@ function buildStatementEntries(view){
   } else if(view === 'bank'){
     d.collections.filter(c=>!isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
       label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''} (${c.mode||''})`}));
-    d.k3income.filter(k=>!isCash(k.mode)).forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:`${k3IncomeLabel(k)} (${k.mode||''})`}));
     realExpenses.filter(e=>!isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''} (${e.mode||''})`}));
     d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:true,
       label:`💵 Cash થી Transfer${t.remarks?' — '+t.remarks:''}`}));
-  } else if(view === 'kiran3'){
-    d.expenses.filter(e=>e.category==='KIRAN 3 Society Advance').forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:1, amount:Number(e.amount||0), credit:true,
-      label:`C-Wing એ Advance આપ્યું${e.description?' — '+e.description:''}`}));
-    d.k3income.forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:2, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
-    d.expenses.filter(e=>e.category==='KIRAN 3 Society Expense').forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:3, amount:Number(e.amount||0), credit:false,
-      label:`Common Fund માંથી ખર્ચ${e.description?' — '+e.description:''}`}));
   }
   entries.sort((a,b)=>{
     if(a.date !== b.date) return a.date < b.date ? -1 : 1;
