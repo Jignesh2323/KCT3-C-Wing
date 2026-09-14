@@ -910,13 +910,14 @@ const ADMIN_TABS = [
   ['charges','Charges'],
   ['stickerlog','Sticker Log'],
   ['dues','Dues Summary'],
+  ['statement','Statement'],
   ['builderreceipt','Builder Receipt'],
   ['deleteditems','Deleted Items'],
   ['settings','Settings'],
 ];
 
-const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues','builderreceipt','deleteditems','settings'];
-const NO_PIN_MORE_TABS = ['settings','builderreceipt']; // secondary tabs reachable via More without a PIN -- builderreceipt has no edit form, just view/preview/download
+const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues','statement','builderreceipt','deleteditems','settings'];
+const NO_PIN_MORE_TABS = ['settings','builderreceipt','statement']; // secondary tabs reachable via More without a PIN -- builderreceipt/statement have no edit form, just view; Collections/Expenses lists are already publicly viewable so this shows nothing new
 const TAB_ICONS = {
   dashboard: '🏠',
   flats: '🏢',
@@ -927,6 +928,7 @@ const TAB_ICONS = {
   charges: '🧾',
   stickerlog: '🏷️',
   dues: '📋',
+  statement: '📒',
   builderreceipt: '🏗️',
   deleteditems: '♻️',
   settings: '⚙️',
@@ -1016,6 +1018,7 @@ async function renderTabContent(){
     if(state.tab==='charges') return await renderChargesTab(box);
     if(state.tab==='stickerlog') return await renderStickerLogTab(box);
     if(state.tab==='dues') return await renderDuesTab(box);
+    if(state.tab==='statement') return await renderStatementTab(box);
     if(state.tab==='builderreceipt') return await renderBuilderReceiptTab(box);
     if(state.tab==='deleteditems') return await renderDeletedItemsTab(box);
     if(state.tab==='settings') return await renderSettingsTab(box);
@@ -2336,6 +2339,107 @@ async function addContact(){
       : await sb.from('service_contacts').insert(payload);
     if(error) alert(friendlyDbError(error)); else { editingContactId = null; refreshTab(); }
   });
+}
+
+/* ---- Statement — bank-passbook-style running balance, so "is entry se
+   pehle balance kitna tha" is visible directly, without deleting the
+   entry to check. Combines Collections (credit) and Expenses (debit,
+   same "KIRAN 3 Society Expense" exclusion Dashboard uses so the
+   final balance always matches Dashboard's own figures) for the
+   Total view; Cash/Bank views also fold in Fund Transfers, which move
+   money between the two but don't change the Total. ---- */
+let statementDataCache = null;
+let statementView = 'total';
+async function renderStatementTab(box){
+  box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
+  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}] = await Promise.all([
+    sb.from('collections').select('id, amount, mode, collection_date, purpose, flat_no'),
+    sb.from('expenses').select('id, amount, mode, expense_date, category, description'),
+    sb.from('fund_transfers').select('id, amount, transfer_date, remarks'),
+  ]);
+  const err = e1||e2||e3;
+  if(err){ box.innerHTML = `<div class="card"><div class="msg error">${friendlyDbError(err)}</div></div>`; return; }
+  statementDataCache = {
+    collections: collections || [],
+    // Excluded here for the same reason Dashboard excludes it: this
+    // reports money already accounted for elsewhere, not new cash out.
+    expenses: (expenses || []).filter(e => e.category !== 'KIRAN 3 Society Expense'),
+    transfers: transfers || [],
+  };
+  renderStatementView(box);
+}
+function buildStatementEntries(view){
+  const d = statementDataCache;
+  if(!d) return [];
+  const entries = [];
+  const isCash = m => (m||'').toLowerCase() === 'cash';
+  if(view === 'total'){
+    d.collections.forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
+      label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''}`}));
+    d.expenses.forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
+      label:`${e.category}${e.description?' — '+e.description:''}`}));
+  } else if(view === 'cash'){
+    d.collections.filter(c=>isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
+      label:`ફ્લેટ ${c.flat_no} — ${c.purpose||'Cash'}`}));
+    d.expenses.filter(e=>isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
+      label:`${e.category}${e.description?' — '+e.description:''}`}));
+    d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:false,
+      label:`🏦 Bank માં Transfer${t.remarks?' — '+t.remarks:''}`}));
+  } else if(view === 'bank'){
+    d.collections.filter(c=>!isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
+      label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''} (${c.mode||''})`}));
+    d.expenses.filter(e=>!isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
+      label:`${e.category}${e.description?' — '+e.description:''} (${e.mode||''})`}));
+    d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:true,
+      label:`💵 Cash થી Transfer${t.remarks?' — '+t.remarks:''}`}));
+  }
+  entries.sort((a,b)=>{
+    if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if(a.typeRank !== b.typeRank) return a.typeRank - b.typeRank;
+    return a.id - b.id;
+  });
+  let running = 0;
+  entries.forEach(e=>{
+    e.balanceBefore = running;
+    running += e.credit ? e.amount : -e.amount;
+    e.balanceAfter = running;
+  });
+  return entries;
+}
+function setStatementView(view){
+  statementView = view;
+  const box = document.getElementById('tab-content');
+  if(box) renderStatementView(box);
+}
+function renderStatementView(box){
+  const entries = buildStatementEntries(statementView);
+  const currentBalance = entries.length ? entries[entries.length-1].balanceAfter : 0;
+  const viewLabel = {total:'⚖️ Total', cash:'💵 Cash', bank:'🏦 Bank'}[statementView];
+  box.innerHTML = `
+    <div class="card">
+      <h3>📒 સ્ટેટમેન્ટ — Running Balance</h3>
+      <p class="config-note" style="margin-top:-6px">બેંક સ્ટેટમેન્ટ ની જેમ — દરેક એન્ટ્રી પહેલા અને પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <button class="${statementView==='total'?'primary':''}" onclick="setStatementView('total')">⚖️ Total</button>
+        <button class="${statementView==='cash'?'primary':''}" onclick="setStatementView('cash')">💵 Cash</button>
+        <button class="${statementView==='bank'?'primary':''}" onclick="setStatementView('bank')">🏦 Bank</button>
+      </div>
+      <div class="grid-stats" style="margin-top:12px;">
+        <div class="stat stat-neutral"><div class="num mono">${fmtMoney(currentBalance)}</div><div class="lbl">${viewLabel} — અત્યારે નું બેલેન્સ</div></div>
+      </div>
+    </div>
+    <div class="card">
+      ${entries.length ? [...entries].reverse().map(e=>`<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:4px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span style="flex:1 1 140px; min-width:0; font-weight:600;">${e.label}</span>
+          <span class="mono" style="font-weight:800; font-size:15px; color:${e.credit?'#15803D':'var(--danger)'};">${e.credit?'+':'−'}${fmtMoney(e.amount)}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span class="config-note" style="margin:0;">${fmtDate(e.date)}</span>
+          <span class="config-note" style="margin:0; margin-left:auto;">${fmtMoney(e.balanceBefore)} → <b style="color:var(--ink);">${fmtMoney(e.balanceAfter)}</b></span>
+        </div>
+      </div>`).join('') : `<p class="empty">કોઈ એન્ટ્રી નથી.</p>`}
+    </div>`;
 }
 
 /* ---- Builder Receipt — one official-style receipt image per Unsold
