@@ -909,22 +909,22 @@ function startNotifPolling(){
    ============================================================ */
 const ADMIN_TABS = [
   ['dashboard','Dashboard'],
-  ['flats','Flats'],
   ['collections','Collections'],
   ['expenses','Expenses'],
-  ['transfers','Fund Transfer'],
+  ['statement','Statement'],
   ['vehicles','Vehicles'],
+  ['flats','Flats'],
+  ['transfers','Fund Transfer'],
   ['charges','Charges'],
   ['stickerlog','Sticker Log'],
   ['dues','Dues Summary'],
-  ['statement','Statement'],
   ['builderreceipt','Builder Receipt'],
   ['deleteditems','Deleted Items'],
   ['settings','Settings'],
 ];
 
-const HIDDEN_TAB_KEYS = ['transfers','charges','stickerlog','dues','statement','builderreceipt','deleteditems','settings'];
-const NO_PIN_MORE_TABS = ['settings','builderreceipt','statement']; // secondary tabs reachable via More without a PIN -- builderreceipt/statement have no edit form, just view; Collections/Expenses lists are already publicly viewable so this shows nothing new
+const HIDDEN_TAB_KEYS = ['flats','transfers','charges','stickerlog','dues','builderreceipt','deleteditems','settings'];
+const NO_PIN_MORE_TABS = ['settings','builderreceipt','flats']; // secondary tabs reachable via More without a PIN -- builderreceipt has no edit form, just view; flats' own list is already publicly viewable (only its Add/Update form is PIN-gated), same reasoning Collections/Expenses lists use
 const TAB_ICONS = {
   dashboard: '🏠',
   flats: '🏢',
@@ -2365,10 +2365,6 @@ const APP_GUIDE_SECTIONS = [
     <p class="config-note" style="margin:0 0 6px;">સોસાયટીનું આખું ચિત્ર એક નજરમાં — Total Balance, Collected, Expense, Cash in Hand, Bank Balance, KIRAN 3 Common Balance, Total/Unsold Flats, વાહનોની ગણતરી. અહીં કંઈ Add/Edit નથી થતું — બધું બીજા ટેબ પરથી આપોઆપ ખેંચાઈને ભેગું દેખાય છે.</p>
     <p class="config-note" style="margin:0 0 6px;">નીચે "જરૂરી નંબરો" (કોઈ પણ, PIN વગર, સીધા ફોન કરી શકે), <b>Monthly Common Expense Split</b> (Month/Year પસંદ કરો — તે મહિનાનો Common ખર્ચ Per Flat કેટલો, Sold/Unsold નો ભાગ કેટલો, આપોઆપ ગણાય) અને <b>Reports</b> (⬇️ Collections CSV, ⬇️ Expenses CSV, 🖨️ Print/PDF) પણ છે.</p>
     <p class="config-note" style="margin:0;">🔓 Total Flats/જરૂરી નંબરો બધાને દેખાય; Collected/Expense/By Payment Mode જોવા Unlock જોઈએ.</p>`},
-  { id:'flats', icon:'🏢', title:'Flats', body:`
-    <p class="config-note" style="margin:0 0 6px;">બધા ફ્લેટની master list — Owner નામ, Contact નંબર, Sold/Unsold Status — માળ પ્રમાણે ગોઠવેલી. 📋 નંબર પર દબાવી રાખો તો કૉપિ થઈ જશે.</p>
-    <p class="config-note" style="margin:0 0 6px;"><b>Add/Update Flat</b>: Flat No, Floor, Owner Name, Contact No, Status (Auto / Force: Sold / Force: Unsold), Remarks.</p>
-    <p class="config-note" style="margin:0;">🔒 ફોર્મ ફક્ત Unlock પછી; List બધાને દેખાય.</p>`},
   { id:'coll', icon:'📥', title:'Collections', body:`
     <p class="config-note" style="margin:0 0 6px;">ફ્લેટ મેમ્બરના મેન્ટેનન્સ પેમેન્ટ નોંધવા માટે. 🔓 ઉપર "Search by Flat No" થી કોઈ પણ પોતાનું history/બાકી PIN વગર જોઈ શકે.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Collection</b>: Purpose (Round), Flat No (ફક્ત જેનું આ round માં pending હોય એ જ દેખાય), Date, Amount, Mode, Remarks.</p>
@@ -2379,28 +2375,32 @@ const APP_GUIDE_SECTIONS = [
     <p class="config-note" style="margin:0 0 6px;"><b>Add Expense</b>: Date, Category, Description, Amount, Paid To, Mode, Bill Photos (એક કરતાં વધુ પસંદ કરી શકાય).</p>
     <p class="config-note" style="margin:0 0 6px;">Category: Flat Expense, Security, Housekeeping, Electricity, Water, Lift Maintenance, Repair &amp; Maintenance, Gardening, Pest Control, Admin/Stationery, Event, Festival, KIRAN 3 Society Advance, KIRAN 3 Society Expense.</p>
     <p class="config-note" style="margin:0;">🔒 ફોર્મ ફક્ત Unlock પછી; List બધાને દેખાય.</p>`},
-  { id:'transfer', icon:'🔁', title:'Fund Transfer', body:`
-    <p class="config-note" style="margin:0 0 6px;">જ્યારે રોકડ (Cash) બેંકમાં જમા કરાવો ત્યારે અહીં નોંધો — આનાથી કોઈ Collection કે Expense નંબર નથી બદલાતો, ફક્ત Cash in Hand ઘટે ને Bank Balance એટલું જ વધે (Total Balance same રહે).</p>
-    <p class="config-note" style="margin:0;">Fields: Date, Amount, Remarks.</p>`},
+  { id:'statement', icon:'📒', title:'Statement', body:`
+    <p class="config-note" style="margin:0 0 6px;">બેંક પાસબુક જેવું — ⚖️ Total, 💵 Cash, 🏦 Bank, 🏢 KIRAN 3 — ચાર views. દરેક એન્ટ્રી પહેલા/પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
+    <p class="config-note" style="margin:0;">🔓 View-only, PIN વગર જોઈ શકાય.</p>`},
   { id:'veh', icon:'🚗', title:'Vehicles', body:`
     <p class="config-note" style="margin:0 0 6px;">દરેક ફ્લેટના વાહનોની yaadi, સ્ટીકર status સાથે. 🔓 ઉપર Search થી વાહન નંબર/ફ્લેટ નંબરથી કોઈ પણ શોધી શકે, PIN વગર.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Vehicle</b>: Flat No, Type (Two Wheeler/Four Wheeler), Vehicle Number, Remarks.</p>
     <p class="config-note" style="margin:0;">🔒 Add ફોર્મ ફક્ત Unlock પછી.</p>`},
-  { id:'charges', icon:'💰', title:'Charges', body:`
+  { id:'flats', icon:'🏢', title:'Flats (More માં)', body:`
+    <p class="config-note" style="margin:0 0 6px;">બધા ફ્લેટની master list — Owner નામ, Contact નંબર, Sold/Unsold Status — માળ પ્રમાણે ગોઠવેલી. 📋 નંબર પર દબાવી રાખો તો કૉપિ થઈ જશે.</p>
+    <p class="config-note" style="margin:0 0 6px;"><b>Add/Update Flat</b>: Flat No, Floor, Owner Name, Contact No, Status (Auto / Force: Sold / Force: Unsold), Remarks.</p>
+    <p class="config-note" style="margin:0;">🔒 ફોર્મ ફક્ત Unlock પછી; List બધાને દેખાય.</p>`},
+  { id:'transfer', icon:'🔁', title:'Fund Transfer (More માં)', body:`
+    <p class="config-note" style="margin:0 0 6px;">જ્યારે રોકડ (Cash) બેંકમાં જમા કરાવો ત્યારે અહીં નોંધો — આનાથી કોઈ Collection કે Expense નંબર નથી બદલાતો, ફક્ત Cash in Hand ઘટે ને Bank Balance એટલું જ વધે (Total Balance same રહે).</p>
+    <p class="config-note" style="margin:0;">Fields: Date, Amount, Remarks.</p>`},
+  { id:'charges', icon:'💰', title:'Charges (More માં)', body:`
     <p class="config-note" style="margin:0 0 6px;">મેન્ટેનન્સ ના "રાઉન્ડ" બનાવવા (દા.ત. "July 2026 SF-MNTC", "Diwali Fund") — Collections અને Dues Summary આના પરથી જ ચાલે છે.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Charge Round</b>: Round Name, Amount per Flat, Applies To (All Flats / Sold Flats Only / Unsold Flats Only), Date Started.</p>
     <p class="config-note" style="margin:0;">⚠️ રાઉન્ડનું નામ બદલો તો એ રાઉન્ડની બધી જૂની Collections એન્ટ્રીઓ પણ આપોઆપ નવા નામે ટ્રાન્સફર થઈ જાય છે — કંઈ ડેટા ખોવાતો નથી.</p>`},
-  { id:'sticker', icon:'🎫', title:'Sticker Log', body:`
+  { id:'sticker', icon:'🎫', title:'Sticker Log (More માં)', body:`
     <p class="config-note" style="margin:0 0 6px;">પાર્કિંગ સ્ટીકર ક્યારે/કોને આપ્યું એનો રેકોર્ડ, ફ્લેટ પ્રમાણે.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Entry</b>: Date, Flat No, Vehicle Number, Reason (First Issue / Replacement - Lost / Replacement - Damaged / Shared Pass / No Separate Sticker / Other).</p>
     <p class="config-note" style="margin:0;">⚠️ એક જ વાહનને બે વાર "First Issue" ના અપાય — App આપોઆપ રોકે છે.</p>`},
-  { id:'dues', icon:'📋', title:'Dues Summary', body:`
+  { id:'dues', icon:'📋', title:'Dues Summary (More માં)', body:`
     <p class="config-note" style="margin:0 0 6px;">કયા ફ્લેટના કયા રાઉન્ડના કેટલા પૈસા બાકી છે — ટેબલ સ્વરૂપે. અહીં કંઈ Add નથી કરવાનું, ફક્ત જોવા/WhatsApp reminder મોકલવા માટે છે.</p>
     <p class="config-note" style="margin:0 0 6px;">☑️ Select All Pending → Send Reminders દબાવો — WhatsApp એક પછી એક ખૂલશે (વેબસાઈટથી બલ્ક મેસેજ ના મોકલાય, એટલે).</p>
     <p class="config-note" style="margin:0;">🔒 ફક્ત reminder મોકલવા Unlock જોઈએ; જોવા માટે PIN ની જરૂર નથી.</p>`},
-  { id:'statement', icon:'📒', title:'Statement (More માં)', body:`
-    <p class="config-note" style="margin:0 0 6px;">બેંક પાસબુક જેવું — ⚖️ Total, 💵 Cash, 🏦 Bank, 🏢 KIRAN 3 — ચાર views. દરેક એન્ટ્રી પહેલા/પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
-    <p class="config-note" style="margin:0;">🔓 View-only, PIN વગર જોઈ શકાય.</p>`},
   { id:'builder', icon:'🧾', title:'Builder Receipt (More માં)', body:`
     <p class="config-note" style="margin:0 0 6px;">Unsold (Builder ના) ફ્લેટ્સ માટે દર મહિનાની મેન્ટેનન્સ રસીદ — આપોઆપ બને છે, પાછલા મહિનાના Common ખર્ચા ÷ 52 ફ્લેટ પ્રમાણે. કંઈ Add નથી કરવાનું — ફક્ત Preview 👁️ / Download ⬇️ / "Sabhi Receipts Download Karo".</p>
     <p class="config-note" style="margin:0;">⚠️ <b>ખૂબ અગત્યનું</b>: આ પાછલા મહિનાના Expense entries ની <b>Date field</b> પર આધાર રાખે છે — Description માં મહિનો લખવો પૂરતું નથી, Date પણ એ જ મહિનાની (દા.ત. 31/08/2026) હોવી જોઈએ, નહીં તો એ મહિનાનું receipt નહીં બને.</p>`},
