@@ -629,6 +629,7 @@ function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(
 const THEME_KEY = 'cwing_theme';
 const NOTIF_ENABLED_KEY = 'cwing_notif_enabled';
 const DEFAULT_TAB_KEY = 'cwing_default_tab';
+const LAST_TAB_KEY = 'cwing_last_tab';
 const AUTOFILL_AMOUNT_KEY = 'cwing_autofill_amount';
 
 function getTheme(){ return localStorage.getItem(THEME_KEY) || 'auto'; }
@@ -646,6 +647,12 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=
 function notifEnabled(){ return localStorage.getItem(NOTIF_ENABLED_KEY) !== 'false'; }
 function getDefaultTab(){ return localStorage.getItem(DEFAULT_TAB_KEY) || 'dashboard'; }
 function setDefaultTab(k){ localStorage.setItem(DEFAULT_TAB_KEY, k); }
+// Remembers whichever tab was open last, so a page reload (or reopening
+// the app) lands back where you were, instead of always jumping to the
+// configured "Default Tab" (that one only kicks in the very first time,
+// before any tab has been visited yet).
+function saveLastTab(k){ try{ localStorage.setItem(LAST_TAB_KEY, k); }catch(e){} }
+function getLastTab(){ try{ return localStorage.getItem(LAST_TAB_KEY); }catch(e){ return null; } }
 function autofillEnabled(){ return localStorage.getItem(AUTOFILL_AMOUNT_KEY) !== 'false'; }
 function toggleNotifSetting(checked){
   localStorage.setItem(NOTIF_ENABLED_KEY, checked ? 'true' : 'false');
@@ -982,10 +989,10 @@ document.addEventListener('click', (e)=>{
 });
 async function onMoreTabSelect(k){
   if(!k) return;
-  if(NO_PIN_MORE_TABS.includes(k)){ state.tab = k; render(); return; }
-  await withPin(async ()=>{ state.tab = k; render(); });
+  if(NO_PIN_MORE_TABS.includes(k)){ state.tab = k; saveLastTab(k); render(); return; }
+  await withPin(async ()=>{ state.tab = k; saveLastTab(k); render(); });
 }
-function setTab(k){ state.tab = k; render(); }
+function setTab(k){ state.tab = k; saveLastTab(k); render(); }
 
 /* ---- Collapsible "Add ___" form cards — collapsed by default so the
    entry list sits close to the top and doesn't need heavy scrolling
@@ -1323,6 +1330,7 @@ async function renderCollectionsTab(box){
           <select id="coll_purpose_filter" class="search-safe">
             <option value="">All</option>
             ${(charges||[]).map(c=>`<option value="${c.round_name}">${c.round_name}</option>`).join('')}
+            <option value="__kiran3__">🏢 KIRAN 3 Common Fund</option>
           </select>
         </div>
         <div class="field" style="flex:0"><button onclick="document.getElementById('pay_search_flat').value=''; document.getElementById('pay_search_results').innerHTML='';">Clear</button></div>
@@ -1515,6 +1523,13 @@ function collectionsRowsHtml(list, k3list){
 }
 function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
+  if(purpose === '__kiran3__'){
+    // Special filter: show ONLY KIRAN 3 Common Fund entries, none of
+    // the regular per-flat collections.
+    document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml([], kiran3IncomeCache);
+    renderPendingFlatsForRound();
+    return;
+  }
   const list = purpose ? collectionsCache.filter(c=>c.purpose===purpose) : collectionsCache;
   // KIRAN 3 Common Fund entries have no purpose/round, but should stay
   // visible regardless of which round is filtered -- they're not part
@@ -1526,7 +1541,7 @@ function renderPendingFlatsForRound(){
   const purpose = document.getElementById('coll_purpose_filter')?.value;
   const box = document.getElementById('pending_flats_by_round_box');
   if(!box) return;
-  if(!purpose){ box.innerHTML = ''; return; }
+  if(!purpose || purpose === '__kiran3__'){ box.innerHTML = ''; return; }
   const pendingFlatNos = (pendingFlatsByRoundCache[purpose] || []).slice().sort((a,b)=>a-b);
   if(!pendingFlatNos.length){
     box.innerHTML = `<p class="config-note" style="margin-top:6px">✅ "${purpose}" નું બધાનું કલેક્શન આવી ગયું છે.</p>`;
@@ -3117,7 +3132,15 @@ function forgetDeletedItem(id){
     if(session){ state.user = session.user; }
     else { localStorage.removeItem(PIN_UNLOCK_KEY); } // stale flag, session actually gone
   }
-  state.tab = getDefaultTab();
+  // Reopening the app (including a plain page reload) goes back to
+  // whichever tab was last open, not the configured "Default Tab" --
+  // that one only applies the very first time, before any tab has been
+  // visited yet. Same guard lockNow() uses: a PIN-only tab isn't
+  // restored for a locked/logged-out session.
+  const lastTab = getLastTab();
+  state.tab = (lastTab && !(HIDDEN_TAB_KEYS.includes(lastTab) && !NO_PIN_MORE_TABS.includes(lastTab) && !state.user))
+    ? lastTab
+    : getDefaultTab();
   render();
   if(notifEnabled()){
     await ensureNotifBaseline();
