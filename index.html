@@ -1411,6 +1411,7 @@ async function renderCollectionsTab(box){
           <select id="k3_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
         </div>
         <div class="field"><label>Remarks (Gujarati me bhi likh sakte ho)</label><input id="k3_remarks" placeholder="e.g. 4 wings' August contribution @50,000 each"></div>
+        <div class="field"><label>Bill Photos (optional — multiple select kar sakte ho)</label><input id="k3_bill" type="file" accept="image/*" multiple><div id="k3_bill_current" class="config-note"></div></div>
         <div class="field" style="flex:0"><button class="primary" id="k3_add_btn" onclick="addKiran3CommonIncome()">Add</button></div>
         <div class="field" style="flex:0"><button id="k3_cancel_btn" onclick="resetKiran3Form()" hidden>Cancel</button></div>
       </div>
@@ -1484,6 +1485,10 @@ function collectionsRowsHtml(list, k3list){
   return combined.map(c=>{
     if(c.__k3){
       const isExp = c.kind === 'expense';
+      const waMsg = `📢 *C-Wing Society – KIRAN 3 Common Fund ${isExp?'ખર્ચ':'આવક'}*\n\n${c.remarks?`📝 વિગત: ${c.remarks}\n`:''}💰 રકમ: ${fmtMoney(c.amount)} (પૂરા કોમ્પ્લેક્સની — 4 Wing ભેગી)\n📅 તારીખ: ${fmtDate(c.collection_date)}\n\nઆપની જાણકારી માટે 🙏\n\n🏢 *C-Wing Society Maintenance*`;
+      const waLinkHref = waShareLink(waMsg);
+      const waKey = `kiran3income:${c.id}:group`;
+      const pillId = `k3-wa-${c.id}`;
       return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <span class="pill flat-chip" style="background:${isExp?'#b91c1c':'#6d28d9'};">🏢</span>
@@ -1493,7 +1498,9 @@ function collectionsRowsHtml(list, k3list){
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
           <span class="config-note" style="margin:0;">${fmtDate(c.collection_date)}</span>
           <span class="config-note" style="margin:0; color:${isExp?'var(--danger)':'#6d28d9'}; font-weight:700;">${c.mode||''}</span>
+          ${billLinksHtml(c.bill_url)}
           <span class="flat-actions" style="margin-left:auto;">
+            <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)}
             <button onclick="editKiran3Income(${c.id})" title="Edit">✏️ Edit</button>
             <button class="danger" onclick="deleteRow('kiran3_income','id',${c.id})" title="Delete">🗑️</button>
           </span>
@@ -1667,6 +1674,14 @@ async function addKiran3CommonIncome(){
       mode: document.getElementById('k3_mode').value,
       remarks: document.getElementById('k3_remarks').value || null,
     };
+    const billFiles = document.getElementById('k3_bill')?.files;
+    if(billFiles && billFiles.length){
+      // Same shared bucket/helper Expenses uses -- it's just generic
+      // photo storage, no category-specific logic in it.
+      const urls = await uploadExpenseBills([...billFiles]);
+      if(!urls) return;
+      payload.bill_url = urls.join('\n');
+    }
     const {error} = editingKiran3Id
       ? await sb.from('kiran3_income').update(payload).eq('id', editingKiran3Id)
       : await sb.from('kiran3_income').insert(payload);
@@ -1683,6 +1698,14 @@ function populateKiran3Form(id){
   document.getElementById('k3_amount').value = k.amount ?? '';
   document.getElementById('k3_mode').value = k.mode || 'Cash';
   document.getElementById('k3_remarks').value = k.remarks || '';
+  const billField = document.getElementById('k3_bill'); if(billField) billField.value = '';
+  const billNote = document.getElementById('k3_bill_current');
+  if(billNote){
+    const urls = (k.bill_url||'').split('\n').filter(Boolean);
+    billNote.innerHTML = urls.length
+      ? urls.map((u,i)=>`<a href="${u}" target="_blank">📎 હાલનું બિલ${urls.length>1?' '+(i+1):''} જુઓ</a>`).join(' · ') + ' (નવા ફોટા પસંદ કરશો તો બધા બદલાઈ જશે)'
+      : '';
+  }
   document.getElementById('k3_add_btn').textContent = 'Update';
   const cancelBtn = document.getElementById('k3_cancel_btn'); if(cancelBtn) cancelBtn.hidden = false;
   document.getElementById('k3-form-title').textContent = '✏️ Editing KIRAN 3 Entry';
@@ -1699,6 +1722,8 @@ function resetKiran3Form(){
   ['k3_date','k3_amount','k3_remarks'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const kind = document.getElementById('k3_kind'); if(kind) kind.value = 'income';
   const mode = document.getElementById('k3_mode'); if(mode) mode.value = 'Cash';
+  const billField = document.getElementById('k3_bill'); if(billField) billField.value = '';
+  const billNote = document.getElementById('k3_bill_current'); if(billNote) billNote.innerHTML = '';
   const btn = document.getElementById('k3_add_btn'); if(btn) btn.textContent = 'Add';
   const cancelBtn = document.getElementById('k3_cancel_btn'); if(cancelBtn) cancelBtn.hidden = true;
   const title = document.getElementById('k3-form-title'); if(title) title.textContent = '🏢 KIRAN 3 Common Fund (poore Complex ka Income/Expense)';
@@ -3139,6 +3164,7 @@ async function deleteRow(table, col, val, isString){
       // status entries don't pile up in wa_sent after deletes
       if(table === 'collections') await setWaSent(`collection:${val}`, false);
       if(table === 'expenses') await setWaSent(`expense:${val}:group`, false);
+      if(table === 'kiran3_income') await setWaSent(`kiran3income:${val}:group`, false);
       refreshTab();
     });
   });
