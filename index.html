@@ -1053,13 +1053,6 @@ async function renderDashboardTab(box){
     if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
     modeMap[m].collected += Number(c.amount||0);
   });
-  // KIRAN 3 Common Income (another Wing/outside source) really does land in
-  // C-Wing's own Cash/Bank, so it counts toward "collected" here too.
-  (k3income||[]).forEach(k=>{
-    const m = k.mode || 'Other';
-    if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
-    modeMap[m].collected += Number(k.amount||0);
-  });
   realExpenses.forEach(e=>{
     const m = e.mode || 'Other';
     if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
@@ -1073,15 +1066,13 @@ async function renderDashboardTab(box){
   const bankBalance = bankRows.reduce((sum,m)=> sum + Number(m.collected||0) - Number(m.spent||0), 0) + totalTransferred;
   const kiran3Advance = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Advance').reduce((s,e)=>s+Number(e.amount||0),0);
   const kiran3Expense = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Expense').reduce((s,e)=>s+Number(e.amount||0),0);
-  // Money another Wing/outside source puts into the shared KIRAN 3 fund --
-  // it really does land in C-Wing's own Cash/Bank (already counted above
-  // via k3income), so it's a credit here too.
+  // KIRAN 3 Common Income is money into the WHOLE 4-wing shared fund (e.g.
+  // banquet hall rent), not C-Wing's own -- it never touches C-Wing's own
+  // Cash/Bank/Collected. Only C-Wing's 1/4 share of it adds to the
+  // KIRAN 3 Common Balance memo figure below.
   const kiran3OtherIncome = (k3income||[]).reduce((s,k)=>s+Number(k.amount||0),0);
-  const kiran3Balance = kiran3Advance + kiran3OtherIncome - kiran3Expense;
-  // v_dashboard_summary.total_collected only sums the collections table --
-  // computed client-side instead (same as Cash/Bank) so it also reflects
-  // KIRAN 3 Common Income, which is real money collected too.
-  const totalCollectedReal = (allCollections||[]).reduce((s,c)=>s+Number(c.amount||0),0) + kiran3OtherIncome;
+  const kiran3Balance = kiran3Advance + (kiran3OtherIncome/4) - kiran3Expense;
+  const totalCollectedReal = (allCollections||[]).reduce((s,c)=>s+Number(c.amount||0),0);
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
       <div class="grid-stats" style="margin-bottom:10px;">
@@ -1389,7 +1380,7 @@ async function renderCollectionsTab(box){
         <span class="accordion-caret" id="acc_coll_k3_caret">▾</span>
       </div>
       <div class="accordion-body" id="acc_coll_k3_body" style="display:none; margin-top:12px;">
-      <p class="config-note" style="margin-top:-6px">Jab koi doosri wing ya bahar se KIRAN 3 Common fund me paisa aaye (C-Wing ke Cash/Bank me hi jama hota hai), yaha entry karo — Cash in Hand/Bank Balance aur KIRAN 3 Common Balance dono automatically update ho jayenge. Kisi flat se related nahi hai.</p>
+      <p class="config-note" style="margin-top:-6px">Jab poore KIRAN 3 complex (A+B+C+D) ke shared fund me koi income aaye (jaise banquet hall rent), yaha PUURI amount daalo — ye C-Wing ke apne Cash/Bank/Collected me bilkul nahi jaati, sirf iska 1/4 hissa "KIRAN 3 Common Balance" me add ho jata hai. Kisi flat se related nahi hai.</p>
       <div class="form-row">
         <div class="field"><label>Date</label><input id="k3_date" type="date"></div>
         <div class="field"><label>Amount</label><input id="k3_amount" type="number"></div>
@@ -1402,7 +1393,7 @@ async function renderCollectionsTab(box){
       ${kiran3IncomeCache.length ? kiran3IncomeCache.map(k=>`<div class="flat-entry">
         <span style="flex:1 1 140px; min-width:0;">${k.remarks||''}</span>
         <span class="config-note" style="margin:0;">${k.mode||''}</span>
-        <span class="mono" style="font-weight:800; color:#15803D;">+${fmtMoney(k.amount)}</span>
+        <span class="mono" style="font-weight:800; color:#15803D;">+${fmtMoney(k.amount)} <span class="config-note" style="margin:0; font-weight:600;">(÷4 = ${fmtMoney(Number(k.amount||0)/4)})</span></span>
         <span class="config-note" style="margin:0;">${fmtDate(k.income_date)}</span>
         <span class="flat-actions"><button class="danger" onclick="deleteRow('kiran3_income','id',${k.id})" title="Delete">🗑️</button></span>
       </div>`).join('') : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
@@ -2435,17 +2426,18 @@ function buildStatementEntries(view){
   // reports money already accounted for elsewhere, not new cash out --
   // doesn't apply to the "kiran3" view itself, which wants it as a debit.
   const realExpenses = d.expenses.filter(e => e.category !== 'KIRAN 3 Society Expense');
-  const k3IncomeLabel = k => `🏢 KIRAN 3 Common Income${k.remarks?' — '+k.remarks:''}`;
+  // KIRAN 3 Common Income is money into the WHOLE 4-wing shared fund, not
+  // C-Wing's own -- it never appears in Total/Cash/Bank views. Only its
+  // 1/4 share appears, and only in the "kiran3" view below.
+  const k3IncomeLabel = k => `🏢 KIRAN 3 Common Income (÷4)${k.remarks?' — '+k.remarks:''}`;
   if(view === 'total'){
     d.collections.forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
       label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''}`}));
-    d.k3income.forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
     realExpenses.forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''}`}));
   } else if(view === 'cash'){
     d.collections.filter(c=>isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
       label:`ફ્લેટ ${c.flat_no} — ${c.purpose||'Cash'}`}));
-    d.k3income.filter(k=>isCash(k.mode)).forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
     realExpenses.filter(e=>isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''}`}));
     d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:false,
@@ -2453,7 +2445,6 @@ function buildStatementEntries(view){
   } else if(view === 'bank'){
     d.collections.filter(c=>!isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
       label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''} (${c.mode||''})`}));
-    d.k3income.filter(k=>!isCash(k.mode)).forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:`${k3IncomeLabel(k)} (${k.mode||''})`}));
     realExpenses.filter(e=>!isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''} (${e.mode||''})`}));
     d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:true,
@@ -2461,7 +2452,7 @@ function buildStatementEntries(view){
   } else if(view === 'kiran3'){
     d.expenses.filter(e=>e.category==='KIRAN 3 Society Advance').forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:1, amount:Number(e.amount||0), credit:true,
       label:`C-Wing એ Advance આપ્યું${e.description?' — '+e.description:''}`}));
-    d.k3income.forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:2, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
+    d.k3income.forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:2, amount:Number(k.amount||0)/4, credit:true, label:k3IncomeLabel(k)}));
     d.expenses.filter(e=>e.category==='KIRAN 3 Society Expense').forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:3, amount:Number(e.amount||0), credit:false,
       label:`Common Fund માંથી ખર્ચ${e.description?' — '+e.description:''}`}));
   }
