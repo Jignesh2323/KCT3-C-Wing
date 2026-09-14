@@ -2478,11 +2478,37 @@ const APP_GUIDE_SECTIONS = [
       <text x="20" y="228" font-size="11" fill="var(--ink-soft)" font-style="italic" font-family="system-ui, sans-serif">... (list newest-first ચાલુ રહે છે, ↑ ઉપરની row સૌથી નવી)</text>
     </svg>
 
-    <p style="margin:16px 0 4px; font-weight:700;">5️⃣ યાદ રાખવા જેવું</p>
+    <p style="margin:16px 0 6px; font-weight:700;">5️⃣ હર મહિને (register update આવે ત્યારે) શું કરવું?</p>
+    <p class="config-note" style="margin:0 0 8px;">દર વખતે register ની કોઈ પણ entry (income કે expense) આવે, ત્યારે નીચેના ટેબલ પ્રમાણે — <b>ક્યાં, કેટલી રકમ, અને શા માટે</b> — નક્કી કરો:</p>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; margin:0;">
+      <thead><tr><th>ઘટના (Event)</th><th>Expenses Tab</th><th>Collections Tab → KIRAN 3 Common Fund</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>C-Wing એ ખુદ ફાળો આપ્યો<br><span class="config-note" style="margin:0;">(દા.ત. મહિનાનું ₹50,000/₹75,000)</span></td>
+          <td>✅ "<b>KIRAN 3 Society Advance</b>" — C-Wing એ <b>ખુદ જેટલું આપ્યું એટલું જ</b> (દા.ત. ₹75,000)</td>
+          <td>✅ <b>Income</b> — <b>ચારેય વિંગ ભેગાનો પૂરો</b> ટોટલ (દા.ત. ₹3,00,000)</td>
+        </tr>
+        <tr>
+          <td>Common Fund માંથી ખર્ચ થયો<br><span class="config-note" style="margin:0;">(વોચમેન/સફાઈ/બગીચો/લાઈટ બિલ)</span></td>
+          <td>✅ "<b>KIRAN 3 Society Expense</b>" — C-Wing નો <b>1/4 હિસ્સો</b> (÷4) (દા.ત. ₹56,765)</td>
+          <td>✅ <b>Expense</b> — <b>ચારેય વિંગ ભેગી પૂરી</b> રકમ (દા.ત. ₹2,27,060)</td>
+        </tr>
+        <tr>
+          <td>બીજી કોઈ income આવી<br><span class="config-note" style="margin:0;">(દા.ત. Banquet Hall ભાડું — C-Wing ને સીધું કંઈ ના મળે)</span></td>
+          <td>❌ કંઈ નહીં</td>
+          <td>✅ <b>Income</b> — પૂરી રકમ (દા.ત. ₹47,300)</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="config-note" style="margin:8px 0 0;">💡 યાદ રાખો: <b>Expenses tab</b> માં હંમેશા C-Wing નો <b>પોતાનો ભાગ</b> (÷4) જાય — એ Builder Receipt/Common Expense Split માટે જરૂરી છે. <b>Collections tab</b> માં હંમેશા <b>ચારેય વિંગ ભેગી પૂરી</b> રકમ જાય — એ KIRAN 3 Common Balance માટે જરૂરી છે. બે અલગ નંબર, બે અલગ કારણ.</p>
+
+    <p style="margin:16px 0 4px; font-weight:700;">6️⃣ યાદ રાખવા જેવું</p>
     <ul class="config-note" style="margin:0; padding-left:18px;">
-      <li>આ entries C-Wing ના પોતાના <b>Cash in Hand / Bank Balance / Total Balance</b> ને બિલકુલ અસર નથી કરતી — સાવ અલગ હિસાબ છે.</li>
+      <li>KIRAN 3 Common Fund ની entries C-Wing ના પોતાના <b>Cash in Hand / Bank Balance / Total Balance</b> ને બિલકુલ અસર નથી કરતી — સાવ અલગ હિસાબ છે.</li>
       <li>ભૂલથી ખોટી entry પડી ગઈ હોય તો <b>✏️ Edit</b> બટનથી સુધારી શકાય છે (નવી entry બનાવવાની જરૂર નથી).</li>
-      <li>"KIRAN 3 Society Advance" / "KIRAN 3 Society Expense" (Expenses tab) — આ અલગ વસ્તુ છે: એ ફક્ત C-Wing એ ફંડને પોતે શું આપ્યું/શેનો ઉપયોગ કર્યો એનો રેકોર્ડ છે, આ ÷4 ગણતરીમાં ભાગ નથી લેતું.</li>
+      <li>"KIRAN 3 Society Advance" / "KIRAN 3 Society Expense" (Expenses tab) — આ KIRAN 3 Common Balance ની ÷4 ગણતરીમાં ભાગ નથી લેતું, પણ Builder Receipt/Common Expense Split માટે હજી પણ જરૂરી છે — એટલે એ entries બંધ ના કરવી.</li>
     </ul>`},
   { id:'exp', icon:'📤', title:'Expenses', body:`
     <p class="config-note" style="margin:0 0 6px;">સોસાયટીના ખર્ચા નોંધવા, બિલ ફોટો સાથે.</p>
