@@ -1516,9 +1516,10 @@ function collectionsRowsHtml(list, k3list){
 function filterCollectionsTable(){
   const purpose = document.getElementById('coll_purpose_filter').value;
   const list = purpose ? collectionsCache.filter(c=>c.purpose===purpose) : collectionsCache;
-  // KIRAN 3 Common Income has no purpose -- only show it in the
-  // unfiltered ("All") view, same reasoning as the round filter itself.
-  document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list, purpose ? [] : kiran3IncomeCache);
+  // KIRAN 3 Common Fund entries have no purpose/round, but should stay
+  // visible regardless of which round is filtered -- they're not part
+  // of the per-flat filtering at all.
+  document.getElementById('collections-tbody').innerHTML = collectionsRowsHtml(list, kiran3IncomeCache);
   renderPendingFlatsForRound();
 }
 function renderPendingFlatsForRound(){
