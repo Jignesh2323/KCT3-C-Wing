@@ -2315,6 +2315,23 @@ async function renderSettingsTab(box){
   serviceContactsCache = contacts || [];
   kiran3LogCache = k3log || [];
   const kiran3Current = kiran3LogCache[0] || null;
+  // Same before-→after passbook style as the Statement tab's "KIRAN 3"
+  // view: walk the log oldest-to-newest to compute each entry's
+  // before/after balance, then show newest-first.
+  const kiran3LogWithBalances = (() => {
+    const asc = [...kiran3LogCache].sort((a,b)=>{
+      if(a.log_date !== b.log_date) return a.log_date < b.log_date ? -1 : 1;
+      return a.id - b.id;
+    });
+    let prev = 0;
+    const out = asc.map(k=>{
+      const balance = Number(k.balance||0);
+      const entry = {...k, balanceBefore:prev, balanceAfter:balance, amount:Math.abs(balance-prev), credit:balance>=prev};
+      prev = balance;
+      return entry;
+    });
+    return out.reverse();
+  })();
   box.innerHTML = `
     <div class="card">
       <h3>🎨 Theme</h3>
@@ -2394,12 +2411,17 @@ async function renderSettingsTab(box){
         <div class="field"><label>Note</label><input id="k3log_note" placeholder="e.g. Aug 2026 register: 1,61,210 / 4 wings"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addKiran3BalanceLog()">Update</button></div>
       </div>`}
-      ${kiran3LogCache.length ? `<div style="margin-top:10px;">
-        ${kiran3LogCache.map(k=>`<div class="flat-entry">
-          <span style="flex:1 1 140px; min-width:0;">${k.note||''}</span>
-          <span class="mono" style="font-weight:800;">${fmtMoney(k.balance)}</span>
-          <span class="config-note" style="margin:0;">${fmtDate(k.log_date)}</span>
-          ${unlocked ? `<span class="flat-actions"><button class="danger" onclick="deleteRow('kiran3_balance_log','id',${k.id})" title="Delete">🗑️</button></span>` : ''}
+      ${kiran3LogWithBalances.length ? `<div style="margin-top:10px;">
+        ${kiran3LogWithBalances.map(k=>`<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:4px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="flex:1 1 140px; min-width:0; font-weight:600;">${k.note||'KIRAN 3 Common Balance update'}</span>
+            <span class="mono" style="font-weight:800; font-size:15px; color:${k.credit?'#15803D':'var(--danger)'};">${k.credit?'+':'−'}${fmtMoney(k.amount)}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span class="config-note" style="margin:0;">${fmtDate(k.log_date)}</span>
+            <span class="config-note" style="margin:0; margin-left:auto;">${fmtMoney(k.balanceBefore)} → <b style="color:var(--ink);">${fmtMoney(k.balanceAfter)}</b></span>
+            ${unlocked ? `<button class="danger" onclick="deleteRow('kiran3_balance_log','id',${k.id})" title="Delete">🗑️</button>` : ''}
+          </div>
         </div>`).join('')}
       </div>` : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
     </div>
