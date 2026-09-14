@@ -511,14 +511,6 @@ function flatBadgeColor(flatNo){
 const COMMON_EXPENSE_CATEGORIES = ['Security','Housekeeping','Electricity','Water','Lift Maintenance','Repair & Maintenance','Gardening','Pest Control','Admin/Stationery','KIRAN 3 Society Expense'];
 const TOTAL_FLATS_FIXED = 52;
 const BUILDER_WHATSAPP_NUMBER = "9825651157";
-// A "collection" from another Wing / outside source into the shared KIRAN 3
-// Common fund -- it lands in C-Wing's own Cash/Bank (so it's a real
-// collections row, counted normally), but isn't tied to any C-Wing flat.
-// flat_no 0 is a reserved sentinel (no real flat is ever numbered 0) so it
-// flows through Cash/Bank totals like any collection while staying inert
-// for every per-flat view (Dues Summary, WhatsApp, etc.).
-const KIRAN3_INCOME_PURPOSE = 'KIRAN 3 Common Income';
-const KIRAN3_INCOME_FLAT_NO = 0;
 function getPrevMonthYear(){
   // last calendar month relative to today, e.g. Aug 2026 -> {month:7, year:2026}
   const now = new Date();
@@ -1039,13 +1031,14 @@ async function renderTabContent(){
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}] = await Promise.all([
+  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3income}] = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
     sb.from('v_expense_by_category').select('*'),
     sb.from('fund_transfers').select('amount'),
     sb.from('expenses').select('amount, mode, category'),
-    sb.from('collections').select('amount, mode, purpose'),
+    sb.from('collections').select('amount, mode'),
     sb.from('service_contacts').select('*').order('sort_order').order('id'),
+    sb.from('kiran3_income').select('amount, mode'),
   ]);
   // "KIRAN 3 Society Expense" entries report how much of an already-given
   // "KIRAN 3 Society Advance" was actually consumed - they are NOT new
@@ -1059,6 +1052,13 @@ async function renderDashboardTab(box){
     const m = c.mode || 'Other';
     if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
     modeMap[m].collected += Number(c.amount||0);
+  });
+  // KIRAN 3 Common Income (another Wing/outside source) really does land in
+  // C-Wing's own Cash/Bank, so it counts toward "collected" here too.
+  (k3income||[]).forEach(k=>{
+    const m = k.mode || 'Other';
+    if(!modeMap[m]) modeMap[m] = {mode:m, collected:0, spent:0};
+    modeMap[m].collected += Number(k.amount||0);
   });
   realExpenses.forEach(e=>{
     const m = e.mode || 'Other';
@@ -1074,9 +1074,9 @@ async function renderDashboardTab(box){
   const kiran3Advance = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Advance').reduce((s,e)=>s+Number(e.amount||0),0);
   const kiran3Expense = (allExpenses||[]).filter(e=>e.category==='KIRAN 3 Society Expense').reduce((s,e)=>s+Number(e.amount||0),0);
   // Money another Wing/outside source puts into the shared KIRAN 3 fund --
-  // recorded as a normal collection (it really does land in C-Wing's own
-  // Cash/Bank, already counted above), so it's a credit here too.
-  const kiran3OtherIncome = (allCollections||[]).filter(c=>c.purpose===KIRAN3_INCOME_PURPOSE).reduce((s,c)=>s+Number(c.amount||0),0);
+  // it really does land in C-Wing's own Cash/Bank (already counted above
+  // via k3income), so it's a credit here too.
+  const kiran3OtherIncome = (k3income||[]).reduce((s,k)=>s+Number(k.amount||0),0);
   const kiran3Balance = kiran3Advance + kiran3OtherIncome - kiran3Expense;
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
@@ -1269,17 +1269,20 @@ let chargesCache = [];
 let flatsListCache = [];
 let pendingFlatsByRoundCache = {};
 let unsoldFlatNoSetCache = new Set();
+let kiran3IncomeCache = [];
 async function renderCollectionsTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}] = await Promise.all([
+  const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}, {data:k3income}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
     sb.from('charges').select('round_name, amount_per_flat, applies_to'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
     sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').gt('pending_amount', 0),
     sb.from('v_flats').select('flat_no, status'),
+    sb.from('kiran3_income').select('*').order('income_date',{ascending:false}).order('id',{ascending:false}),
     loadWaSentCache(),
   ]);
   collectionsCache = data || [];
+  kiran3IncomeCache = k3income || [];
   chargesCache = charges || [];
   flatsListCache = flats || [];
   pendingFlatsByRoundCache = {};
@@ -1392,6 +1395,13 @@ async function renderCollectionsTab(box){
         <div class="field"><label>Remarks (kis wing/source se)</label><input id="k3_remarks" placeholder="e.g. A-Wing se"></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addKiran3CommonIncome()">Add</button></div>
       </div>
+      ${kiran3IncomeCache.length ? kiran3IncomeCache.map(k=>`<div class="flat-entry">
+        <span style="flex:1 1 140px; min-width:0;">${k.remarks||''}</span>
+        <span class="config-note" style="margin:0;">${k.mode||''}</span>
+        <span class="mono" style="font-weight:800; color:#15803D;">+${fmtMoney(k.amount)}</span>
+        <span class="config-note" style="margin:0;">${fmtDate(k.income_date)}</span>
+        <span class="flat-actions"><button class="danger" onclick="deleteRow('kiran3_income','id',${k.id})" title="Delete">🗑️</button></span>
+      </div>`).join('') : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
       </div>
     </div>`}
     <div class="card">
@@ -1449,18 +1459,16 @@ async function updateBulkBuilderTotal(){
 function collectionsRowsHtml(list){
   return (list||[]).map(c=>{
     const pc = purposeColor(c.purpose);
-    const isKiran3Income = c.flat_no === KIRAN3_INCOME_FLAT_NO;
     const msg = `🙏 નમસ્તે ${c.flats?.owner_name||''},\n\nઆપનું *Flat ${c.flat_no}* નું પેમેન્ટ સફળતાપૂર્વક સ્વીકારવામાં આવ્યું છે ✅\n\n💰 રકમ: ${fmtMoney(c.amount)} (${c.mode})\n🧾 હેતુ: "${c.purpose||''}"\n📅 તારીખ: ${fmtDate(c.collection_date)}\n\nઆપના સમયસર સહયોગ બદલ હાર્દિક આભાર 🙏🏻\n\n🏢 *C-Wing Society Maintenance*`;
-    // Unsold flats belong to the builder, and KIRAN 3 Common Income isn't
-    // tied to any flat at all -- no "your payment was received" WhatsApp
-    // (addressed to an owner by name) makes sense for either.
-    const link = (isKiran3Income || unsoldFlatNoSetCache.has(c.flat_no)) ? null : waLink(c.flats?.contact_no, msg);
+    // Unsold flats belong to the builder, not a resident -- no
+    // "your payment was received" WhatsApp for those entries.
+    const link = unsoldFlatNoSetCache.has(c.flat_no) ? null : waLink(c.flats?.contact_no, msg);
     const waKey = `collection:${c.id}`;
     const pillId = `coll-wa-${c.id}`;
     return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <span class="pill flat-chip" style="background:${isKiran3Income?'#0369A1':flatBadgeColor(c.flat_no)}">${isKiran3Income?'🏢 K3':c.flat_no}</span>
-          <span class="owner-name" style="flex:1 1 100px; min-width:0;">${isKiran3Income?'KIRAN 3 Common Income':(c.flats?.owner_name||'')}</span>
+          <span class="pill flat-chip" style="background:${flatBadgeColor(c.flat_no)}">${c.flat_no}</span>
+          <span class="owner-name" style="flex:1 1 100px; min-width:0;">${c.flats?.owner_name||''}</span>
           <span class="mono" style="font-weight:800; font-size:16px; color:${pc};">${fmtMoney(c.amount)}</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
@@ -1596,14 +1604,12 @@ async function addKiran3CommonIncome(){
   if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
   await withPin(async ()=>{
     const payload = {
-      flat_no: KIRAN3_INCOME_FLAT_NO,
-      collection_date: document.getElementById('k3_date').value || new Date().toISOString().slice(0,10),
+      income_date: document.getElementById('k3_date').value || new Date().toISOString().slice(0,10),
       amount: amountVal,
       mode: document.getElementById('k3_mode').value,
-      purpose: KIRAN3_INCOME_PURPOSE,
       remarks: document.getElementById('k3_remarks').value || null,
     };
-    const {error} = await sb.from('collections').insert(payload);
+    const {error} = await sb.from('kiran3_income').insert(payload);
     if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
@@ -2400,22 +2406,21 @@ let statementDataCache = null;
 let statementView = 'total';
 async function renderStatementTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
-  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}] = await Promise.all([
-    sb.from('collections').select('id, amount, mode, collection_date, purpose, flat_no, remarks'),
+  const [{data:collections, error:e1}, {data:expenses, error:e2}, {data:transfers, error:e3}, {data:k3income, error:e4}] = await Promise.all([
+    sb.from('collections').select('id, amount, mode, collection_date, purpose, flat_no'),
     sb.from('expenses').select('id, amount, mode, expense_date, category, description'),
     sb.from('fund_transfers').select('id, amount, transfer_date, remarks'),
+    sb.from('kiran3_income').select('id, amount, mode, income_date, remarks'),
   ]);
-  const err = e1||e2||e3;
+  const err = e1||e2||e3||e4;
   if(err){ box.innerHTML = `<div class="card"><div class="msg error">${friendlyDbError(err)}</div></div>`; return; }
   statementDataCache = {
     collections: collections || [],
     expenses: expenses || [],
     transfers: transfers || [],
+    k3income: k3income || [],
   };
   renderStatementView(box);
-}
-function statementCollectionLabel(c){
-  return c.flat_no === KIRAN3_INCOME_FLAT_NO ? `🏢 KIRAN 3 Common Income${c.purpose && c.purpose!==KIRAN3_INCOME_PURPOSE?' — '+c.purpose:''}` : `ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''}`;
 }
 function buildStatementEntries(view){
   const d = statementDataCache;
@@ -2426,21 +2431,25 @@ function buildStatementEntries(view){
   // reports money already accounted for elsewhere, not new cash out --
   // doesn't apply to the "kiran3" view itself, which wants it as a debit.
   const realExpenses = d.expenses.filter(e => e.category !== 'KIRAN 3 Society Expense');
+  const k3IncomeLabel = k => `🏢 KIRAN 3 Common Income${k.remarks?' — '+k.remarks:''}`;
   if(view === 'total'){
     d.collections.forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
-      label:statementCollectionLabel(c)}));
+      label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''}`}));
+    d.k3income.forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
     realExpenses.forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''}`}));
   } else if(view === 'cash'){
     d.collections.filter(c=>isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
-      label:statementCollectionLabel(c)}));
+      label:`ફ્લેટ ${c.flat_no} — ${c.purpose||'Cash'}`}));
+    d.k3income.filter(k=>isCash(k.mode)).forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
     realExpenses.filter(e=>isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''}`}));
     d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:false,
       label:`🏦 Bank માં Transfer${t.remarks?' — '+t.remarks:''}`}));
   } else if(view === 'bank'){
     d.collections.filter(c=>!isCash(c.mode)).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:1, amount:Number(c.amount||0), credit:true,
-      label:`${statementCollectionLabel(c)} (${c.mode||''})`}));
+      label:`ફ્લેટ ${c.flat_no} — ${c.purpose||c.mode||''} (${c.mode||''})`}));
+    d.k3income.filter(k=>!isCash(k.mode)).forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:1, amount:Number(k.amount||0), credit:true, label:`${k3IncomeLabel(k)} (${k.mode||''})`}));
     realExpenses.filter(e=>!isCash(e.mode)).forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:2, amount:Number(e.amount||0), credit:false,
       label:`${e.category}${e.description?' — '+e.description:''} (${e.mode||''})`}));
     d.transfers.forEach(t => entries.push({date:t.transfer_date, id:t.id, typeRank:3, amount:Number(t.amount||0), credit:true,
@@ -2448,8 +2457,7 @@ function buildStatementEntries(view){
   } else if(view === 'kiran3'){
     d.expenses.filter(e=>e.category==='KIRAN 3 Society Advance').forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:1, amount:Number(e.amount||0), credit:true,
       label:`C-Wing એ Advance આપ્યું${e.description?' — '+e.description:''}`}));
-    d.collections.filter(c=>c.purpose===KIRAN3_INCOME_PURPOSE).forEach(c => entries.push({date:c.collection_date, id:c.id, typeRank:2, amount:Number(c.amount||0), credit:true,
-      label:`🏢 બીજી Wing/Source માંથી આવક${c.remarks?' — '+c.remarks:''}`}));
+    d.k3income.forEach(k => entries.push({date:k.income_date, id:k.id, typeRank:2, amount:Number(k.amount||0), credit:true, label:k3IncomeLabel(k)}));
     d.expenses.filter(e=>e.category==='KIRAN 3 Society Expense').forEach(e => entries.push({date:e.expense_date, id:e.id, typeRank:3, amount:Number(e.amount||0), credit:false,
       label:`Common Fund માંથી ખર્ચ${e.description?' — '+e.description:''}`}));
   }
