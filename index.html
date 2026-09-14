@@ -1269,7 +1269,12 @@ let flatsListCache = [];
 let pendingFlatsByRoundCache = {};
 let unsoldFlatNoSetCache = new Set();
 let kiran3IncomeCache = [];
+let editingKiran3Id = null;
 async function renderCollectionsTab(box){
+  // Fresh render always starts a clean "Add" form -- same fix as
+  // editingExpenseId elsewhere, so leaving an edit half-done and coming
+  // back doesn't silently overwrite a different entry.
+  editingKiran3Id = null;
   const unlocked = pinStillValid() && state.user;
   const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}, {data:k3income}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
@@ -1380,7 +1385,7 @@ async function renderCollectionsTab(box){
     </div>
     <div class="card">
       <div class="accordion-header" onclick="toggleAccordion('acc_coll_k3')">
-        <h3>🏢 KIRAN 3 Common Fund (poore Complex ka Income/Expense)</h3>
+        <h3 id="k3-form-title">🏢 KIRAN 3 Common Fund (poore Complex ka Income/Expense)</h3>
         <span class="accordion-caret" id="acc_coll_k3_caret">▾</span>
       </div>
       <div class="accordion-body" id="acc_coll_k3_body" style="display:none; margin-top:12px;">
@@ -1394,10 +1399,11 @@ async function renderCollectionsTab(box){
         <div class="field"><label>Mode</label>
           <select id="k3_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
         </div>
-        <div class="field"><label>Remarks</label><input id="k3_remarks" placeholder="e.g. 4 wings' August contribution @50,000 each"></div>
-        <div class="field" style="flex:0"><button class="primary" onclick="addKiran3CommonIncome()">Add</button></div>
+        <div class="field"><label>Remarks (Gujarati me bhi likh sakte ho)</label><input id="k3_remarks" placeholder="e.g. 4 wings' August contribution @50,000 each"></div>
+        <div class="field" style="flex:0"><button class="primary" id="k3_add_btn" onclick="addKiran3CommonIncome()">Add</button></div>
+        <div class="field" style="flex:0"><button id="k3_cancel_btn" onclick="resetKiran3Form()" hidden>Cancel</button></div>
       </div>
-      <p class="config-note" style="margin-top:10px">Add karne ke baad ye entry niche "🏢" chinh ke saath, baaki saari collections ke sath hi list me dikhegi.</p>
+      <p class="config-note" style="margin-top:10px">Add karne ke baad ye entry niche "🏢" chinh ke saath, baaki saari collections ke sath hi list me dikhegi. Edit karne ke liye us entry ke "✏️ Edit" button par dabao.</p>
       </div>
     </div>`}
     <div class="card">
@@ -1477,6 +1483,7 @@ function collectionsRowsHtml(list, k3list){
           <span class="config-note" style="margin:0;">${fmtDate(c.collection_date)}</span>
           <span class="config-note" style="margin:0; color:${isExp?'var(--danger)':'#6d28d9'}; font-weight:700;">${c.mode||''}</span>
           <span class="flat-actions" style="margin-left:auto;">
+            <button onclick="editKiran3Income(${c.id})" title="Edit">✏️ Edit</button>
             <button class="danger" onclick="deleteRow('kiran3_income','id',${c.id})" title="Delete">🗑️</button>
           </span>
         </div>
@@ -1641,9 +1648,41 @@ async function addKiran3CommonIncome(){
       mode: document.getElementById('k3_mode').value,
       remarks: document.getElementById('k3_remarks').value || null,
     };
-    const {error} = await sb.from('kiran3_income').insert(payload);
-    if(error) alert(friendlyDbError(error)); else refreshTab();
+    const {error} = editingKiran3Id
+      ? await sb.from('kiran3_income').update(payload).eq('id', editingKiran3Id)
+      : await sb.from('kiran3_income').insert(payload);
+    if(error) alert(friendlyDbError(error)); else { editingKiran3Id = null; refreshTab(); }
   });
+}
+function populateKiran3Form(id){
+  const k = kiran3IncomeCache.find(x=>x.id===id);
+  if(!k || !document.getElementById('k3_date')) return;
+  openAccordion('acc_coll_k3');
+  editingKiran3Id = id;
+  document.getElementById('k3_kind').value = k.kind || 'income';
+  document.getElementById('k3_date').value = k.income_date || '';
+  document.getElementById('k3_amount').value = k.amount ?? '';
+  document.getElementById('k3_mode').value = k.mode || 'Cash';
+  document.getElementById('k3_remarks').value = k.remarks || '';
+  document.getElementById('k3_add_btn').textContent = 'Update';
+  const cancelBtn = document.getElementById('k3_cancel_btn'); if(cancelBtn) cancelBtn.hidden = false;
+  document.getElementById('k3-form-title').textContent = '✏️ Editing KIRAN 3 Entry';
+  document.getElementById('k3_date').scrollIntoView({behavior:'smooth', block:'center'});
+}
+async function editKiran3Income(id){
+  await withPin(async ()=>{
+    if(!document.getElementById('k3_date')) await render();
+    populateKiran3Form(id);
+  });
+}
+function resetKiran3Form(){
+  editingKiran3Id = null;
+  ['k3_date','k3_amount','k3_remarks'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const kind = document.getElementById('k3_kind'); if(kind) kind.value = 'income';
+  const mode = document.getElementById('k3_mode'); if(mode) mode.value = 'Cash';
+  const btn = document.getElementById('k3_add_btn'); if(btn) btn.textContent = 'Add';
+  const cancelBtn = document.getElementById('k3_cancel_btn'); if(cancelBtn) cancelBtn.hidden = true;
+  const title = document.getElementById('k3-form-title'); if(title) title.textContent = '🏢 KIRAN 3 Common Fund (poore Complex ka Income/Expense)';
 }
 
 /* ---- Expenses tab ---- */
