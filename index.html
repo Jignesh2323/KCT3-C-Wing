@@ -1264,17 +1264,20 @@ let chargesCache = [];
 let flatsListCache = [];
 let pendingFlatsByRoundCache = {};
 let unsoldFlatNoSetCache = new Set();
+let kiran3IncomeCache = [];
 async function renderCollectionsTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}] = await Promise.all([
+  const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}, {data:k3income}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
     sb.from('charges').select('round_name, amount_per_flat, applies_to'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
     sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').gt('pending_amount', 0),
     sb.from('v_flats').select('flat_no, status'),
+    sb.from('kiran3_income').select('*').order('income_date',{ascending:false}).order('id',{ascending:false}),
     loadWaSentCache(),
   ]);
   collectionsCache = data || [];
+  kiran3IncomeCache = k3income || [];
   chargesCache = charges || [];
   flatsListCache = flats || [];
   pendingFlatsByRoundCache = {};
@@ -1369,6 +1372,31 @@ async function renderCollectionsTab(box){
         <div class="field" style="flex:0"><button class="primary" onclick="bulkBuilderPayment()">Add</button></div>
       </div>
       <p id="bb_calc_note" class="config-note" style="margin-top:-6px"></p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="accordion-header" onclick="toggleAccordion('acc_coll_k3')">
+        <h3>🏢 KIRAN 3 Common Income (bીજી Wing/Source માંથી)</h3>
+        <span class="accordion-caret" id="acc_coll_k3_caret">▾</span>
+      </div>
+      <div class="accordion-body" id="acc_coll_k3_body" style="display:none; margin-top:12px;">
+      <p class="config-note" style="margin-top:-6px">Jab poore KIRAN 3 complex (A+B+C+D) ke shared fund me koi income aaye (jaise banquet hall rent), sirf record/yaad rakhne ke liye yaha entry karo. Ye C-Wing ke apne Cash/Bank/Total Balance ya KIRAN 3 Common Balance — kisi ko bhi affect nahi karti; wo balance Settings tab se register reconcile karke alag se update hoti hai. Kisi flat se related nahi hai.</p>
+      <div class="form-row">
+        <div class="field"><label>Date</label><input id="k3_date" type="date"></div>
+        <div class="field"><label>Amount</label><input id="k3_amount" type="number"></div>
+        <div class="field"><label>Mode</label>
+          <select id="k3_mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select>
+        </div>
+        <div class="field"><label>Remarks (kis wing/source se)</label><input id="k3_remarks" placeholder="e.g. A-Wing se"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addKiran3CommonIncome()">Add</button></div>
+      </div>
+      ${kiran3IncomeCache.length ? kiran3IncomeCache.map(k=>`<div class="flat-entry">
+        <span style="flex:1 1 140px; min-width:0;">${k.remarks||''}</span>
+        <span class="config-note" style="margin:0;">${k.mode||''}</span>
+        <span class="mono" style="font-weight:800; color:#15803D;">+${fmtMoney(k.amount)}</span>
+        <span class="config-note" style="margin:0;">${fmtDate(k.income_date)}</span>
+        <span class="flat-actions"><button class="danger" onclick="deleteRow('kiran3_income','id',${k.id})" title="Delete">🗑️</button></span>
+      </div>`).join('') : `<p class="empty" style="margin-top:10px;">Koi entry nahi hai.</p>`}
       </div>
     </div>`}
     <div class="card">
@@ -1564,6 +1592,25 @@ async function bulkBuilderPayment(){
     const {error} = await sb.from('collections').insert(payload);
     if(error) alert(friendlyDbError(error));
     else { alert(`${targetFlats.length} collection entries add ho gayi.${skipped?` (${skipped} already-existing flat(s) skipped.)`:''}`); refreshTab(); }
+  });
+}
+// Pure record of income into the whole 4-wing shared fund -- kept only
+// for the secretary's own reference. It does NOT touch C-Wing's own
+// Cash/Bank/Total Balance, and does NOT feed into "KIRAN 3 Common
+// Balance" (that's a separately-reconciled figure, set from the
+// Settings tab against the physical register).
+async function addKiran3CommonIncome(){
+  const amount = Number(document.getElementById('k3_amount').value);
+  if(!amount || amount <= 0){ alert('Valid Amount daalo.'); return; }
+  await withPin(async ()=>{
+    const payload = {
+      income_date: document.getElementById('k3_date').value || new Date().toISOString().slice(0,10),
+      amount: amount,
+      mode: document.getElementById('k3_mode').value,
+      remarks: document.getElementById('k3_remarks').value || null,
+    };
+    const {error} = await sb.from('kiran3_income').insert(payload);
+    if(error) alert(friendlyDbError(error)); else refreshTab();
   });
 }
 
