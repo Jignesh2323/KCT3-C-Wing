@@ -1078,11 +1078,15 @@ async function renderDashboardTab(box){
   // via k3income), so it's a credit here too.
   const kiran3OtherIncome = (k3income||[]).reduce((s,k)=>s+Number(k.amount||0),0);
   const kiran3Balance = kiran3Advance + kiran3OtherIncome - kiran3Expense;
+  // v_dashboard_summary.total_collected only sums the collections table --
+  // computed client-side instead (same as Cash/Bank) so it also reflects
+  // KIRAN 3 Common Income, which is real money collected too.
+  const totalCollectedReal = (allCollections||[]).reduce((s,c)=>s+Number(c.amount||0),0) + kiran3OtherIncome;
   box.innerHTML = `
     <div class="card"><h3>Summary</h3>
       <div class="grid-stats" style="margin-bottom:10px;">
         <div class="stat stat-neutral"><div class="num mono">${fmtMoney(cashInHand + bankBalance)}</div><div class="lbl"><span class="lbl-icon">⚖️</span>Total Balance</div></div>
-        ${unlocked ? `<div class="stat stat-good"><div class="num mono">${fmtMoney(s?.total_collected)}</div><div class="lbl"><span class="lbl-icon">📥</span>Collected</div></div>
+        ${unlocked ? `<div class="stat stat-good"><div class="num mono">${fmtMoney(totalCollectedReal)}</div><div class="lbl"><span class="lbl-icon">📥</span>Collected</div></div>
         <div class="stat stat-bad"><div class="num mono">${fmtMoney(totalExpenseReal)}</div><div class="lbl"><span class="lbl-icon">📤</span>Expense</div></div>` : ''}
         <div class="stat stat-cash"><div class="num mono">${fmtMoney(cashInHand)}</div><div class="lbl"><span class="lbl-icon">💵</span>Cash in Hand</div></div>
         <div class="stat stat-bank"><div class="num mono">${fmtMoney(bankBalance)}</div><div class="lbl"><span class="lbl-icon">🏦</span>Bank Balance</div></div>
