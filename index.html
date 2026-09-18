@@ -337,7 +337,17 @@ const SUPABASE_URL = "https://deyetzwxatogmdmjacvo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRleWV0end4YXRvZ21kbWphY3ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0MDUzNjcsImV4cCI6MjA5ODk4MTM2N30.wbdWs_Y0YvFOsQWjjodqPRuWS1H1Dx57jjb8GQtrkA0";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function fmtMoney(n){ n = Number(n||0); return '₹' + n.toLocaleString('en-IN'); }
+/* Rupee amounts settle to the paisa, never to a fraction of one, so every
+   derived figure (per-flat splits especially) is rounded to 2 decimals
+   before it gets stored, compared or displayed. */
+function roundPaisa(n){ return Math.round(Number(n||0) * 100) / 100; }
+function fmtMoney(n){
+  const r = roundPaisa(n);
+  // Whole rupees stay clean ("₹65,000"), but anything with paise shows both
+  // digits ("₹946.44", "₹40,302.50") instead of toLocaleString's default
+  // 3-digit, trailing-zero-trimmed output ("₹946.442", "₹40,302.5").
+  return '₹' + r.toLocaleString('en-IN', Number.isInteger(r) ? {} : {minimumFractionDigits:2, maximumFractionDigits:2});
+}
 /* Turns a raw Postgres/PostgREST error into a plain-language sentence a
    non-technical secretary can actually act on, instead of constraint
    names and RLS policy text. Falls back to the original message for
@@ -584,7 +594,11 @@ async function renderCommonExpenseSplit(){
     return;
   }
   const total = (exp||[]).reduce((sum,e)=>sum+Number(e.amount||0),0);
-  const perFlat = total / TOTAL_FLATS_FIXED;
+  // Rounded to the paisa here rather than only at display time, because this
+  // same figure is what gets frozen into the Charges round as amount_per_flat
+  // — which Postgres stores at 2 decimals anyway. Keeping JS and the DB on the
+  // exact same number stops the displayed rate and the billed rate drifting.
+  const perFlat = roundPaisa(total / TOTAL_FLATS_FIXED);
   // If a round already exists for this month, refresh its stored rate to
   // match the live total (see syncBuilderRoundRate) before reading dues,
   // so a just-added/edited expense is reflected immediately below.
@@ -592,8 +606,12 @@ async function renderCommonExpenseSplit(){
   const {data:dues} = await sb.from('v_dues_summary').select('pending_amount').eq('round_name', roundName);
   const soldCount = (flats||[]).filter(f=>f.status==='Sold').length;
   const unsoldCount = (flats||[]).filter(f=>f.status==='Unsold').length;
-  const soldTotal = perFlat * soldCount;
-  const grossUnsoldTotal = perFlat * unsoldCount;
+  const grossUnsoldTotal = roundPaisa(perFlat * unsoldCount);
+  // Sold flats carry whatever is left over, so Sold Total + Unsold Total adds
+  // back up to Month Total exactly. Multiplying both sides by a 2-decimal rate
+  // instead would leave a stray paisa or two unaccounted for, since 52 × a
+  // rounded per-flat rate rarely lands on the month's total on the nose.
+  const soldTotal = total - grossUnsoldTotal;
   // Once a "Builder Receipt" has been generated for this month (which
   // creates a matching Charges round), the Unsold total here switches to
   // whatever is still PENDING under that round — so it drops as soon as
@@ -2853,7 +2871,9 @@ async function getBuilderReceiptData(){
     sb.from('charges').select('*').like('round_name','Builder Maintenance - %').order('date_started',{ascending:false}),
   ]);
   const monthTotal = (exp||[]).reduce((s,e)=>s+Number(e.amount||0),0);
-  const perFlat = monthTotal / TOTAL_FLATS_FIXED;
+  // Same paisa rounding as the Dashboard's split card, so the rate this tab
+  // freezes into the Charges round is the exact number both screens show.
+  const perFlat = roundPaisa(monthTotal / TOTAL_FLATS_FIXED);
   const unsoldCount = (unsoldFlats||[]).length;
 
   let rounds = allRounds || [];
