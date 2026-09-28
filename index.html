@@ -2531,7 +2531,30 @@ const APP_GUIDE_SECTIONS = [
   { id:'exp', icon:'📤', title:'Expenses', body:`
     <p class="config-note" style="margin:0 0 6px;">સોસાયટીના ખર્ચા નોંધવા, બિલ ફોટો સાથે.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Expense</b>: Date, Category, Description, Amount, Paid To, Mode, Bill Photos (એક કરતાં વધુ પસંદ કરી શકાય).</p>
-    <p class="config-note" style="margin:0 0 6px;">Category: Flat Expense, Security, Housekeeping, Electricity, Water, Lift Maintenance, Repair &amp; Maintenance, Gardening, Pest Control, Admin/Stationery, Event, Festival, KIRAN 3 Society Advance, KIRAN 3 Society Expense.</p>
+    <p class="config-note" style="margin:8px 0 4px;"><b>Category — કોના ખાતે જાય?</b> (Monthly Common Expense Split અને Builder Receipt આના પરથી નક્કી થાય છે)</p>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; margin:0;">
+      <thead><tr><th>Category</th><th>કોના પર</th><th>Builder ને bill?</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Security, Housekeeping, Electricity, Water, Lift Maintenance, Repair &amp; Maintenance, Gardening, Pest Control, Admin/Stationery, KIRAN 3 Society Expense</td>
+          <td>✅ <b>બધા 52 ફ્લેટ</b> — Split માં ÷52 થાય. Sold ફ્લેટનો ભાગ members ભરે, Unsold ફ્લેટનો ભાગ Builder ભરે.</td>
+          <td>✅ હા — Builder Receipt માં આવે</td>
+        </tr>
+        <tr>
+          <td>Flat Expense, Event, Festival</td>
+          <td>✅ <b>ફક્ત Sold ફ્લેટ (members)</b> — Split માં ગણાતું જ નથી.</td>
+          <td>❌ ના — Builder Receipt માં નથી આવતું</td>
+        </tr>
+        <tr>
+          <td>KIRAN 3 Society Advance</td>
+          <td>અલગ — KIRAN 3 ને આપેલા <b>advance</b> નો રેકોર્ડ. Split માં નથી (ઉપર Collections → KIRAN 3 વિભાગ જુઓ).</td>
+          <td>❌ ના</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="config-note" style="margin:6px 0 6px;">💡 જે ખર્ચો ફક્ત members નો હોય અને Builder પાસેથી ના લેવાનો હોય → <b>Flat Expense</b> પસંદ કરો. યાદ રાખો: એનાથી ખર્ચો ફક્ત <b>નોંધાય</b> છે — members પાસેથી <b>વસૂલવો</b> હોય તો Charges માં અલગ round બનાવો (Applies To: <b>Sold Flats Only</b>).</p>
     <p class="config-note" style="margin:0;">🔒 ફોર્મ ફક્ત Unlock પછી; List બધાને દેખાય.</p>`},
   { id:'statement', icon:'📒', title:'Statement', body:`
     <p class="config-note" style="margin:0 0 6px;">બેંક પાસબુક જેવું — 💵 Cash, 🏦 Bank, 🏢 KIRAN 3 — ત્રણ views. દરેક એન્ટ્રી પહેલા/પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
