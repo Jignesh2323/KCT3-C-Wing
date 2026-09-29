@@ -39,6 +39,13 @@
   --warning:#B45309;
   --info:#0369A1;
   --maroon-glow:rgba(79,70,229,.28);
+  /* accent family: soft = pale wash behind active nav/pills/carets,
+     deep/tint = the two outer stops of the hero gradient. Every
+     accent colour (Settings > Theme) redefines these six --maroon*
+     vars via [data-accent], so nothing else needs to know the hue. */
+  --maroon-soft:#EEF2FF;
+  --maroon-deep:#3730A3;
+  --maroon-tint:#7C3AED;
   --radius:18px;
   --radius-sm:12px;
   --shadow:0 1px 2px rgba(20,22,43,.04), 0 8px 24px rgba(20,22,43,.07);
@@ -59,15 +66,36 @@
   --warning:#FBBF24;
   --info:#38BDF8;
   --maroon-glow:rgba(139,133,255,.35);
+  --maroon-soft:#232349;
+  --maroon-deep:#3730A3;
+  --maroon-tint:#7C3AED;
   --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
   --shadow-lg:0 4px 10px rgba(0,0,0,.35), 0 16px 40px rgba(0,0,0,.5);
 }
+/* Accent colours (Settings > Theme > Rang). No attribute = Indigo, the
+   values in :root above. Each accent has a light set and a dark set;
+   the [data-accent][data-theme="dark"] rule outranks the plain dark
+   :root rule, so switching Light/Dark keeps the chosen hue. */
+:root[data-accent="maroon"]{--maroon:#9F1239; --maroon-dark:#881337; --maroon-glow:rgba(159,18,57,.28); --maroon-soft:#FFF1F2; --maroon-deep:#7F1D1D; --maroon-tint:#E11D48;}
+:root[data-accent="maroon"][data-theme="dark"]{--maroon:#FB7185; --maroon-dark:#FDA4AF; --maroon-glow:rgba(251,113,133,.35); --maroon-soft:#3B1220; --maroon-deep:#7F1D1D; --maroon-tint:#BE123C;}
+:root[data-accent="green"]{--maroon:#15803D; --maroon-dark:#166534; --maroon-glow:rgba(21,128,61,.28); --maroon-soft:#ECFDF5; --maroon-deep:#14532D; --maroon-tint:#22C55E;}
+:root[data-accent="green"][data-theme="dark"]{--maroon:#4ADE80; --maroon-dark:#86EFAC; --maroon-glow:rgba(74,222,128,.35); --maroon-soft:#0F2E22; --maroon-deep:#14532D; --maroon-tint:#16A34A;}
+:root[data-accent="teal"]{--maroon:#0F766E; --maroon-dark:#115E59; --maroon-glow:rgba(15,118,110,.28); --maroon-soft:#F0FDFA; --maroon-deep:#134E4A; --maroon-tint:#14B8A6;}
+:root[data-accent="teal"][data-theme="dark"]{--maroon:#2DD4BF; --maroon-dark:#5EEAD4; --maroon-glow:rgba(45,212,191,.35); --maroon-soft:#0E2E33; --maroon-deep:#134E4A; --maroon-tint:#0D9488;}
+:root[data-accent="blue"]{--maroon:#1D4ED8; --maroon-dark:#1E40AF; --maroon-glow:rgba(29,78,216,.28); --maroon-soft:#EFF6FF; --maroon-deep:#1E3A8A; --maroon-tint:#3B82F6;}
+:root[data-accent="blue"][data-theme="dark"]{--maroon:#60A5FA; --maroon-dark:#93C5FD; --maroon-glow:rgba(96,165,250,.35); --maroon-soft:#0E2438; --maroon-deep:#1E3A8A; --maroon-tint:#2563EB;}
+:root[data-accent="orange"]{--maroon:#C2410C; --maroon-dark:#9A3412; --maroon-glow:rgba(194,65,12,.28); --maroon-soft:#FFF7ED; --maroon-deep:#7C2D12; --maroon-tint:#F97316;}
+:root[data-accent="orange"][data-theme="dark"]{--maroon:#FB923C; --maroon-dark:#FDBA74; --maroon-glow:rgba(251,146,60,.35); --maroon-soft:#3A2A0E; --maroon-deep:#7C2D12; --maroon-tint:#EA580C;}
+:root[data-accent="pink"]{--maroon:#BE185D; --maroon-dark:#9D174D; --maroon-glow:rgba(190,24,93,.28); --maroon-soft:#FDF2F8; --maroon-deep:#831843; --maroon-tint:#EC4899;}
+:root[data-accent="pink"][data-theme="dark"]{--maroon:#F472B6; --maroon-dark:#F9A8D4; --maroon-glow:rgba(244,114,182,.35); --maroon-soft:#3B1220; --maroon-deep:#831843; --maroon-tint:#DB2777;}
+:root[data-accent="purple"]{--maroon:#7E22CE; --maroon-dark:#6B21A8; --maroon-glow:rgba(126,34,206,.28); --maroon-soft:#FAF5FF; --maroon-deep:#581C87; --maroon-tint:#A855F7;}
+:root[data-accent="purple"][data-theme="dark"]{--maroon:#C084FC; --maroon-dark:#D8B4FE; --maroon-glow:rgba(192,132,252,.35); --maroon-soft:#2E1A47; --maroon-deep:#581C87; --maroon-tint:#9333EA;}
 :root[data-theme="dark"] .stat-good{background:#0F2E22;}
 :root[data-theme="dark"] .stat-good .num{color:#34D399;}
 :root[data-theme="dark"] .stat-bad{background:#3A1414;}
 :root[data-theme="dark"] .stat-bad .num{color:#F87171;}
-:root[data-theme="dark"] .stat-neutral{background:#232349;}
-:root[data-theme="dark"] .stat-neutral .num{color:#A5A0FF;}
+:root[data-theme="dark"] .stat-neutral{background:var(--maroon-soft);}
+:root[data-theme="dark"] .stat-neutral .num{color:var(--maroon-dark);}
 :root[data-theme="dark"] .stat-info{background:#0E2A3A;}
 :root[data-theme="dark"] .stat-info .num{color:#38BDF8;}
 :root[data-theme="dark"] .stat-warning{background:#3A2A0E;}
@@ -102,11 +130,11 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif; font-weight:700; margin:0 0 .3e
 .hero-banner{
   position:relative;
   margin:-16px -16px 24px;
-  background:linear-gradient(135deg, #3730A3 0%, var(--maroon) 55%, #7C3AED 100%);
+  background:linear-gradient(135deg, var(--maroon-deep) 0%, var(--maroon) 55%, var(--maroon-tint) 100%);
   display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;
   padding:22px 20px 26px;
   border-radius:0 0 26px 26px;
-  box-shadow:0 14px 34px -10px rgba(55,48,163,.5);
+  box-shadow:0 14px 34px -10px var(--maroon-glow);
   overflow:hidden;
 }
 .hero-banner::before{
@@ -145,7 +173,7 @@ input, select, textarea{
   font-family:'Inter',sans-serif; font-size:15px; padding:11px 13px; min-height:44px;
   border:1.5px solid var(--rule); border-radius:var(--radius-sm); background:var(--white-card); color:var(--ink);
 }
-input:focus, select:focus, textarea:focus{outline:none; border-color:var(--maroon); box-shadow:0 0 0 3px rgba(79,70,229,.14);}
+input:focus, select:focus, textarea:focus{outline:none; border-color:var(--maroon); box-shadow:0 0 0 3px var(--maroon-soft);}
 label{font-size:12px; color:var(--ink-soft); display:block; margin-bottom:6px; font-weight:600; letter-spacing:.01em;}
 .field{margin-bottom:12px;}
 .card{
@@ -160,7 +188,7 @@ label{font-size:12px; color:var(--ink-soft); display:block; margin-bottom:6px; f
 .lbl-icon{font-size:17px; margin-right:5px; vertical-align:-3px; display:inline-block;}
 .stat-good{background:#ECFDF3;} .stat-good .num{color:#15803D;}
 .stat-bad{background:#FEF2F2;} .stat-bad .num{color:#B91C1C;}
-.stat-neutral{background:#EEF2FF;} .stat-neutral .num{color:#3730A3;}
+.stat-neutral{background:var(--maroon-soft);} .stat-neutral .num{color:var(--maroon-dark);}
 .stat-info{background:#F0F9FF;} .stat-info .num{color:#0369A1;}
 .stat-warning{background:#FFFBEB;} .stat-warning .num{color:#B45309;}
 .stat-two{background:#ECFEFF;} .stat-two .num{color:#0E7490;}
@@ -237,7 +265,7 @@ tr:hover td{background:var(--paper-dark);}
 }
 .nav-item .nav-label{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;}
 .nav-item.active{color:var(--maroon);}
-.nav-item.active .nav-icon{background:#EEF2FF; transform:translateY(-1px);}
+.nav-item.active .nav-icon{background:var(--maroon-soft); transform:translateY(-1px);}
 .nav-more{position:relative;}
 .more-menu{
   position:absolute; bottom:calc(100% + 12px); right:-6px; min-width:190px;
@@ -253,7 +281,7 @@ tr:hover td{background:var(--paper-dark);}
 }
 .more-menu-item .nav-icon{font-size:16px; width:auto; height:auto; background:none;}
 .more-menu-item:hover{background:var(--paper-dark);}
-.more-menu-item.active{background:#EEF2FF; color:var(--maroon);}
+.more-menu-item.active{background:var(--maroon-soft); color:var(--maroon);}
 .form-row{display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:16px;}
 .form-row .field{flex:1; min-width:140px; margin-bottom:0;}
 .msg{padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:13.5px;}
@@ -287,7 +315,7 @@ tr:hover td{background:var(--paper-dark);}
 .notif-item:last-child{border-bottom:none;}
 .accordion-header{display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; padding:2px 0; -webkit-tap-highlight-color:transparent;}
 .accordion-header h3{margin:0;}
-.accordion-caret{font-size:13px; font-weight:800; color:var(--maroon); background:#EEF2FF; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.accordion-caret{font-size:13px; font-weight:800; color:var(--maroon); background:var(--maroon-soft); width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
 .floor-card h3{display:flex; align-items:baseline; flex-wrap:wrap; gap:4px;}
 .floor-heading-center{justify-content:center; text-align:center; width:100%;}
 .flat-entry{display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--rule);}
@@ -660,6 +688,32 @@ function applyTheme(){
 }
 function setTheme(theme){ localStorage.setItem(THEME_KEY, theme); applyTheme(); }
 applyTheme();
+/* Accent colour -- device-local like the rest of Settings. Sets a
+   [data-accent] attribute on <html> that the CSS above keys off; Indigo
+   (the original look) is simply "no attribute", so a device that never
+   picked a colour is pixel-identical to before this existed. */
+const ACCENT_KEY = 'cwing_accent';
+const ACCENTS = [
+  {id:'indigo', name:'Indigo', swatch:'#4F46E5'},
+  {id:'maroon', name:'Maroon', swatch:'#9F1239'},
+  {id:'green',  name:'Green',  swatch:'#15803D'},
+  {id:'teal',   name:'Teal',   swatch:'#0F766E'},
+  {id:'blue',   name:'Blue',   swatch:'#1D4ED8'},
+  {id:'orange', name:'Orange', swatch:'#C2410C'},
+  {id:'pink',   name:'Pink',   swatch:'#BE185D'},
+  {id:'purple', name:'Purple', swatch:'#7E22CE'},
+];
+function getAccent(){ const a = localStorage.getItem(ACCENT_KEY); return ACCENTS.some(x=>x.id===a) ? a : 'indigo'; }
+function applyAccent(){
+  const id = getAccent();
+  if(id === 'indigo') document.documentElement.removeAttribute('data-accent');
+  else document.documentElement.setAttribute('data-accent', id);
+  // Android's status/title bar follows this meta tag in the installed PWA
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.content = (ACCENTS.find(x=>x.id===id) || ACCENTS[0]).swatch;
+}
+function setAccent(id){ localStorage.setItem(ACCENT_KEY, id); applyAccent(); }
+applyAccent();
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{ if(getTheme()==='auto') applyTheme(); });
 
 function notifEnabled(){ return localStorage.getItem(NOTIF_ENABLED_KEY) !== 'false'; }
@@ -936,13 +990,14 @@ const ADMIN_TABS = [
   ['charges','Charges'],
   ['stickerlog','Sticker Log'],
   ['dues','Dues Summary'],
+  ['documents','Documents'],
   ['builderreceipt','Builder Receipt'],
   ['deleteditems','Deleted Items'],
   ['settings','Settings'],
   ['guide','Guide'],
 ];
 
-const HIDDEN_TAB_KEYS = ['flats','transfers','charges','stickerlog','dues','builderreceipt','deleteditems','settings','guide'];
+const HIDDEN_TAB_KEYS = ['flats','transfers','charges','stickerlog','dues','documents','builderreceipt','deleteditems','settings','guide'];
 const NO_PIN_MORE_TABS = ['settings','builderreceipt','flats','guide']; // secondary tabs reachable via More without a PIN -- builderreceipt has no edit form, just view; flats' own list is already publicly viewable (only its Add/Update form is PIN-gated), same reasoning Collections/Expenses lists use; guide is a read-only how-to-use page, no data to protect
 const TAB_ICONS = {
   dashboard: '🏠',
@@ -954,6 +1009,7 @@ const TAB_ICONS = {
   charges: '🧾',
   stickerlog: '🏷️',
   dues: '📋',
+  documents: '📁',
   statement: '📒',
   builderreceipt: '🏗️',
   deleteditems: '♻️',
@@ -1045,6 +1101,7 @@ async function renderTabContent(){
     if(state.tab==='charges') return await renderChargesTab(box);
     if(state.tab==='stickerlog') return await renderStickerLogTab(box);
     if(state.tab==='dues') return await renderDuesTab(box);
+    if(state.tab==='documents') return await renderDocumentsTab(box);
     if(state.tab==='statement') return await renderStatementTab(box);
     if(state.tab==='builderreceipt') return await renderBuilderReceiptTab(box);
     if(state.tab==='deleteditems') return await renderDeletedItemsTab(box);
@@ -1804,7 +1861,7 @@ async function renderExpensesTab(box){
         const pillId = `exp-wa-${e.id}`;
         return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <span class="pill" style="background:#EEF2FF; color:var(--maroon); border:1.5px solid var(--maroon); font-weight:700;">${e.category}</span>
+            <span class="pill" style="background:var(--maroon-soft); color:var(--maroon); border:1.5px solid var(--maroon); font-weight:700;">${e.category}</span>
             <span style="flex:1 1 100px; min-width:0; font-weight:600;">${e.description||''}</span>
             <span class="mono" style="font-weight:800; font-size:16px; color:var(--danger);">${fmtMoney(e.amount)}</span>
           </div>
@@ -2588,8 +2645,12 @@ const APP_GUIDE_SECTIONS = [
   { id:'deleted', icon:'🗑️', title:'Deleted Items (More માં)', body:`
     <p class="config-note" style="margin:0 0 6px;">કોઈ પણ ટેબમાંથી Delete કરેલી કોઈ પણ વસ્તુ પહેલા અહીં snapshot થઈને આવે છે — કંઈ ખોવાતું નથી.</p>
     <p class="config-note" style="margin:0;">↩️ Restore (પાછું લાવો) અથવા 🗑️ Hamesha ke liye hatao (કાયમ માટે ભૂંસો). 🔒 બંને માટે Unlock જોઈએ.</p>`},
+  { id:'documents', icon:'📁', title:'Documents (More માં)', body:`
+    <p class="config-note" style="margin:0 0 6px;">સોસાયટીના અગત્યના કાગળો — PAN Card, Registration Certificate, Agreement, બેંક લેટર, જરૂરી બિલ — ફોટો કે PDF રૂપે અહીં સાચવો. Title, Type, Date, Remarks સાથે; એક entry માં એક કરતાં વધુ ફાઈલ પણ મૂકી શકાય.</p>
+    <p class="config-note" style="margin:0 0 6px;">📎 ફાઈલ પર દબાવો એટલે ખૂલે. ફાઈલોની કોઈ કાયમી લિંક નથી — દર વખતે ટૂંકા સમયની (5 મિનિટ) લિંક બને છે, એટલે Unlock કર્યા વગર કોઈ જોઈ ના શકે.</p>
+    <p class="config-note" style="margin:0;">🔒 આખો ટેબ ફક્ત Unlock પછી જ દેખાય. Delete કરેલી entry "Deleted Items" માંથી Restore થાય છે (ફાઈલ પણ સાથે પાછી આવે).</p>`},
   { id:'settings', icon:'⚙️', title:'Settings (More માં)', body:`
-    <p class="config-note" style="margin:0 0 6px;">Theme, Notifications, Default Tab, Auto-fill — આ ફક્ત આ ડિવાઈસ/બ્રાઉઝર પૂરતું જ લાગુ થાય છે (localStorage, Supabase માં નહીં).</p>
+    <p class="config-note" style="margin:0 0 6px;">Theme (Light/Dark + 🎨 Rang — 8 accent colors, જેને જે ગમે તે), Notifications, Default Tab, Auto-fill — આ ફક્ત આ ડિવાઈસ/બ્રાઉઝર પૂરતું જ લાગુ થાય છે (localStorage, Supabase માં નહીં). એટલે દરેક સભ્ય પોતાના ફોન પર પોતાનો રંગ રાખી શકે.</p>
     <p class="config-note" style="margin:0;">Service Contacts ("જરૂરી નંબરો") અને આ Guide/🏢 KIRAN 3 Common Fund — આ બંને Supabase માં સેવ થાય છે અને Dashboard/બધાને દેખાય છે.</p>`},
 ];
 function appGuideAccordionHtml(){
@@ -2627,6 +2688,13 @@ async function renderSettingsTab(box){
         <button class="${theme==='light'?'primary':''}" onclick="setTheme('light'); refreshTab();">☀️ Light</button>
         <button class="${theme==='dark'?'primary':''}" onclick="setTheme('dark'); refreshTab();">🌙 Dark</button>
         <button class="${theme==='auto'?'primary':''}" onclick="setTheme('auto'); refreshTab();">🔁 Auto (Device)</button>
+      </div>
+      <p class="config-note" style="margin:14px 0 4px;">🎨 Rang (Accent Color) — jo pasand ho wo chuno. Sirf is device par lagega.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+        ${ACCENTS.map(a=>`<button onclick="setAccent('${a.id}'); refreshTab();" title="${a.name}" style="display:flex; flex-direction:column; align-items:center; gap:5px; background:none; border:none; box-shadow:none; padding:4px 2px; min-width:52px;">
+          <span style="width:36px; height:36px; border-radius:50%; background:${a.swatch}; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:16px; box-shadow:${getAccent()===a.id ? '0 0 0 3px var(--white-card), 0 0 0 6px '+a.swatch : '0 2px 6px rgba(0,0,0,.18)'};">${getAccent()===a.id?'✓':''}</span>
+          <span class="config-note" style="margin:0; font-size:11px; ${getAccent()===a.id?'font-weight:700; color:var(--ink);':''}">${a.name}</span>
+        </button>`).join('')}
       </div>
     </div>
     <div class="card">
@@ -3213,6 +3281,7 @@ function summarizeDeletedRow(table, row){
   if(table === 'vehicles') return `Flat ${row.flat_no||''} — ${row.owner_name||''} — ${row.vehicle_type||'Vehicle'} ${row.vehicle_number||''}`;
   if(table === 'charges') return `Charges Round — "${row.round_name}" — ${fmtMoney(row.amount_per_flat)}/flat`;
   if(table === 'sticker_log') return `Sticker Log — Flat ${row.flat_no||''} — ${row.vehicle_number||''}`;
+  if(table === 'documents') return `Document — ${row.title||''}${row.doc_type?' ('+row.doc_type+')':''}${row.doc_date?' — '+fmtDate(row.doc_date):''}`;
   return table;
 }
 async function deleteRow(table, col, val, isString){
@@ -3255,7 +3324,7 @@ async function renderDeletedItemsTab(box){
     ${items.length ? `<div class="card">
       ${items.map(it=>`<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <span class="pill" style="background:#EEF2FF; color:var(--maroon); border:1.5px solid var(--maroon); font-weight:700;">${it.table_name}</span>
+          <span class="pill" style="background:var(--maroon-soft); color:var(--maroon); border:1.5px solid var(--maroon); font-weight:700;">${it.table_name}</span>
           <span style="flex:1 1 150px; min-width:0; font-weight:600;">${it.summary || ''}</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:2px;">
@@ -3288,6 +3357,107 @@ function forgetDeletedItem(id){
       refreshTab();
     });
   });
+}
+
+/* ---- Documents tab -- society papers (PAN card, registration,
+   agreements, bank letters...) kept in a PRIVATE storage bucket.
+   Unlike expense bills (public bucket, plain URLs that anyone holding
+   the link can open), nothing here has a permanent link: a file is
+   opened through a short-lived signed URL that only a signed-in
+   (unlocked) session can mint, so the tab, the table and the bucket
+   all sit behind the same PIN. ---- */
+const DOC_TYPES = ['PAN Card','Registration Certificate','Bank Document','Agreement / Contract','Bill / Receipt','Letter / Notice','Other'];
+async function renderDocumentsTab(box){
+  if(!(pinStillValid() && state.user)){
+    box.innerHTML = `<div class="card"><p class="empty">🔒 આ ટેબ જોવા માટે Unlock કરો.</p></div>`;
+    return;
+  }
+  const {data, error} = await sb.from('documents').select('*').order('doc_date',{ascending:false, nullsFirst:false}).order('id',{ascending:false});
+  const docs = data || [];
+  box.innerHTML = `
+    <div class="card">
+      <div class="accordion-header" onclick="toggleAccordion('acc_documents')">
+        <h3>📁 Add Document</h3>
+        <span class="accordion-caret" id="acc_documents_caret">▾</span>
+      </div>
+      <div class="accordion-body" id="acc_documents_body" style="display:none; margin-top:12px;">
+      <p class="config-note" style="margin-top:-6px">સોસાયટીના અગત્યના કાગળો (PAN Card, Registration, Agreement, બેંક લેટર...) અહીં સાચવો. ફોટો કે PDF, એક કરતાં વધુ પણ પસંદ કરી શકાય.</p>
+      <div class="form-row">
+        <div class="field"><label>Title</label><input id="doc_title" placeholder="e.g. Society PAN Card"></div>
+        <div class="field"><label>Type</label><select id="doc_type">${DOC_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>Date</label><input id="doc_date" type="date"></div>
+        <div class="field"><label>Remarks</label><input id="doc_remarks" placeholder="optional"></div>
+        <div class="field"><label>File(s)</label><input id="doc_files" type="file" accept="image/*,.pdf" multiple></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="addDocument()">Add</button></div>
+      </div>
+      ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
+      </div>
+    </div>
+    <div class="card">
+      <h3>📁 Documents (${docs.length})</h3>
+      ${error && !docs.length ? `<div class="msg error">${friendlyDbError(error)}</div>` : ''}
+      <div>${docs.map(d=>{
+        // file_paths / file_names: one per line, same "\n"-joined convention as bill_url
+        const paths = (d.file_paths||'').split('\n').filter(Boolean);
+        const names = (d.file_names||'').split('\n');
+        return `<div class="flat-entry" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span style="flex:1 1 150px; min-width:0; font-weight:700;">${d.title||''}</span>
+          ${d.doc_type?`<span class="pill" style="background:var(--maroon-soft); color:var(--maroon); border:1.5px solid var(--maroon); font-weight:700;">${d.doc_type}</span>`:''}
+          <span class="config-note" style="margin:0;">${fmtDate(d.doc_date)}</span>
+        </div>
+        ${d.remarks?`<div class="config-note" style="margin:0;">${d.remarks}</div>`:''}
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          ${paths.map((p,i)=>`<button onclick="openSocietyDoc('${p}')">📎 ${names[i] ? names[i] : 'ફાઈલ '+(i+1)}</button>`).join('')}
+          <span class="flat-actions" style="margin-left:auto;"><button class="danger" onclick="deleteRow('documents','id',${d.id})" title="Delete">🗑️</button></span>
+        </div>
+      </div>`;}).join('') || `<p class="empty">હજુ કોઈ document નથી.</p>`}</div>
+    </div>`;
+}
+async function uploadSocietyDocs(files){
+  const paths = [];
+  for(const file of files){
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `doc_${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+    const {error} = await sb.storage.from('society-docs').upload(path, file, {cacheControl:'3600', upsert:false});
+    if(error){ alert('File upload nahi ho paya: ' + friendlyDbError(error)); return null; }
+    paths.push(path); // storage path only -- there is no public URL for this bucket
+  }
+  return paths;
+}
+async function addDocument(){
+  const title = (document.getElementById('doc_title').value || '').trim();
+  const files = [...(document.getElementById('doc_files').files || [])];
+  if(!title){ alert('Title likhna zaroori hai.'); return; }
+  if(!files.length){ alert('Kam se kam ek file (photo ya PDF) chuno.'); return; }
+  await withPin(async ()=>{
+    // upload runs inside withPin on purpose: the bucket only accepts
+    // writes from a signed-in session
+    const paths = await uploadSocietyDocs(files);
+    if(!paths) return;
+    const payload = {
+      title,
+      doc_type: document.getElementById('doc_type').value || null,
+      doc_date: document.getElementById('doc_date').value || null,
+      remarks: document.getElementById('doc_remarks').value || null,
+      file_paths: paths.join('\n'),
+      file_names: files.map(f=>f.name).join('\n'),
+    };
+    const {error} = await sb.from('documents').insert(payload);
+    if(error) alert(friendlyDbError(error)); else refreshTab();
+  });
+}
+async function openSocietyDoc(path){
+  // Open the tab synchronously (still inside the tap) so mobile popup
+  // blockers allow it, then point it at the signed URL once minted.
+  const w = window.open('about:blank', '_blank');
+  const {data, error} = await sb.storage.from('society-docs').createSignedUrl(path, 300);
+  if(error || !data?.signedUrl){
+    if(w) w.close();
+    alert('File khul nahi payi: ' + friendlyDbError(error || {message:'signed URL nahi mila'}));
+    return;
+  }
+  if(w) w.location.href = data.signedUrl; else window.location.href = data.signedUrl;
 }
 
 /* ---------------- boot ---------------- */
