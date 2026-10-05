@@ -13,8 +13,17 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="C-Wing">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Fonts load without blocking the first paint (media swap): on a weak
+     connection the app shows in the system font first instead of a blank
+     screen, then switches once the fonts arrive. -->
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<!-- supabase-js is served from this site (a pinned copy of 2.117.2, the
+     build jsdelivr's "@2" resolved to) rather than a CDN, so the service
+     worker caches it with the rest of the shell and startup never waits
+     on a third-party host. To upgrade: add the new file, change this
+     src and the name in service-worker.js SHELL_FILES. -->
+<script src="supabase-js-2.117.2.js"></script>
 <style>
 /* ============================================================
    DESIGN SYSTEM — clean, flat, mobile-first. Same class names
@@ -677,6 +686,8 @@ const NOTIF_ENABLED_KEY = 'cwing_notif_enabled';
 const DEFAULT_TAB_KEY = 'cwing_default_tab';
 const LAST_TAB_KEY = 'cwing_last_tab';
 const AUTOFILL_AMOUNT_KEY = 'cwing_autofill_amount';
+const DASH_CACHE_LOCKED_KEY = 'cwing_dash_cache_locked';
+const DASH_CACHE_UNLOCKED_KEY = 'cwing_dash_cache_unlocked';
 
 function getTheme(){ return localStorage.getItem(THEME_KEY) || 'auto'; }
 function applyTheme(){
@@ -835,6 +846,7 @@ function showPinModal(action){
 async function lockNow(){
   await sb.auth.signOut();
   localStorage.removeItem(PIN_UNLOCK_KEY);
+  localStorage.removeItem(DASH_CACHE_UNLOCKED_KEY); // unlocked-only figures shouldn't outlive the lock
   state.user = null;
   if(HIDDEN_TAB_KEYS.includes(state.tab)) state.tab = 'dashboard';
   render();
@@ -1116,7 +1128,16 @@ async function renderTabContent(){
 /* ---- Dashboard tab ---- */
 async function renderDashboardTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3income}] = await Promise.all([
+  // Paint the last successfully loaded Dashboard straight away, then
+  // replace it once the live figures arrive -- on a slow connection the
+  // user sees real (slightly old, clearly labelled) numbers instead of a
+  // spinner. Locked and unlocked views are cached separately because the
+  // unlocked one carries extra cards; lockNow() drops the unlocked copy.
+  const cacheKey = unlocked ? DASH_CACHE_UNLOCKED_KEY : DASH_CACHE_LOCKED_KEY;
+  let cachedHtml = null;
+  try{ cachedHtml = localStorage.getItem(cacheKey); }catch(e){}
+  if(cachedHtml) box.innerHTML = `<div class="msg ok" id="dash-refresh-note">⏳ તાજા આંકડા લોડ થઈ રહ્યા છે…</div>` + cachedHtml;
+  const results = await Promise.all([
     sb.from('v_dashboard_summary').select('*').maybeSingle(),
     sb.from('v_expense_by_category').select('*'),
     sb.from('fund_transfers').select('amount'),
@@ -1125,6 +1146,17 @@ async function renderDashboardTab(box){
     sb.from('service_contacts').select('*').order('sort_order').order('id'),
     sb.from('kiran3_income').select('amount, kind'),
   ]);
+  if(!box.isConnected) return; // user moved to another tab while this was loading
+  // A failed request comes back as {data:null, error} -- rendering that
+  // would show every balance as ₹0. Keep whatever is on screen (the cached
+  // copy, if any) and say plainly that the network is the problem.
+  if(results.some(r=>r.error)){
+    const note = `<div class="msg error" id="dash-refresh-note">📡 Internet nahi chal raha, isliye taaza aankde nahi aa paye.${cachedHtml?' Neeche pichhli baar ke aankde dikh rahe hain.':''} <button onclick="refreshTab()" style="margin-left:6px;">🔄 Dobara try karo</button></div>`;
+    document.getElementById('dash-refresh-note')?.remove();
+    if(cachedHtml) box.insertAdjacentHTML('afterbegin', note); else box.innerHTML = note;
+    return;
+  }
+  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3income}] = results;
   // "KIRAN 3 Society Expense" entries report how much of an already-given
   // "KIRAN 3 Society Advance" was actually consumed - they are NOT new
   // cash leaving C-Wing, so they're excluded here (and only here) to
@@ -1224,7 +1256,12 @@ async function renderDashboardTab(box){
       ${(byCat||[]).map(c=>`<tr><td style="font-weight:600">${c.category}</td><td class="mono" style="font-weight:800; font-size:15px;">${fmtMoney(c.total_amount)}</td></tr>`).join('')}
       </tbody></table>
     </div>`;
-  renderCommonExpenseSplit();
+  await renderCommonExpenseSplit();
+  // Remember this fully rendered Dashboard for the next open (see top).
+  // Skipped if the split card itself failed, so an error is never cached.
+  if(box.isConnected && state.tab==='dashboard' && !box.querySelector('.msg.error')){
+    try{ localStorage.setItem(cacheKey, box.innerHTML); }catch(e){}
+  }
 }
 
 /* ---- generic helpers ---- */
