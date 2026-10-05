@@ -190,6 +190,20 @@ label{font-size:12px; color:var(--ink-soft); display:block; margin-bottom:6px; f
   padding:20px; margin-bottom:18px; box-shadow:var(--shadow); overflow-x:auto;
 }
 .card h3{font-size:16.5px; margin-bottom:.5em;}
+/* Card titles read as a title bar, so a box can be identified at a
+   glance: accent-coloured text on a pale accent wash with a solid accent
+   edge. Only the card's own top title is styled (direct-child h3, or an
+   accordion header that opens the card) -- headings nested deeper, like
+   the Guide's section rows, stay plain. All colours come from the
+   --maroon* vars, so the chosen accent and dark mode carry through. */
+.card > h3,
+.card > .accordion-header:first-child{
+  background:var(--maroon-soft); border-left:4px solid var(--maroon);
+  border-radius:10px; padding:9px 12px; margin:0 0 12px;
+}
+.card > h3,
+.card > .accordion-header:first-child h3{color:var(--maroon-dark); font-size:17px; font-weight:700;}
+.card > h3:only-child{margin-bottom:0;}
 .grid-stats{display:flex; flex-wrap:wrap; gap:10px;}
 .stat{border-radius:var(--radius-sm); padding:13px 16px; background:var(--paper-dark); flex:0 0 auto; border:1px solid rgba(20,22,43,.03); transition:transform .15s ease;}
 .stat .num{font-family:'IBM Plex Mono',monospace; font-size:21px; font-weight:700; color:var(--ink);}
