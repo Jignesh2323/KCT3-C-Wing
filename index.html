@@ -686,8 +686,11 @@ const NOTIF_ENABLED_KEY = 'cwing_notif_enabled';
 const DEFAULT_TAB_KEY = 'cwing_default_tab';
 const LAST_TAB_KEY = 'cwing_last_tab';
 const AUTOFILL_AMOUNT_KEY = 'cwing_autofill_amount';
-const DASH_CACHE_LOCKED_KEY = 'cwing_dash_cache_locked';
-const DASH_CACHE_UNLOCKED_KEY = 'cwing_dash_cache_unlocked';
+// Bump the suffix whenever the Dashboard layout changes, so a phone
+// doesn't flash the old layout from its saved copy on the next open.
+const DASH_CACHE_LOCKED_KEY = 'cwing_dash_cache_locked_v2';
+const DASH_CACHE_UNLOCKED_KEY = 'cwing_dash_cache_unlocked_v2';
+try{ ['cwing_dash_cache_locked','cwing_dash_cache_unlocked'].forEach(k=>localStorage.removeItem(k)); }catch(e){}
 
 function getTheme(){ return localStorage.getItem(THEME_KEY) || 'auto'; }
 function applyTheme(){
@@ -1217,6 +1220,15 @@ async function renderDashboardTab(box){
       </div>
       <p class="config-note" style="margin-top:10px">રોકડ હાથમાં = રોકડ જમા − રોકડ ખર્ચ. બેંક બેલેન્સ = બાકીનું બધું (UPI/બેંક ટ્રાન્સફર/ચેક) જમા − ખર્ચ ભેગું.</p>
     </div>
+    <div class="card">
+      <h3>Monthly Common Expense Split</h3>
+      <div class="form-row form-row-pair">
+        <div class="field"><label>Month</label><select id="cx_month" onchange="onCxDateChange()">${cxMonthOptionsHtml()}</select></div>
+        <div class="field"><label>Year</label><select id="cx_year" onchange="onCxDateChange()">${cxYearOptionsHtml()}</select></div>
+      </div>
+      <p class="config-note" style="margin-bottom:8px">સામેલ કેટેગરી: ${COMMON_EXPENSE_CATEGORIES.join(', ')}. Flat Expense, Event, Festival બાકાત. કુલ ફ્લેટ ${TOTAL_FLATS_FIXED} નક્કી છે.</p>
+      <div id="cx_result">Loading...</div>
+    </div>
     ${(contacts && contacts.length) ? `<div class="card">
       <h3>📞 જરૂરી નંબરો</h3>
       <p class="config-note" style="margin-top:-6px">કોઈ પણ સર્વિસ/કામ માટે સીધા નંબર પર દબાવીને ફોન કરો.</p>
@@ -1228,20 +1240,6 @@ async function renderDashboardTab(box){
         ${c.mobile_no ? `<a href="tel:${c.mobile_no.replace(/\s/g,'')}" class="btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:800; white-space:nowrap;">📞 ${fmtContactMobile(c.mobile_no)}</a>` : ''}
       </div>`).join('')}
     </div>` : ''}
-    ${unlocked ? `<div class="card"><h3>By Payment Mode</h3>
-      <table><thead><tr><th>Mode</th><th>Collected</th><th>Spent</th></tr></thead><tbody>
-      ${(byMode||[]).map(m=>`<tr><td style="font-weight:600">${m.mode}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:#15803D;">${fmtMoney(m.collected)}</td><td class="mono" style="border:none; font-weight:800; font-size:15px; color:var(--danger);">${fmtMoney(m.spent)}</td></tr>`).join('')}
-      </tbody></table>
-    </div>` : ''}
-    <div class="card">
-      <h3>Monthly Common Expense Split</h3>
-      <div class="form-row form-row-pair">
-        <div class="field"><label>Month</label><select id="cx_month" onchange="onCxDateChange()">${cxMonthOptionsHtml()}</select></div>
-        <div class="field"><label>Year</label><select id="cx_year" onchange="onCxDateChange()">${cxYearOptionsHtml()}</select></div>
-      </div>
-      <p class="config-note" style="margin-bottom:8px">સામેલ કેટેગરી: ${COMMON_EXPENSE_CATEGORIES.join(', ')}. Flat Expense, Event, Festival બાકાત. કુલ ફ્લેટ ${TOTAL_FLATS_FIXED} નક્કી છે.</p>
-      <div id="cx_result">Loading...</div>
-    </div>
     <div class="card">
       <h3>📊 Reports</h3>
       <p class="config-note" style="margin-top:-6px">Collections/Expenses નો ડેટા Excel માં ખોલવા માટે CSV ડાઉનલોડ કરો, અથવા આખો રિપોર્ટ PDF બનાવવા માટે Print બટન દબાવો (browser "Save as PDF" ઓપ્શન આપશે).</p>
@@ -2503,8 +2501,8 @@ function closeWaQueueModal(){ document.getElementById('wa-queue-modal')?.remove(
 const APP_GUIDE_SECTIONS = [
   { id:'dash', icon:'🏠', title:'Dashboard', body:`
     <p class="config-note" style="margin:0 0 6px;">સોસાયટીનું આખું ચિત્ર એક નજરમાં — Total Balance, Collected, Expense, Cash in Hand, Bank Balance, KIRAN 3 Common Balance, Total/Unsold Flats, વાહનોની ગણતરી. અહીં કંઈ Add/Edit નથી થતું — બધું બીજા ટેબ પરથી આપોઆપ ખેંચાઈને ભેગું દેખાય છે.</p>
-    <p class="config-note" style="margin:0 0 6px;">નીચે "જરૂરી નંબરો" (કોઈ પણ, PIN વગર, સીધા ફોન કરી શકે), <b>Monthly Common Expense Split</b> (Month/Year પસંદ કરો — તે મહિનાનો Common ખર્ચ Per Flat કેટલો, Sold/Unsold નો ભાગ કેટલો, આપોઆપ ગણાય) અને <b>Reports</b> (⬇️ Collections CSV, ⬇️ Expenses CSV, 🖨️ Print/PDF) પણ છે.</p>
-    <p class="config-note" style="margin:0;">🔓 Total Flats/જરૂરી નંબરો બધાને દેખાય; Collected/Expense/By Payment Mode જોવા Unlock જોઈએ.</p>`},
+    <p class="config-note" style="margin:0 0 6px;">Summary ની નીચે તરત <b>Monthly Common Expense Split</b> (Month/Year પસંદ કરો — તે મહિનાનો Common ખર્ચ Per Flat કેટલો, Sold/Unsold નો ભાગ કેટલો, આપોઆપ ગણાય), પછી "જરૂરી નંબરો" (કોઈ પણ, PIN વગર, સીધા ફોન કરી શકે) અને <b>Reports</b> (⬇️ Collections CSV, ⬇️ Expenses CSV, 🖨️ Print/PDF) છે.</p>
+    <p class="config-note" style="margin:0;">🔓 Total Flats/જરૂરી નંબરો બધાને દેખાય; Collected/Expense જોવા Unlock જોઈએ.</p>`},
   { id:'coll', icon:'📥', title:'Collections', body:`
     <p class="config-note" style="margin:0 0 6px;">ફ્લેટ મેમ્બરના મેન્ટેનન્સ પેમેન્ટ નોંધવા માટે. 🔓 ઉપર "Search by Flat No" થી કોઈ પણ પોતાનું history/બાકી PIN વગર જોઈ શકે.</p>
     <p class="config-note" style="margin:0 0 6px;"><b>Add Collection</b>: Purpose (Round), Flat No (ફક્ત જેનું આ round માં pending હોય એ જ દેખાય), Date, Amount, Mode, Remarks.</p>
