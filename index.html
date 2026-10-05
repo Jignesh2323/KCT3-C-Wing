@@ -202,7 +202,12 @@ label{font-size:12px; color:var(--ink-soft); display:block; margin-bottom:6px; f
   border-radius:10px; padding:9px 12px; margin:0 0 12px;
 }
 .card > h3,
-.card > .accordion-header:first-child h3{color:var(--maroon-dark); font-size:17px; font-weight:700;}
+.card > .accordion-header:first-child h3{color:var(--maroon-dark); font-size:17px; font-weight:700; text-align:center;}
+/* Centre the title in the band even when an accordion's ▾ caret sits on
+   the right: the h3 takes the free space and an invisible spacer the
+   caret's width balances it on the left. */
+.card > .accordion-header:first-child h3{flex:1;}
+.card > .accordion-header:first-child::before{content:''; width:28px; flex-shrink:0;}
 .card > h3:only-child{margin-bottom:0;}
 .grid-stats{display:flex; flex-wrap:wrap; gap:10px;}
 .stat{border-radius:var(--radius-sm); padding:13px 16px; background:var(--paper-dark); flex:0 0 auto; border:1px solid rgba(20,22,43,.03); transition:transform .15s ease;}
