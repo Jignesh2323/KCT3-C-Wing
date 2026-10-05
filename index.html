@@ -567,6 +567,12 @@ function getPrevMonthYear(){
   return { month: m + 1, year: y }; // month returned 1-indexed
 }
 let {month: cxMonth, year: cxYear} = getPrevMonthYear();
+// Until the user picks a month themselves, the Dashboard opens the split
+// on the latest month that actually has common-category expenses (see
+// renderDashboardTab) -- so early in October it keeps showing August
+// rather than an empty September, and moves on once September's
+// entries are in. Last calendar month above is only the fallback.
+let cxUserPicked = false;
 
 function cxMonthOptionsHtml(){
   return ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -579,6 +585,7 @@ function cxYearOptionsHtml(){
   return opts.join('');
 }
 function onCxDateChange(){
+  cxUserPicked = true;
   cxMonth = Number(document.getElementById('cx_month').value);
   cxYear = Number(document.getElementById('cx_year').value);
   renderCommonExpenseSplit();
@@ -1148,6 +1155,7 @@ async function renderDashboardTab(box){
     sb.from('collections').select('amount, mode'),
     sb.from('service_contacts').select('*').order('sort_order').order('id'),
     sb.from('kiran3_income').select('amount, kind'),
+    sb.from('expenses').select('expense_date').in('category', COMMON_EXPENSE_CATEGORIES).order('expense_date',{ascending:false}).limit(1),
   ]);
   if(!box.isConnected) return; // user moved to another tab while this was loading
   // A failed request comes back as {data:null, error} -- rendering that
@@ -1159,7 +1167,12 @@ async function renderDashboardTab(box){
     if(cachedHtml) box.insertAdjacentHTML('afterbegin', note); else box.innerHTML = note;
     return;
   }
-  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3income}] = results;
+  const [{data:s}, {data:byCat}, {data:transfers}, {data:allExpenses}, {data:allCollections}, {data:contacts}, {data:k3income}, {data:latestCommon}] = results;
+  const latestDate = latestCommon && latestCommon[0] && latestCommon[0].expense_date;
+  if(!cxUserPicked && latestDate){
+    const [ly, lm] = String(latestDate).slice(0,7).split('-').map(Number);
+    if(ly && lm){ cxYear = ly; cxMonth = lm; }
+  }
   // "KIRAN 3 Society Expense" entries report how much of an already-given
   // "KIRAN 3 Society Advance" was actually consumed - they are NOT new
   // cash leaving C-Wing, so they're excluded here (and only here) to
