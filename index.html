@@ -4251,8 +4251,21 @@ async function openSocietyDoc(path){
   }
 })();
 if('serviceWorker' in navigator && location.protocol !== 'file:'){
+  // If a NEW service worker takes over within the first few seconds of
+  // opening (i.e. while the welcome animation is still covering the
+  // screen), reload once so the user gets the new version on this open
+  // rather than the next one. Later than that it would interrupt work, so
+  // it's skipped. The sessionStorage flag stops any reload loop.
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(!hadController || performance.now() > 6000) return;
+    try{ if(sessionStorage.getItem('cwing_sw_reloaded')) return; sessionStorage.setItem('cwing_sw_reloaded','1'); }catch(e){ return; }
+    location.reload();
+  });
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+    // updateViaCache:'none' -- check for a new service worker against the
+    // server every open, never against the 10-minute HTTP cache
+    navigator.serviceWorker.register('service-worker.js', {updateViaCache:'none'}).catch(()=>{});
   });
 }
 </script>
