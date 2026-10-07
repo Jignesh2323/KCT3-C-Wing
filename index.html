@@ -400,7 +400,21 @@ a{color:var(--maroon);}
   background-image:linear-gradient(180deg, var(--hl-soft), rgba(255,255,255,0));
   box-shadow:inset 0 1px 0 var(--hl), inset 0 -2px 0 rgba(var(--sh-rgb),.06), 0 3px 8px -4px rgba(var(--sh-rgb),.25);
 }
-.card > h3, .card > .accordion-header:first-child h3{text-shadow:0 1px 0 var(--hl-soft);}
+/* Title text itself is extruded, not just the band: a light edge on
+   top, then solid steps straight down -- first the deep accent colour,
+   then fading to shadow -- for the letters' "side", the same way the
+   app name in the banner is built (a diagonal side read as doubled
+   text at this size). */
+.card > h3, .card > .accordion-header:first-child h3{
+  color:var(--maroon); font-weight:800; letter-spacing:.015em;
+  text-shadow:
+    0 -1px 0 var(--hl),
+    0 1px 0 var(--maroon-dark),
+    0 2px 0 var(--maroon-deep),
+    0 3px 0 rgba(var(--sh-rgb),.28),
+    0 4px 2px rgba(var(--sh-rgb),.2),
+    0 6px 8px rgba(var(--sh-rgb),.22);
+}
 
 .stat{
   background-image:linear-gradient(180deg, var(--hl-soft), rgba(255,255,255,0) 70%);
