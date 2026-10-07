@@ -1404,10 +1404,13 @@ document.addEventListener('click', (e)=>{
 });
 async function onMoreTabSelect(k){
   if(!k) return;
-  if(NO_PIN_MORE_TABS.includes(k)){ state.tab = k; saveLastTab(k); render(); return; }
-  await withPin(async ()=>{ state.tab = k; saveLastTab(k); render(); });
+  if(NO_PIN_MORE_TABS.includes(k)){ state.tab = k; saveLastTab(k); armBackIfNeeded(); render(); return; }
+  await withPin(async ()=>{ state.tab = k; saveLastTab(k); armBackIfNeeded(); render(); });
 }
-function setTab(k){ state.tab = k; saveLastTab(k); render(); }
+// armBackIfNeeded() runs before render() on purpose: a tab can take a few
+// seconds to load its data, and Back pressed during that wait must still
+// land on the guard, not close the app.
+function setTab(k){ state.tab = k; saveLastTab(k); armBackIfNeeded(); render(); }
 
 /* ---- Phone Back button. The app is one page with no history entries,
    so Android's Back (or the back gesture) closed the whole app -- even
