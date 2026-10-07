@@ -1722,6 +1722,7 @@ async function renderCollectionsTab(box){
   // editingExpenseId elsewhere, so leaving an edit half-done and coming
   // back doesn't silently overwrite a different entry.
   editingKiran3Id = null;
+  editingKiran3Bills = [];
   const unlocked = pinStillValid() && state.user;
   const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}, {data:k3income}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
@@ -2112,12 +2113,19 @@ async function addKiran3CommonIncome(){
       remarks: document.getElementById('k3_remarks').value || null,
     };
     const billFiles = document.getElementById('k3_bill')?.files;
+    let newUrls = [];
     if(billFiles && billFiles.length){
       // Same shared bucket/helper Expenses uses -- it's just generic
       // photo storage, no category-specific logic in it.
-      const urls = await uploadExpenseBills([...billFiles]);
-      if(!urls) return;
-      payload.bill_url = urls.join('\n');
+      newUrls = await uploadExpenseBills([...billFiles]);
+      if(!newUrls) return;
+    }
+    if(editingKiran3Id){
+      // keep the existing bills the user didn't ✕ out, then the new ones
+      const all = [...editingKiran3Bills, ...newUrls];
+      payload.bill_url = all.length ? all.join('\n') : null;
+    } else if(newUrls.length){
+      payload.bill_url = newUrls.join('\n');
     }
     const {error} = editingKiran3Id
       ? await sb.from('kiran3_income').update(payload).eq('id', editingKiran3Id)
@@ -2136,13 +2144,8 @@ function populateKiran3Form(id){
   document.getElementById('k3_mode').value = k.mode || 'Cash';
   document.getElementById('k3_remarks').value = k.remarks || '';
   const billField = document.getElementById('k3_bill'); if(billField) billField.value = '';
-  const billNote = document.getElementById('k3_bill_current');
-  if(billNote){
-    const urls = (k.bill_url||'').split('\n').filter(Boolean);
-    billNote.innerHTML = urls.length
-      ? urls.map((u,i)=>`<a href="${u}" target="_blank">📎 હાલનું બિલ${urls.length>1?' '+(i+1):''} જુઓ</a>`).join(' · ') + ' (નવા ફોટા પસંદ કરશો તો બધા બદલાઈ જશે)'
-      : '';
-  }
+  editingKiran3Bills = (k.bill_url||'').split('\n').filter(Boolean);
+  renderEditingKiran3Bills();
   document.getElementById('k3_add_btn').textContent = 'Update';
   const cancelBtn = document.getElementById('k3_cancel_btn'); if(cancelBtn) cancelBtn.hidden = false;
   document.getElementById('k3-form-title').textContent = '✏️ Editing KIRAN 3 Entry';
@@ -2156,6 +2159,8 @@ async function editKiran3Income(id){
 }
 function resetKiran3Form(){
   editingKiran3Id = null;
+  editingKiran3Bills = [];
+  renderEditingKiran3Bills();
   ['k3_date','k3_amount','k3_remarks'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const kind = document.getElementById('k3_kind'); if(kind) kind.value = 'income';
   const mode = document.getElementById('k3_mode'); if(mode) mode.value = 'Cash';
@@ -2169,6 +2174,39 @@ function resetKiran3Form(){
 /* ---- Expenses tab ---- */
 let expensesCache = [];
 let editingExpenseId = null;
+// Bills already attached to the expense being edited. Saving keeps these
+// and ADDS any newly picked photos after them; ✕ drops just that one.
+// (Before, picking new photos while editing silently replaced them all.)
+let editingExpenseBills = [];
+// Shared by the Expenses form and the KIRAN 3 Common Fund form: lists the
+// bills already on the entry being edited, each with a ✕ to drop it.
+function editBillsHtml(urls, removeFn){
+  if(!urls.length) return '';
+  return `<div style="margin-top:6px;">હાલના બિલ (રહેશે — નવા ફોટા પસંદ કરશો તો <b>સાથે ઉમેરાશે</b>):</div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
+    ${urls.map((u,i)=>`<span class="pill" style="display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 10px; color:var(--maroon);">
+      <a href="${u}" target="_blank" style="color:inherit; text-decoration:none;">📎 બિલ ${i+1}</a>
+      <button type="button" onclick="${removeFn}(${i})" title="આ બિલ હટાવો" style="min-height:22px; padding:0 7px; font-size:12px; border-radius:999px; line-height:20px;">✕</button>
+    </span>`).join('')}
+    </div>`;
+}
+function renderEditingExpenseBills(){
+  const box = document.getElementById('e_bill_current');
+  if(box) box.innerHTML = editingExpenseId ? editBillsHtml(editingExpenseBills, 'removeEditingExpenseBill') : '';
+}
+function removeEditingExpenseBill(i){
+  editingExpenseBills.splice(i, 1);
+  renderEditingExpenseBills();
+}
+let editingKiran3Bills = [];
+function renderEditingKiran3Bills(){
+  const box = document.getElementById('k3_bill_current');
+  if(box) box.innerHTML = editingKiran3Id ? editBillsHtml(editingKiran3Bills, 'removeEditingKiran3Bill') : '';
+}
+function removeEditingKiran3Bill(i){
+  editingKiran3Bills.splice(i, 1);
+  renderEditingKiran3Bills();
+}
 async function renderExpensesTab(box){
   // Any fresh render of this tab (tab switch, refreshTab, re-lock/unlock)
   // starts a clean "Add Expense" — editingExpenseId only gets set back
@@ -2177,6 +2215,7 @@ async function renderExpensesTab(box){
   // edit half-done and coming back to this tab would silently turn the
   // next Save into an UPDATE of the OLD row instead of a new entry.
   editingExpenseId = null;
+  editingExpenseBills = [];
   const unlocked = pinStillValid() && state.user;
   const [{data, error}] = await Promise.all([
     sb.from('expenses').select('*').order('expense_date',{ascending:false}).order('id',{ascending:false}),
@@ -2253,13 +2292,8 @@ function populateExpenseForm(id){
   document.getElementById('e_paidto').value = e.paid_to || '';
   document.getElementById('e_mode').value = e.mode || 'Cash';
   const billField = document.getElementById('e_bill'); if(billField) billField.value = '';
-  const billNote = document.getElementById('e_bill_current');
-  if(billNote){
-    const urls = (e.bill_url||'').split('\n').filter(Boolean);
-    billNote.innerHTML = urls.length
-      ? urls.map((u,i)=>`<a href="${u}" target="_blank">📎 હાલનું બિલ${urls.length>1?' '+(i+1):''} જુઓ</a>`).join(' · ') + ' (નવા ફોટા પસંદ કરશો તો બધા બદલાઈ જશે)'
-      : '';
-  }
+  editingExpenseBills = (e.bill_url||'').split('\n').filter(Boolean);
+  renderEditingExpenseBills();
   document.getElementById('expenses-form-title').textContent = `Editing Expense`;
   document.getElementById('e_date').scrollIntoView({behavior:'smooth', block:'center'});
 }
@@ -2274,6 +2308,7 @@ async function editExpense(id){
 }
 function resetExpenseForm(){
   editingExpenseId = null;
+  editingExpenseBills = [];
   ['e_date','e_desc','e_amount','e_paidto'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const cat = document.getElementById('e_cat'); if(cat) cat.value = 'Flat Expense';
   const mode = document.getElementById('e_mode'); if(mode) mode.value = 'Cash';
@@ -2312,10 +2347,17 @@ async function addExpense(){
       mode: document.getElementById('e_mode').value,
     };
     const billFiles = document.getElementById('e_bill')?.files;
+    let newUrls = [];
     if(billFiles && billFiles.length){
-      const urls = await uploadExpenseBills([...billFiles]);
-      if(!urls) return;
-      payload.bill_url = urls.join('\n');
+      newUrls = await uploadExpenseBills([...billFiles]);
+      if(!newUrls) return;
+    }
+    if(editingExpenseId){
+      // keep the existing bills the user didn't ✕ out, then the new ones
+      const all = [...editingExpenseBills, ...newUrls];
+      payload.bill_url = all.length ? all.join('\n') : null;
+    } else if(newUrls.length){
+      payload.bill_url = newUrls.join('\n');
     }
     const {error} = editingExpenseId
       ? await sb.from('expenses').update(payload).eq('id', editingExpenseId)
