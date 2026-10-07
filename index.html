@@ -467,9 +467,21 @@ button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,
   padding:3px 12px; border-radius:999px; color:#fff;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 2px 4px rgba(0,0,0,.15);
 }
+/* Extruded lettering: a stack of 1px offsets getting darker builds a
+   solid "side" under the white face, then two soft shadows ground it. */
 .hero-banner h1{
-  font-size:24px;
-  text-shadow:0 1px 0 rgba(0,0,0,.18), 0 2px 0 rgba(0,0,0,.14), 0 3px 0 rgba(0,0,0,.1), 0 8px 18px rgba(0,0,0,.35);
+  font-size:25px; font-weight:800; letter-spacing:.01em; color:#fff;
+  text-shadow:
+    0 1px 0 #E6E6F0,
+    0 2px 0 #D2D2DF,
+    0 3px 0 #BDBDCE,
+    0 4px 0 #A9A9BD,
+    0 5px 0 #9494AB,
+    0 6px 1px rgba(0,0,0,.15),
+    0 0 6px rgba(0,0,0,.12),
+    0 3px 5px rgba(0,0,0,.25),
+    0 8px 12px rgba(0,0,0,.3),
+    0 14px 22px rgba(0,0,0,.25);
 }
 .hero-banner .who{
   flex-direction:row; align-items:center; justify-content:center; gap:12px; margin:0 auto;
@@ -553,11 +565,29 @@ input:focus, select:focus, textarea:focus{box-shadow:inset 0 2px 4px rgba(var(--
 
 .bottom-nav{box-shadow:0 -1px 0 var(--hl) inset, 0 -8px 24px -8px rgba(var(--sh-rgb),.22);}
 :root[data-theme="dark"] .bottom-nav{background:rgba(26,28,42,.97);}
-.nav-item.active .nav-icon{
-  background-image:linear-gradient(180deg, var(--hl-soft), rgba(255,255,255,0));
-  box-shadow:inset 0 1px 0 var(--hl), 0 3px 0 rgba(var(--sh-rgb),.1), 0 5px 10px -3px var(--maroon-glow);
-  transform:translateY(-3px);
+/* Bottom-nav icons: every tab icon sits on its own small raised key
+   (not just the active one), the emoji itself casts a shadow, a tap
+   pushes the key down, and the active tab's key floats higher with an
+   accent-coloured base edge. */
+.nav-item .nav-icon{
+  width:42px; height:32px; border-radius:12px;
+  background-color:var(--white-card);
+  background-image:linear-gradient(180deg, var(--hl) 0%, var(--hl-soft) 45%, rgba(255,255,255,0) 55%, rgba(var(--sh-rgb),.05) 100%);
+  border:1px solid rgba(var(--sh-rgb),.08);
+  box-shadow:inset 0 1px 0 var(--hl), inset 0 -2px 0 rgba(var(--sh-rgb),.06), 0 3px 0 rgba(var(--sh-rgb),.13), 0 6px 10px -4px rgba(var(--sh-rgb),.3);
+  filter:drop-shadow(0 0 0 transparent);
+  transition:transform .08s ease, box-shadow .08s ease;
 }
+.nav-item .nav-icon{text-shadow:0 2px 2px rgba(0,0,0,.25);}
+.nav-item:active .nav-icon{transform:translateY(3px); box-shadow:inset 0 1px 0 var(--hl), 0 0 0 rgba(var(--sh-rgb),.13), 0 2px 4px -2px rgba(var(--sh-rgb),.3);}
+.nav-item.active .nav-icon{
+  background-color:var(--maroon-soft);
+  border-color:var(--maroon);
+  box-shadow:inset 0 1px 0 var(--hl), inset 0 -2px 0 rgba(var(--sh-rgb),.06), 0 4px 0 var(--maroon), 0 9px 14px -4px var(--maroon-glow);
+  transform:translateY(-4px);
+}
+/* the More menu's items reuse .nav-icon inside .nav-item -- keep those plain */
+.more-menu-item .nav-icon, .more-menu-item .nav-icon:active{background:none; border:none; box-shadow:none; transform:none; width:auto; height:auto;}
 .more-menu, .modal-box{box-shadow:inset 0 1px 0 var(--hl), 0 2px 4px rgba(var(--sh-rgb),.08), 0 22px 48px -12px rgba(var(--sh-rgb),.4);}
 
 /* Dashboard contact rows: lifted tiles (colours set inline per row) */
