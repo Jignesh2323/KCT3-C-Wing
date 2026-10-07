@@ -1135,6 +1135,7 @@ document.addEventListener('visibilitychange', async ()=>{
 function showPinModal(action){
   const old = document.getElementById('pin-modal');
   if(old) old.remove();
+  setTimeout(armBackIfNeeded, 0); // Back closes the PIN box instead of the app
   const overlay = el(`<div class="modal-backdrop" id="pin-modal">
     <div class="modal-box">
       <h3>Enter PIN</h3>
@@ -1273,6 +1274,7 @@ function toggleNotifPanel(e){
   const existing = document.getElementById('notif-panel');
   if(existing){ existing.remove(); return; }
   showNotifPanel();
+  armBackIfNeeded();
 }
 function showNotifPanel(){
   const bell = document.querySelector('.bell-wrap');
@@ -1385,11 +1387,13 @@ async function renderAdmin(){
     </div>
   </nav>`;
   await renderTabContent();
+  armBackIfNeeded();
   if(notifEnabled()) refreshNotifBadge();
 }
 function toggleMoreMenu(e){
   e.stopPropagation();
   document.getElementById('more-menu')?.classList.toggle('open');
+  armBackIfNeeded();
 }
 function closeMoreMenu(){
   document.getElementById('more-menu')?.classList.remove('open');
@@ -1405,6 +1409,62 @@ async function onMoreTabSelect(k){
 }
 function setTab(k){ state.tab = k; saveLastTab(k); render(); }
 
+/* ---- Phone Back button. The app is one page with no history entries,
+   so Android's Back (or the back gesture) closed the whole app -- even
+   from the middle of editing an expense. Whenever the app is anywhere
+   but its "home" state (Dashboard, nothing open), one guard entry is
+   kept in history; Back pops it and we undo ONE step instead:
+   popup -> menu -> edit/open form -> back to Dashboard. Only from the
+   home state does Back fall through and close the app as before. ---- */
+let backGuardArmed = false;
+function anyAccordionOpen(){
+  return [...document.querySelectorAll('.accordion-body')].some(b=>b.style.display !== 'none');
+}
+function appIsHome(){
+  return state.tab === 'dashboard'
+    && !document.querySelector('.modal-backdrop')
+    && !document.getElementById('more-menu')?.classList.contains('open')
+    && !document.getElementById('notif-panel')
+    && !editingExpenseId && !editingKiran3Id && !editingChargeRoundName && !editingContactId
+    && !anyAccordionOpen();
+}
+function armBackIfNeeded(){
+  if(backGuardArmed || appIsHome()) return;
+  try{ history.pushState({cwingBack:1}, ''); backGuardArmed = true; }catch(e){}
+}
+function cancelEditsAndCloseForms(){
+  let did = false;
+  if(editingExpenseId){ resetExpenseForm(); did = true; }
+  if(editingKiran3Id){ resetKiran3Form(); did = true; }
+  if(editingChargeRoundName){ resetChargeForm(); did = true; }
+  if(editingContactId){ resetContactForm(); did = true; }
+  document.querySelectorAll('.accordion-body').forEach(b=>{
+    if(b.style.display === 'none') return;
+    b.style.display = 'none';
+    const caret = document.getElementById(b.id.replace(/_body$/, '_caret'));
+    if(caret) caret.textContent = '▾';
+    did = true;
+  });
+  return did;
+}
+function handleBack(){
+  const modal = document.querySelector('.modal-backdrop');
+  if(modal){ modal.remove(); return true; }
+  const menu = document.getElementById('more-menu');
+  if(menu?.classList.contains('open')){ menu.classList.remove('open'); return true; }
+  const notif = document.getElementById('notif-panel');
+  if(notif){ notif.remove(); return true; }
+  if(cancelEditsAndCloseForms()){ window.scrollTo({top:0, behavior:'smooth'}); return true; }
+  if(state.tab !== 'dashboard'){ setTab('dashboard'); return true; }
+  return false;
+}
+window.addEventListener('popstate', ()=>{
+  backGuardArmed = false;
+  handleBack();
+  // still not home (e.g. only the form was closed, tab is Expenses)? keep a guard for the next Back
+  setTimeout(armBackIfNeeded, 0);
+});
+
 /* ---- Collapsible "Add ___" form cards — collapsed by default so the
    entry list sits close to the top and doesn't need heavy scrolling
    on mobile. Edit buttons force it open via openAccordion(). ---- */
@@ -1415,12 +1475,14 @@ function toggleAccordion(id){
   const willOpen = body.style.display === 'none';
   body.style.display = willOpen ? '' : 'none';
   if(caret) caret.textContent = willOpen ? '▴' : '▾';
+  if(willOpen) armBackIfNeeded();
 }
 function openAccordion(id){
   const body = document.getElementById(id+'_body');
   const caret = document.getElementById(id+'_caret');
   if(body) body.style.display = '';
   if(caret) caret.textContent = '▴';
+  armBackIfNeeded();
 }
 
 async function renderTabContent(){
@@ -3658,6 +3720,7 @@ async function downloadAllBuilderReceipts(roundName){
 function showConfirmModal(message, onYes){
   const old = document.getElementById('confirm-modal');
   if(old) old.remove();
+  setTimeout(armBackIfNeeded, 0); // Back = "No", not closing the app
   const overlay = el(`<div class="modal-backdrop" id="confirm-modal">
     <div class="modal-box">
       <h3>Are you sure?</h3>
