@@ -405,8 +405,12 @@ a{color:var(--maroon);}
    then fading to shadow -- for the letters' "side", the same way the
    app name in the banner is built (a diagonal side read as doubled
    text at this size). */
+/* Space Grotesk tops out at 700, so weight 800 alone changed nothing;
+   a thin same-colour stroke around each glyph thickens the letters for
+   real, and also works on Gujarati titles, which use a system font. */
 .card > h3, .card > .accordion-header:first-child h3{
-  color:var(--maroon); font-weight:800; letter-spacing:.015em;
+  color:var(--maroon); font-weight:800; letter-spacing:.02em; font-size:18px;
+  -webkit-text-stroke:.7px currentColor;
   text-shadow:
     0 -1px 0 var(--hl),
     0 1px 0 var(--maroon-dark),
