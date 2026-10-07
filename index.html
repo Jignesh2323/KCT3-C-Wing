@@ -400,24 +400,23 @@ a{color:var(--maroon);}
   background-image:linear-gradient(180deg, var(--hl-soft), rgba(255,255,255,0));
   box-shadow:inset 0 1px 0 var(--hl), inset 0 -2px 0 rgba(var(--sh-rgb),.06), 0 3px 8px -4px rgba(var(--sh-rgb),.25);
 }
-/* Title text itself is extruded, not just the band: a light edge on
-   top, then solid steps straight down -- first the deep accent colour,
-   then fading to shadow -- for the letters' "side", the same way the
-   app name in the banner is built (a diagonal side read as doubled
-   text at this size). */
-/* Space Grotesk tops out at 700, so weight 800 alone changed nothing;
-   a thin same-colour stroke around each glyph thickens the letters for
-   real, and also works on Gujarati titles, which use a system font. */
+/* Card title text: readable first, 3D second. An earlier version used a
+   text-stroke plus five stacked solid shadow steps; at 17-18px that
+   smeared the letters (Gujarati worst of all, its thin joins filled in)
+   and the titles became hard to read. Now: dark accent letters at the
+   font's real bold weight, one 1px solid accent step underneath for the
+   raised edge, and a soft blur shadow -- the glyph shapes stay sharp. */
 .card > h3, .card > .accordion-header:first-child h3{
-  color:var(--maroon); font-weight:800; letter-spacing:.02em; font-size:18px;
-  -webkit-text-stroke:.7px currentColor;
+  color:var(--maroon-dark); font-weight:700; letter-spacing:.015em; font-size:18px;
+  -webkit-text-stroke:0;
   text-shadow:
-    0 -1px 0 var(--hl),
-    0 1px 0 var(--maroon-dark),
-    0 2px 0 var(--maroon-deep),
-    0 3px 0 rgba(var(--sh-rgb),.28),
-    0 4px 2px rgba(var(--sh-rgb),.2),
-    0 6px 8px rgba(var(--sh-rgb),.22);
+    0 1px 0 var(--maroon-soft),
+    0 2px 0 rgba(var(--sh-rgb),.16),
+    0 3px 6px rgba(var(--sh-rgb),.22);
+}
+:root[data-theme="dark"] .card > h3,
+:root[data-theme="dark"] .card > .accordion-header:first-child h3{
+  text-shadow:0 2px 0 rgba(0,0,0,.55), 0 3px 6px rgba(0,0,0,.45);
 }
 
 .stat{
