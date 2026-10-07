@@ -781,14 +781,13 @@ input:focus, select:focus, textarea:focus{box-shadow:inset 0 2px 4px rgba(var(--
 </head>
 <body>
 <!-- Animated welcome shown once each time the app is opened (PowerPoint-
-     style entrances: logo zooms in with a bounce, "Welcome to" flies in,
+     style entrances -- no logo, the user asked for text only: "Welcome to" flies in,
      the letters of Kiran-3 drop in one by one, the subtitle wipes in, a
      glint sweeps across, then the whole thing zooms out into the app).
      Plain HTML/CSS so it paints before any app script runs; the app and
      its data load behind it. Tap anywhere to skip. -->
 <div id="intro" class="intro" onclick="hideIntro()" aria-hidden="true">
   <div class="intro-glow"></div>
-  <img class="intro-logo" src="icon-192.png" alt="">
   <div class="intro-welcome">આપનું સ્વાગત છે</div>
   <!-- one span per Gujarati syllable (consonant + its vowel sign together,
        e.g. "કિ"), so a matra never drops in separately from its letter -->
