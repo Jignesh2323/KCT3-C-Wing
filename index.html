@@ -484,6 +484,49 @@ button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,
   .hero-banner h1{font-size:20px;}
 }
 
+/* Flat-number chips (Flats, Collections, Dues, Vehicles, Builder
+   Receipt, Documents... every place a flat number shows) become glossy
+   raised buttons. Each chip's colour is set inline as `background:`,
+   which would wipe a stylesheet background-image, hence !important on
+   the gloss layer only -- the colour itself stays per-flat. */
+.flat-chip{
+  background-image:linear-gradient(180deg, rgba(255,255,255,.38) 0%, rgba(255,255,255,.12) 46%, rgba(255,255,255,0) 52%, rgba(0,0,0,.14) 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.5),
+    inset 0 -2px 0 rgba(0,0,0,.2),
+    0 3px 0 rgba(0,0,0,.28),
+    0 6px 10px -4px rgba(0,0,0,.4);
+  text-shadow:0 1px 1px rgba(0,0,0,.35);
+  border-radius:999px;
+}
+
+/* Sold / Unsold selector on the Flats tab: a raised toggle -- Sold is a
+   solid green key, Unsold a grey one -- with its own drawn ▾ arrow
+   (appearance:none, so it looks the same on Android and iPhone). */
+.pill-select{
+  -webkit-appearance:none; appearance:none;
+  font-size:12.5px; font-weight:800; padding:7px 28px 7px 14px; min-height:34px;
+  border:none; border-radius:999px; cursor:pointer;
+  background-repeat:no-repeat, no-repeat; background-position:right 10px center, 0 0; background-size:10px 6px, 100% 100%;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 0 rgba(0,0,0,.18), 0 4px 0 rgba(0,0,0,.22), 0 8px 12px -5px rgba(0,0,0,.35);
+  transition:transform .08s ease, box-shadow .08s ease;
+}
+.pill-select:active{transform:translateY(3px); box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 1px 0 rgba(0,0,0,.22), 0 3px 5px -3px rgba(0,0,0,.35);}
+.pill-select.sold{
+  color:#fff; background-color:#16A34A; text-shadow:0 1px 1px rgba(0,0,0,.3);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23fff'/%3E%3C/svg%3E"), linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 52%, rgba(0,0,0,.12));
+}
+.pill-select.unsold{
+  color:#374151; background-color:#E5E7EB;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23374151'/%3E%3C/svg%3E"), linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,0) 52%, rgba(0,0,0,.06));
+}
+:root[data-theme="dark"] .pill-select.unsold{color:#E5E7EB; background-color:#374151;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23E5E7EB'/%3E%3C/svg%3E"), linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0) 52%, rgba(0,0,0,.2));}
+.pill-select option{color:#111827; background:#fff;}
+
+/* Status pills (View Only / Unlocked, Sold / Unsold labels) */
+.pill.sold, .pill.unsold{box-shadow:inset 0 1px 0 rgba(255,255,255,.6), 0 2px 0 rgba(var(--sh-rgb),.15), 0 4px 6px -3px rgba(var(--sh-rgb),.3);}
+
 /* Every list entry on every tab (Collections, Expenses, Statement,
    Vehicles, Charges, Dues, Documents, Deleted Items, Settings...) is a
    .flat-entry -- they were plain rows split by a line; now each is its
