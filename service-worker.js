@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cwing-shell-v5';
+const CACHE_NAME = 'cwing-shell-v6';
 const SHELL_FILES = [
   './index.html',
   './manifest.json',
