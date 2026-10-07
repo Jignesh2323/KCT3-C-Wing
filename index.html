@@ -556,6 +556,21 @@ button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,
 /* Status pills (View Only / Unlocked, Sold / Unsold labels) */
 .pill.sold, .pill.unsold{box-shadow:inset 0 1px 0 rgba(255,255,255,.6), 0 2px 0 rgba(var(--sh-rgb),.15), 0 4px 6px -3px rgba(var(--sh-rgb),.3);}
 
+/* Row action buttons (Share / Sent / Edit / 🗑️ on Expenses, Collections,
+   KIRAN 3 and every other list) are compact keys: the full-size 3D
+   button made the row wider than a phone, so 🗑️ wrapped onto its own
+   line and every entry grew tall. Smaller padding, a smaller base edge
+   and an icon-sized delete key keep the whole set on one line. */
+.flat-actions{gap:6px;}
+.flat-actions button, .flat-actions .btn{
+  min-height:34px; padding:6px 11px; font-size:12.5px; border-radius:11px;
+  box-shadow:inset 0 1px 0 var(--hl), inset 0 -2px 0 rgba(var(--sh-rgb),.07), 0 3px 0 rgba(var(--sh-rgb),.16), 0 6px 10px -5px rgba(var(--sh-rgb),.3);
+}
+.flat-actions button:active, .flat-actions .btn:active{transform:translateY(2px); box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(var(--sh-rgb),.16);}
+.flat-actions button.danger{padding:6px 9px; box-shadow:inset 0 1px 0 var(--hl), 0 3px 0 rgba(220,38,38,.32), 0 6px 10px -5px rgba(220,38,38,.35);}
+.flat-actions button.primary{box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 3px 0 var(--maroon-deep), 0 6px 10px -5px var(--maroon-glow);}
+.flat-actions .pill{margin-left:0 !important;}
+
 /* Every list entry on every tab (Collections, Expenses, Statement,
    Vehicles, Charges, Dues, Documents, Deleted Items, Settings...) is a
    .flat-entry -- they were plain rows split by a line; now each is its
@@ -1915,7 +1930,7 @@ function collectionsRowsHtml(list, k3list){
           <span class="config-note" style="margin:0; color:${isExp?'var(--danger)':'#6d28d9'}; font-weight:700;">${c.mode||''}</span>
           ${billLinksHtml(c.bill_url)}
           <span class="flat-actions" style="margin-left:auto;">
-            <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)}
+            <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share</a>${waSentPillHtml(waKey, pillId)}
             <button onclick="editKiran3Income(${c.id})" title="Edit">✏️ Edit</button>
             <button class="danger" onclick="deleteRow('kiran3_income','id',${c.id})" title="Delete">🗑️</button>
           </span>
@@ -2210,7 +2225,7 @@ async function renderExpensesTab(box){
             ${e.paid_to?`<span class="config-note" style="margin:0;">ચૂકવ્યું: ${e.paid_to}</span>`:''}
             ${billLinksHtml(e.bill_url)}
             <span class="flat-actions" style="margin-left:auto;">
-              <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share to Group</a>${waSentPillHtml(waKey, pillId)}
+              <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share</a>${waSentPillHtml(waKey, pillId)}
               <button onclick="editExpense(${e.id})">Edit</button>
               <button class="danger" onclick="deleteRow('expenses','id',${e.id})" title="Delete">🗑️</button>
             </span>
