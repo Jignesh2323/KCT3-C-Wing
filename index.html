@@ -578,6 +578,31 @@ button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,
   flex:1 1 100%; justify-content:center; margin-left:0 !important; margin-top:4px;
 }
 
+/* "Process chalu hai" overlay (see showBusy): a raised card in the middle
+   of a dimmed screen with an accent-coloured spinning ring. It also
+   blocks taps, so a slow save can't be tapped twice. */
+.busy-overlay{
+  position:fixed; inset:0; z-index:300; display:flex; align-items:center; justify-content:center;
+  background:rgba(15,17,30,.32); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+  animation:busyFade .15s ease;
+}
+.busy-box{
+  background:var(--white-card); border-radius:18px; padding:22px 28px; min-width:190px;
+  display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
+  box-shadow:inset 0 1px 0 var(--hl), 0 5px 0 rgba(var(--sh-rgb),.12), 0 22px 44px -12px rgba(0,0,0,.45);
+}
+.busy-spinner{
+  width:46px; height:46px; border-radius:50%;
+  border:5px solid var(--maroon-soft); border-top-color:var(--maroon); border-right-color:var(--maroon);
+  animation:busySpin .75s linear infinite;
+  box-shadow:0 3px 8px -2px var(--maroon-glow);
+}
+.busy-label{font-weight:800; color:var(--maroon-dark); font-size:15px;}
+.busy-sub{font-size:12px; color:var(--ink-soft);}
+@keyframes busySpin{to{transform:rotate(360deg);}}
+@keyframes busyFade{from{opacity:0;}to{opacity:1;}}
+@media (prefers-reduced-motion: reduce){ .busy-spinner{animation-duration:1.6s;} }
+
 /* Every list entry on every tab (Collections, Expenses, Statement,
    Vehicles, Charges, Dues, Documents, Deleted Items, Settings...) is a
    .flat-entry -- they were plain rows split by a line; now each is its
@@ -1094,6 +1119,38 @@ function pinStillValid(){
    If already unlocked (and not expired), the action runs immediately.
    Otherwise a PIN modal appears; the action only runs after the
    correct PIN is entered and the hidden account signs in. */
+/* ---- "Process chalu hai" spinner. Every save / edit / delete in the app
+   goes through withPin() (plus the delete-confirm "Yes" and the PIN
+   unlock itself), so wrapping those three places covers the whole app.
+   It only appears if the work takes longer than 250 ms, so quick actions
+   don't flash it; a counter keeps nested calls from hiding it early. ---- */
+let busyCount = 0, busyTimer = null;
+function showBusy(label){
+  busyCount++;
+  const existing = document.getElementById('busy-overlay');
+  if(existing){ existing.querySelector('.busy-label').textContent = label; return; }
+  if(busyTimer) return;
+  busyTimer = setTimeout(()=>{
+    busyTimer = null;
+    if(!busyCount || document.getElementById('busy-overlay')) return;
+    const o = document.createElement('div');
+    o.id = 'busy-overlay'; o.className = 'busy-overlay';
+    o.innerHTML = `<div class="busy-box"><div class="busy-spinner"></div><div class="busy-label"></div><div class="busy-sub">કૃપા કરી રાહ જુઓ…</div></div>`;
+    o.querySelector('.busy-label').textContent = label;
+    document.body.appendChild(o);
+  }, 250);
+}
+function hideBusy(){
+  busyCount = Math.max(0, busyCount - 1);
+  if(busyCount) return;
+  if(busyTimer){ clearTimeout(busyTimer); busyTimer = null; }
+  document.getElementById('busy-overlay')?.remove();
+}
+async function runBusy(fn, label = 'પ્રોસેસ ચાલુ છે…'){
+  showBusy(label);
+  try{ return await fn(); }
+  finally{ hideBusy(); }
+}
 let pinActionInFlight = false;
 async function withPin(action){
   // A rapid second tap on Save/Add/Delete (easy to do on a slow mobile
@@ -1103,7 +1160,7 @@ async function withPin(action){
   if(pinActionInFlight) return;
   const guardedAction = async ()=>{
     pinActionInFlight = true;
-    try{ await action(); }
+    try{ await runBusy(action); }
     finally{ pinActionInFlight = false; }
   };
   if(pinStillValid()){
@@ -1156,7 +1213,7 @@ function showPinModal(action){
       msgBox.innerHTML = `<div class="msg error">Wrong PIN.</div>`;
       return;
     }
-    const {error} = await sb.auth.signInWithPassword({email: HIDDEN_ADMIN_EMAIL, password: HIDDEN_ADMIN_PASSWORD});
+    const {error} = await runBusy(()=>sb.auth.signInWithPassword({email: HIDDEN_ADMIN_EMAIL, password: HIDDEN_ADMIN_PASSWORD}), 'Unlock થઈ રહ્યું છે…');
     if(error){ msgBox.innerHTML = `<div class="msg error">${error.message}</div>`; return; }
     localStorage.setItem(PIN_UNLOCK_KEY, "true");
     const {data:{session}} = await sb.auth.getSession();
@@ -2383,12 +2440,14 @@ function resetExpenseForm(){
 }
 /* Phone-camera bill photos are 2-4 MB each, and Save used to upload them
    one after another at full size -- that was most of the wait when
-   saving an expense. A bill only has to be readable, so photos are
-   shrunk on the phone first (longest side 1600px, JPEG ~82%; usually
-   a 2-3 MB photo becomes ~200-350 KB) and all of them upload at once.
+   saving an expense. Photos are shrunk on the phone first, gently --
+   longest side 2400px and JPEG quality 90%, chosen so small print on a
+   bill stays crisp (the user asked that quality not suffer; 1600px/82%
+   was the first try) -- typically a 3 MB photo becomes ~0.6-0.9 MB,
+   and all of a save's photos upload at once.
    Anything that isn't an image, is already small, or would somehow come
    out bigger is uploaded untouched. */
-async function shrinkBillPhoto(file, maxSide = 1600, quality = 0.82){
+async function shrinkBillPhoto(file, maxSide = 2400, quality = 0.9){
   if(!file.type || !file.type.startsWith('image/') || file.size < 400*1024) return file;
   try{
     const bmp = await createImageBitmap(file, {imageOrientation:'from-image'});
@@ -3769,7 +3828,7 @@ function showConfirmModal(message, onYes){
   document.body.appendChild(overlay);
   document.getElementById('confirm-modal-yes').onclick = async ()=>{
     overlay.remove();
-    await onYes();
+    await runBusy(onYes, 'ડિલીટ થઈ રહ્યું છે…');
   };
 }
 /* Short, readable one-line description of a deleted row for the
