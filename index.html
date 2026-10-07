@@ -599,6 +599,18 @@ button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,
   box-shadow:0 2px 0 rgba(220,38,38,.25);
 }
 .form-row .bill-chip button:active, .bill-chip button:active{transform:translateY(1px); box-shadow:none;}
+/* View-only chips -- the same pill for every attachment shown in a list:
+   bills on Expenses and KIRAN 3 entries (links) and files on Documents
+   (buttons, which would otherwise pick up the full-size 3D key style).
+   Long file names are cut with "…"; tap opens the file as before. */
+.bill-chip.view, button.bill-chip.view{
+  padding:4px 11px; min-height:0; max-width:220px; cursor:pointer;
+  font-family:'Inter',sans-serif; font-size:12.5px; font-weight:700; line-height:1.4;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;
+  background-image:none; text-shadow:none;
+  box-shadow:inset 0 1px 0 var(--hl-soft), 0 2px 0 rgba(var(--sh-rgb),.12);
+}
+.bill-chip.view:active, button.bill-chip.view:active{transform:translateY(1px); box-shadow:inset 0 1px 0 var(--hl-soft);}
 
 /* "Process chalu hai" overlay (see showBusy): a raised card in the middle
    of a dimmed screen with an accent-coloured spinning ring. It also
@@ -2510,7 +2522,7 @@ async function withBusyButton(btn, fn){
 function billLinksHtml(billUrl){
   const urls = (billUrl||'').split('\n').filter(Boolean);
   if(!urls.length) return '';
-  return urls.map((u,i)=>`<a href="${u}" target="_blank" class="config-note" style="margin:0;">📎 બિલ${urls.length>1?' '+(i+1):''}</a>`).join('');
+  return urls.map((u,i)=>`<a href="${u}" target="_blank" class="bill-chip view">📎 બિલ${urls.length>1?' '+(i+1):''}</a>`).join('');
 }
 async function addExpense(){
   const amountVal = Number(document.getElementById('e_amount').value);
@@ -3991,7 +4003,7 @@ async function renderDocumentsTab(box){
         </div>
         ${d.remarks?`<div class="config-note" style="margin:0;">${d.remarks}</div>`:''}
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          ${paths.map((p,i)=>`<button onclick="openSocietyDoc('${p}')">📎 ${names[i] ? names[i] : 'ફાઈલ '+(i+1)}</button>`).join('')}
+          ${paths.map((p,i)=>`<button type="button" class="bill-chip view" onclick="openSocietyDoc('${p}')" title="${names[i] ? names[i] : ''}">📎 ${names[i] ? names[i] : 'ફાઈલ '+(i+1)}</button>`).join('')}
           <span class="flat-actions" style="margin-left:auto;"><button class="danger" onclick="deleteRow('documents','id',${d.id})" title="Delete">🗑️</button></span>
         </div>
       </div>`;}).join('') || `<p class="empty">હજુ કોઈ document નથી.</p>`}</div>
