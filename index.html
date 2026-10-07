@@ -421,6 +421,35 @@ function friendlyDbError(error){
 /* 10-digit mobile numbers display as "12345 67890" (space after the
    5th digit). Anything else (toll-free numbers, already-spaced text
    like "1800 258 5500") is shown exactly as stored. */
+/* Dashboard "જરૂરી નંબરો": an icon picked from the service name, and a
+   colour per row. Rules are checked top to bottom and the first match
+   wins, so the more specific ones ("ટાંકી સફાઈ" = tank cleaning) come
+   before the generic ones ("સફાઈ" = cleaning). Anything unrecognised
+   gets 🛠️, so a newly added contact still looks right. */
+const CONTACT_ICON_RULES = [
+  [/ટાંકી|tank clean/i, '🪣'],
+  [/ફ્લશ|flush/i, '🚽'],
+  [/નળ|CERA|tap|faucet/i, '🚰'],
+  [/ફાઉન્ટન|fountain/i, '⛲'],
+  [/બોરીંગ|બોરિંગ|boring|bore/i, '⚙️'],
+  [/પમ્પ|પંપ|મોટર|pump|motor/i, '💧'],
+  [/એલ્યુમીનીયમ|એલ્યુમિનિયમ|aluminium|aluminum|બારી|window/i, '🪟'],
+  [/એલ્બર|પ્લમ્બર|પ્લંબર|plumb/i, '🔧'],
+  [/ઈલેક્ટ્રીક|ઇલેક્ટ્રિક|ઈલેક્ટ્રિક|electric|લાઈટ|light/i, '⚡'],
+  [/ગાર્ડન|બગીચ|garden/i, '🌳'],
+  [/લિફ્ટ|lift|elevator/i, '🛗'],
+  [/સફાઈ|clean|housekeep/i, '🧹'],
+  [/સિક્યોરિટી|વોચમેન|ચોકીદાર|security|watchman/i, '💂'],
+  [/CCTV|કેમેરા|camera/i, '📹'],
+  [/ગેસ|gas/i, '🔥'],
+];
+function contactIcon(name){
+  const rule = CONTACT_ICON_RULES.find(([re])=>re.test(name||''));
+  return rule ? rule[1] : '🛠️';
+}
+// Saturated hues so the 8-digit-hex tints derived from them (…1A, …26)
+// stay readable on both the light and the dark card background.
+const CONTACT_COLORS = ['#2563EB','#16A34A','#D97706','#DB2777','#7C3AED','#0891B2','#DC2626','#65A30D'];
 function fmtContactMobile(num){
   if(!num) return '';
   const digits = String(num).replace(/\s/g,'');
@@ -714,9 +743,9 @@ const LAST_TAB_KEY = 'cwing_last_tab';
 const AUTOFILL_AMOUNT_KEY = 'cwing_autofill_amount';
 // Bump the suffix whenever the Dashboard layout changes, so a phone
 // doesn't flash the old layout from its saved copy on the next open.
-const DASH_CACHE_LOCKED_KEY = 'cwing_dash_cache_locked_v2';
-const DASH_CACHE_UNLOCKED_KEY = 'cwing_dash_cache_unlocked_v2';
-try{ ['cwing_dash_cache_locked','cwing_dash_cache_unlocked'].forEach(k=>localStorage.removeItem(k)); }catch(e){}
+const DASH_CACHE_LOCKED_KEY = 'cwing_dash_cache_locked_v3';
+const DASH_CACHE_UNLOCKED_KEY = 'cwing_dash_cache_unlocked_v3';
+try{ ['cwing_dash_cache_locked','cwing_dash_cache_unlocked','cwing_dash_cache_locked_v2','cwing_dash_cache_unlocked_v2'].forEach(k=>localStorage.removeItem(k)); }catch(e){}
 
 function getTheme(){ return localStorage.getItem(THEME_KEY) || 'auto'; }
 function applyTheme(){
@@ -1264,13 +1293,14 @@ async function renderDashboardTab(box){
     ${(contacts && contacts.length) ? `<div class="card">
       <h3>📞 જરૂરી નંબરો</h3>
       <p class="config-note" style="margin-top:-6px">કોઈ પણ સર્વિસ/કામ માટે સીધા નંબર પર દબાવીને ફોન કરો.</p>
-      ${contacts.map(c=>`<div class="flat-entry">
-        <span style="flex:1 1 140px; min-width:0;">
-          <div style="font-weight:700;">${c.service_name}</div>
+      ${contacts.map((c,i)=>{ const col = CONTACT_COLORS[i % CONTACT_COLORS.length]; return `<div class="flat-entry" style="background:${col}14; border:1px solid ${col}40; border-left:5px solid ${col}; border-radius:12px; padding:10px 12px; margin-bottom:8px; gap:10px;">
+        <span style="width:40px; height:40px; flex-shrink:0; border-radius:50%; background:${col}26; display:flex; align-items:center; justify-content:center; font-size:21px;">${contactIcon(c.service_name)}</span>
+        <span style="flex:1 1 120px; min-width:0;">
+          <div style="font-weight:700; color:${col};">${c.service_name}</div>
           ${c.person_name?`<div class="config-note" style="margin:0;">${c.person_name}</div>`:''}
         </span>
-        ${c.mobile_no ? `<a href="tel:${c.mobile_no.replace(/\s/g,'')}" class="btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:800; white-space:nowrap;">📞 ${fmtContactMobile(c.mobile_no)}</a>` : ''}
-      </div>`).join('')}
+        ${c.mobile_no ? `<a href="tel:${c.mobile_no.replace(/\s/g,'')}" class="btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:800; white-space:nowrap; border-color:${col}; color:${col};">📞 ${fmtContactMobile(c.mobile_no)}</a>` : ''}
+      </div>`; }).join('')}
     </div>` : ''}
     <div class="card">
       <h3>📊 Reports</h3>
