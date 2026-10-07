@@ -447,6 +447,43 @@ button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,
 .hero-banner .who button.primary:active{box-shadow:inset 0 1px 0 #fff, 0 1px 0 rgba(0,0,0,.22), 0 3px 6px -3px rgba(0,0,0,.4);}
 .hero-banner .who button:not(.primary){box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 4px 0 rgba(0,0,0,.2), 0 8px 14px -6px rgba(0,0,0,.35);}
 
+/* Header banner, re-laid out: the society name is centred on its own
+   line in raised lettering, and the status pill, bell and Unlock/Lock
+   button sit together in a frosted strip underneath (they used to be
+   squeezed into the top-right corner, stacked unevenly). The banner
+   itself gets a solid accent base edge like the buttons. */
+.hero-banner{
+  flex-direction:column; align-items:center; text-align:center; gap:14px;
+  padding:20px 16px 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.3),
+    inset 0 -12px 20px -12px rgba(0,0,0,.35),
+    0 6px 0 var(--maroon-deep),
+    0 18px 30px -10px var(--maroon-glow);
+}
+.hero-banner .title-block{align-items:center; width:100%; gap:8px;}
+.hero-banner .eyebrow{
+  background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.25);
+  padding:3px 12px; border-radius:999px; color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 2px 4px rgba(0,0,0,.15);
+}
+.hero-banner h1{
+  font-size:24px;
+  text-shadow:0 1px 0 rgba(0,0,0,.18), 0 2px 0 rgba(0,0,0,.14), 0 3px 0 rgba(0,0,0,.1), 0 8px 18px rgba(0,0,0,.35);
+}
+.hero-banner .who{
+  flex-direction:row; align-items:center; justify-content:center; gap:12px; margin:0 auto;
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.22); border-radius:999px;
+  padding:6px 8px 6px 14px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -2px 6px rgba(0,0,0,.15);
+}
+.hero-banner .who button{min-height:38px; padding:8px 18px;}
+.hero-banner .bell-wrap{font-size:24px; filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));}
+@media (max-width:640px){
+  .hero-banner{padding:16px 12px 14px; gap:12px;}
+  .hero-banner h1{font-size:20px;}
+}
+
 /* Every list entry on every tab (Collections, Expenses, Statement,
    Vehicles, Charges, Dues, Documents, Deleted Items, Settings...) is a
    .flat-entry -- they were plain rows split by a line; now each is its
