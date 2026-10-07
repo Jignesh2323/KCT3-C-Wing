@@ -697,7 +697,81 @@ input:focus, select:focus, textarea:focus{box-shadow:inset 0 2px 4px rgba(var(--
   .stat:active, button:active, .btn:active{transform:none;}
 }
 
+/* ---- Animated welcome (see #intro at the top of <body>) ---- */
+.intro{
+  position:fixed; inset:0; z-index:1000; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  background:linear-gradient(135deg, var(--maroon-deep) 0%, var(--maroon) 55%, var(--maroon-tint) 100%);
+  color:#fff; text-align:center; padding:24px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+}
+.intro.out{animation:introOut .55s ease-in forwards;}
+.intro-glow{
+  position:absolute; width:160vmax; height:160vmax; left:50%; top:50%; margin:-80vmax 0 0 -80vmax;
+  background:conic-gradient(from 0deg, transparent 0 70%, rgba(255,255,255,.18) 80%, transparent 90%);
+  animation:introSpin 6s linear infinite; pointer-events:none;
+}
+.intro > *:not(.intro-glow):not(.intro-fw){position:relative;}
+.intro-fw{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+.intro-logo{
+  width:112px; height:112px; border-radius:28px; margin-bottom:14px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 8px 0 rgba(0,0,0,.28), 0 24px 40px rgba(0,0,0,.45);
+  animation:introZoom .75s cubic-bezier(.34,1.56,.64,1) both, introFloat 2.4s ease-in-out .9s infinite;
+}
+.intro-welcome{
+  /* no wide letter-spacing: it pulls Gujarati's joined letters apart */
+  font-size:20px; font-weight:700; letter-spacing:.02em;
+  color:rgba(255,255,255,.92); text-shadow:0 2px 6px rgba(0,0,0,.25);
+  animation:introFlyLeft .6s cubic-bezier(.22,1,.36,1) .5s both;
+}
+.intro-name{
+  font-family:'Space Grotesk',sans-serif; font-size:54px; font-weight:800; line-height:1.05; perspective:600px;
+  position:relative; overflow:visible;
+}
+.intro-name span{
+  display:inline-block;
+  text-shadow:0 1px 0 #E6E6F0, 0 2px 0 #D2D2DF, 0 3px 0 #BDBDCE, 0 4px 0 #A9A9BD, 0 5px 0 #9494AB, 0 8px 14px rgba(0,0,0,.35);
+  animation:introDrop .6s cubic-bezier(.34,1.56,.64,1) both;
+  animation-delay:calc(.85s + var(--i) * .08s);
+}
+.intro-name::after{ /* glint sweeping across the name */
+  content:''; position:absolute; top:0; bottom:0; width:40%; left:-50%;
+  background:linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent);
+  transform:skewX(-20deg); animation:introGlint .9s ease-in-out 2.05s both; pointer-events:none;
+}
+.intro-sub{
+  font-family:'Space Grotesk',sans-serif; font-size:21px; font-weight:700; margin-top:6px;
+  text-shadow:0 2px 0 rgba(0,0,0,.2), 0 6px 14px rgba(0,0,0,.3);
+  animation:introWipe .7s ease-out 1.5s both;
+}
+.intro-line{
+  height:4px; width:0; border-radius:4px; margin-top:12px; background:rgba(255,255,255,.85);
+  box-shadow:0 0 12px rgba(255,255,255,.7); animation:introLine .6s ease-out 1.95s forwards;
+}
+.intro-skip{
+  position:absolute !important; bottom:calc(22px + env(safe-area-inset-bottom)); left:0; right:0;
+  font-size:12.5px; color:rgba(255,255,255,.65);
+  animation:introFade .5s ease 1.2s both;
+}
+@keyframes introZoom{from{opacity:0; transform:scale(0) rotate(-25deg);}to{opacity:1; transform:none;}}
+@keyframes introFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+@keyframes introFlyLeft{from{opacity:0; transform:translateX(-120vw);}to{opacity:1; transform:none;}}
+@keyframes introDrop{from{opacity:0; transform:translateY(-90px) rotateX(90deg);}to{opacity:1; transform:none;}}
+/* opacity 0 at both ends (and, via fill-mode both, before it starts) so
+   the glint is only seen while sweeping, never parked beside the name */
+@keyframes introGlint{0%{left:-50%; opacity:0;} 15%{opacity:1;} 85%{opacity:1;} 100%{left:120%; opacity:0;}}
+@keyframes introWipe{from{clip-path:inset(0 100% 0 0);}to{clip-path:inset(0 0 0 0);}}
+@keyframes introLine{to{width:min(70vw, 300px);}}
+@keyframes introFade{from{opacity:0;}to{opacity:1;}}
+@keyframes introSpin{to{transform:rotate(360deg);}}
+@keyframes introOut{to{opacity:0; transform:scale(1.15);}}
+@media (max-width:380px){ .intro-name{font-size:46px;} .intro-sub{font-size:18px;} }
+@media (prefers-reduced-motion: reduce){
+  .intro *, .intro-name span, .intro-name::after{animation:none !important;}
+  .intro-line{width:min(70vw, 300px);}
+}
+
 @media print{
+  .intro{display:none !important;}
   .bottom-nav, .hero-banner .who, .form-row, .flat-actions, button, .nav-more{display:none !important;}
   .app{padding-bottom:0;}
   body{background:#fff;}
@@ -706,6 +780,101 @@ input:focus, select:focus, textarea:focus{box-shadow:inset 0 2px 4px rgba(var(--
 </style>
 </head>
 <body>
+<!-- Animated welcome shown once each time the app is opened (PowerPoint-
+     style entrances: logo zooms in with a bounce, "Welcome to" flies in,
+     the letters of Kiran-3 drop in one by one, the subtitle wipes in, a
+     glint sweeps across, then the whole thing zooms out into the app).
+     Plain HTML/CSS so it paints before any app script runs; the app and
+     its data load behind it. Tap anywhere to skip. -->
+<div id="intro" class="intro" onclick="hideIntro()" aria-hidden="true">
+  <div class="intro-glow"></div>
+  <img class="intro-logo" src="icon-192.png" alt="">
+  <div class="intro-welcome">આપનું સ્વાગત છે</div>
+  <!-- one span per Gujarati syllable (consonant + its vowel sign together,
+       e.g. "કિ"), so a matra never drops in separately from its letter -->
+  <div class="intro-name"><span style="--i:0">કિ</span><span style="--i:1">ર</span><span style="--i:2">ણ</span><span style="--i:3">-</span><span style="--i:4">૩</span></div>
+  <div class="intro-sub">સી-વિંગ મેન્ટેનન્સ ફંડ</div>
+  <div class="intro-line"></div>
+  <div class="intro-skip">સ્કિપ કરવા ટેપ કરો</div>
+</div>
+<script>
+(function(){
+  var el = document.getElementById('intro');
+  // only on a fresh open of the app, not on every reload in the same session
+  var seen = false;
+  try{ seen = sessionStorage.getItem('cwing_intro_seen') === '1'; sessionStorage.setItem('cwing_intro_seen', '1'); }catch(e){}
+  window.hideIntro = function(){
+    if(!el || !el.isConnected || el.classList.contains('out')) return;
+    el.classList.add('out');
+    setTimeout(function(){ if(el.isConnected) el.remove(); }, 560);
+  };
+  if(seen){ el.remove(); return; }
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(window.hideIntro, reduce ? 1200 : 3800);
+  if(reduce) return;
+
+  /* Fireworks: rockets climb from the bottom trailing sparks and burst
+     into rings of coloured particles that drift, fall and fade -- a few
+     at once, then one roughly every 0.3 s until the intro closes. Drawn
+     on a canvas behind the text; the loop stops as soon as the intro is
+     removed. */
+  var cv = document.createElement('canvas');
+  cv.className = 'intro-fw';
+  el.insertBefore(cv, el.children[1]);
+  var ctx = cv.getContext('2d');
+  var dpr = Math.min(window.devicePixelRatio || 1, 2), W = 0, H = 0;
+  function size(){ W = innerWidth; H = innerHeight; cv.width = W*dpr; cv.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  size(); addEventListener('resize', size);
+  var PALETTES = [['#FFD54F','#FFB300','#FFF59D'],['#FF5252','#FF8A80','#FFCDD2'],['#69F0AE','#00E676','#B9F6CA'],
+                  ['#40C4FF','#80D8FF','#E1F5FE'],['#E040FB','#EA80FC','#F3E5F5'],['#FFAB40','#FF6E40','#FFE0B2']];
+  var rockets = [], sparks = [];
+  function launch(){
+    var x = W*(0.15 + Math.random()*0.7);
+    rockets.push({x:x, y:H+10, vx:(Math.random()-0.5)*1.2, vy:-(H*0.0155 + Math.random()*3),
+                  ty:H*(0.12 + Math.random()*0.33), pal:PALETTES[(Math.random()*PALETTES.length)|0]});
+  }
+  function burst(r){
+    var n = 70 + (Math.random()*40|0), ring = Math.random() < 0.35;
+    for(var i=0;i<n;i++){
+      var a = (i/n)*Math.PI*2 + Math.random()*0.2, s = ring ? 4.2 : 1 + Math.random()*4.6;
+      sparks.push({x:r.x, y:r.y, px:r.x, py:r.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+                   life:1, decay:0.011 + Math.random()*0.012, c:r.pal[(Math.random()*r.pal.length)|0], w:1.6+Math.random()*1.4});
+    }
+    for(var j=0;j<14;j++){ // a white flash of crackle at the centre
+      var b = Math.random()*Math.PI*2, t = Math.random()*1.5;
+      sparks.push({x:r.x, y:r.y, px:r.x, py:r.y, vx:Math.cos(b)*t, vy:Math.sin(b)*t, life:1, decay:0.05, c:'#FFFFFF', w:2.4});
+    }
+  }
+  var last = 0, started = performance.now();
+  launch(); setTimeout(launch, 180); setTimeout(launch, 360);
+  function frame(now){
+    if(!el.isConnected){ removeEventListener('resize', size); return; }
+    if(now - last > 300 && now - started < 3300){ launch(); last = now; }
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    for(var i=rockets.length-1;i>=0;i--){
+      var r = rockets[i], ox = r.x, oy = r.y;
+      r.x += r.vx; r.y += r.vy; r.vy += 0.12;
+      ctx.strokeStyle = 'rgba(255,240,200,.9)'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(ox, oy+10); ctx.lineTo(r.x, r.y); ctx.stroke();
+      if(r.y <= r.ty || r.vy >= -1){ burst(r); rockets.splice(i,1); }
+    }
+    for(var k=sparks.length-1;k>=0;k--){
+      var p = sparks[k];
+      p.px = p.x; p.py = p.y;
+      p.vx *= 0.975; p.vy = p.vy*0.975 + 0.05;
+      p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+      if(p.life <= 0){ sparks.splice(k,1); continue; }
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.strokeStyle = p.c; ctx.lineWidth = p.w; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.px - p.vx*2, p.py - p.vy*2); ctx.lineTo(p.x, p.y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
 <div id="root"></div>
 <script>
 /* ============================================================
