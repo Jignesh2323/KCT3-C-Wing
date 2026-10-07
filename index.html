@@ -413,17 +413,51 @@ a{color:var(--maroon);}
 .stat:active{transform:translateY(2px); box-shadow:inset 0 1px 0 var(--hl), inset 0 -1px 0 rgba(var(--sh-rgb),.07), 0 2px 5px -3px rgba(var(--sh-rgb),.3);}
 .stat .num{text-shadow:0 1px 0 var(--hl-soft);}
 
+/* Buttons are chunky keys: a glossy top half, a solid 5px "side" below
+   and a soft floor shadow. Tapping pushes the key down by the side's
+   height, so it visibly clicks in. */
 button, .btn{
-  background-image:linear-gradient(180deg, var(--hl-soft), rgba(255,255,255,0));
-  box-shadow:inset 0 1px 0 var(--hl), 0 3px 0 rgba(var(--sh-rgb),.13), 0 6px 12px -5px rgba(var(--sh-rgb),.22);
+  border-radius:14px;
+  background-image:linear-gradient(180deg, var(--hl) 0%, var(--hl-soft) 45%, rgba(255,255,255,0) 55%, rgba(var(--sh-rgb),.04) 100%);
+  box-shadow:
+    inset 0 1px 0 var(--hl),
+    inset 0 -2px 0 rgba(var(--sh-rgb),.07),
+    0 5px 0 rgba(var(--sh-rgb),.16),
+    0 10px 16px -6px rgba(var(--sh-rgb),.32);
+  transition:transform .08s ease, box-shadow .08s ease, background .15s ease, border-color .15s ease;
 }
-button:active, .btn:active{transform:translateY(2px); box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(var(--sh-rgb),.13), 0 2px 4px -2px rgba(var(--sh-rgb),.22);}
+button:active, .btn:active{
+  transform:translateY(4px);
+  box-shadow:inset 0 1px 0 var(--hl), inset 0 -1px 0 rgba(var(--sh-rgb),.07), 0 1px 0 rgba(var(--sh-rgb),.16), 0 3px 5px -3px rgba(var(--sh-rgb),.3);
+}
 button.primary{
-  background-image:linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 60%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 4px 0 var(--maroon-deep), 0 8px 18px -4px var(--maroon-glow);
+  background-image:linear-gradient(180deg, rgba(255,255,255,.32) 0%, rgba(255,255,255,.1) 48%, rgba(255,255,255,0) 52%, rgba(0,0,0,.1) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.45),
+    inset 0 -2px 0 rgba(0,0,0,.18),
+    0 5px 0 var(--maroon-deep),
+    0 12px 20px -6px var(--maroon-glow);
+  text-shadow:0 1px 1px rgba(0,0,0,.25);
 }
-button.primary:active{box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 1px 0 var(--maroon-deep), 0 3px 8px -3px var(--maroon-glow);}
-button.danger{box-shadow:inset 0 1px 0 var(--hl), 0 3px 0 rgba(220,38,38,.25), 0 6px 12px -5px rgba(220,38,38,.25);}
+button.primary:active{box-shadow:inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(0,0,0,.18), 0 1px 0 var(--maroon-deep), 0 4px 8px -3px var(--maroon-glow);}
+button.danger{box-shadow:inset 0 1px 0 var(--hl), inset 0 -2px 0 rgba(220,38,38,.12), 0 5px 0 rgba(220,38,38,.32), 0 10px 16px -6px rgba(220,38,38,.35);}
+button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,.32), 0 3px 5px -3px rgba(220,38,38,.35);}
+/* the banner's Unlock / View Only buttons had their own flat shadows */
+.hero-banner .who button.primary{box-shadow:inset 0 1px 0 #fff, inset 0 -2px 0 rgba(0,0,0,.08), 0 5px 0 rgba(0,0,0,.22), 0 12px 20px -6px rgba(0,0,0,.4); text-shadow:none;}
+.hero-banner .who button.primary:active{box-shadow:inset 0 1px 0 #fff, 0 1px 0 rgba(0,0,0,.22), 0 3px 6px -3px rgba(0,0,0,.4);}
+.hero-banner .who button:not(.primary){box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 4px 0 rgba(0,0,0,.2), 0 8px 14px -6px rgba(0,0,0,.35);}
+
+/* Every list entry on every tab (Collections, Expenses, Statement,
+   Vehicles, Charges, Dues, Documents, Deleted Items, Settings...) is a
+   .flat-entry -- they were plain rows split by a line; now each is its
+   own small raised tile. */
+.flat-entry, .flat-entry:last-child{
+  background-color:var(--white-card);
+  background-image:linear-gradient(180deg, var(--hl-soft), rgba(255,255,255,0) 60%);
+  border:1px solid rgba(var(--sh-rgb),.08);
+  border-radius:14px; padding:12px 14px; margin-bottom:12px;
+  box-shadow:inset 0 1px 0 var(--hl), inset 0 -2px 0 rgba(var(--sh-rgb),.04), 0 3px 0 rgba(var(--sh-rgb),.05), 0 10px 18px -12px rgba(var(--sh-rgb),.4);
+}
 
 /* inputs are pressed into the surface */
 input, select, textarea{box-shadow:inset 0 2px 4px rgba(var(--sh-rgb),.08), inset 0 1px 0 rgba(var(--sh-rgb),.05), 0 1px 0 var(--hl);}
