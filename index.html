@@ -2169,7 +2169,7 @@ async function bulkBuilderPayment(){
 async function addKiran3CommonIncome(){
   const amount = Number(document.getElementById('k3_amount').value);
   if(!amount || amount <= 0){ alert('Valid Amount daalo.'); return; }
-  await withPin(async ()=>{
+  await withPin(()=>withBusyButton(document.getElementById('k3_add_btn'), async ()=>{
     const payload = {
       income_date: document.getElementById('k3_date').value || new Date().toISOString().slice(0,10),
       amount: amount,
@@ -2196,7 +2196,7 @@ async function addKiran3CommonIncome(){
       ? await sb.from('kiran3_income').update(payload).eq('id', editingKiran3Id)
       : await sb.from('kiran3_income').insert(payload);
     if(error) alert(friendlyDbError(error)); else { editingKiran3Id = null; refreshTab(); }
-  });
+  }));
 }
 function populateKiran3Form(id){
   const k = kiran3IncomeCache.find(x=>x.id===id);
@@ -2381,17 +2381,49 @@ function resetExpenseForm(){
   const billNote = document.getElementById('e_bill_current'); if(billNote) billNote.innerHTML = '';
   const title = document.getElementById('expenses-form-title'); if(title) title.textContent = 'Add Expense';
 }
+/* Phone-camera bill photos are 2-4 MB each, and Save used to upload them
+   one after another at full size -- that was most of the wait when
+   saving an expense. A bill only has to be readable, so photos are
+   shrunk on the phone first (longest side 1600px, JPEG ~82%; usually
+   a 2-3 MB photo becomes ~200-350 KB) and all of them upload at once.
+   Anything that isn't an image, is already small, or would somehow come
+   out bigger is uploaded untouched. */
+async function shrinkBillPhoto(file, maxSide = 1600, quality = 0.82){
+  if(!file.type || !file.type.startsWith('image/') || file.size < 400*1024) return file;
+  try{
+    const bmp = await createImageBitmap(file, {imageOrientation:'from-image'});
+    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    bmp.close && bmp.close();
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+    if(!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', {type:'image/jpeg'});
+  }catch(e){ return file; } // older browser / odd format: just send the original
+}
 async function uploadExpenseBills(files){
-  const urls = [];
-  for(const file of files){
+  const results = await Promise.all(files.map(async (orig)=>{
+    const file = await shrinkBillPhoto(orig);
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `bill_${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
     const {error} = await sb.storage.from('expense-bills').upload(path, file, {cacheControl:'3600', upsert:false});
-    if(error){ alert('Bill photo upload nahi ho paya: ' + friendlyDbError(error)); return null; }
-    const {data} = sb.storage.from('expense-bills').getPublicUrl(path);
-    urls.push(data.publicUrl);
-  }
-  return urls;
+    if(error) return {error};
+    return {url: sb.storage.from('expense-bills').getPublicUrl(path).data.publicUrl};
+  }));
+  const failed = results.find(r=>r.error);
+  if(failed){ alert('Bill photo upload nahi ho paya: ' + friendlyDbError(failed.error)); return null; }
+  return results.map(r=>r.url); // same order the photos were picked in
+}
+// Shows "⏳ Saving…" on a Save/Add button while fn runs, so a slow upload
+// doesn't look like the tap was ignored (and can't be tapped twice).
+async function withBusyButton(btn, fn){
+  if(!btn) return fn();
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+  try{ return await fn(); }
+  finally{ if(btn.isConnected){ btn.disabled = false; btn.textContent = label; } }
 }
 // bill_url stores one or more URLs joined by \n (no schema change needed)
 function billLinksHtml(billUrl){
@@ -2402,7 +2434,7 @@ function billLinksHtml(billUrl){
 async function addExpense(){
   const amountVal = Number(document.getElementById('e_amount').value);
   if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
-  await withPin(async ()=>{
+  await withPin(()=>withBusyButton(document.querySelector('[onclick="addExpense()"]'), async ()=>{
     const payload = {
       expense_date: document.getElementById('e_date').value || new Date().toISOString().slice(0,10),
       category: document.getElementById('e_cat').value,
@@ -2428,7 +2460,7 @@ async function addExpense(){
       ? await sb.from('expenses').update(payload).eq('id', editingExpenseId)
       : await sb.from('expenses').insert(payload);
     if(error) alert(friendlyDbError(error)); else { editingExpenseId = null; refreshTab(); }
-  });
+  }));
 }
 /* ---- Fund Transfer tab (Cash <-> Bank) ---- */
 async function renderTransfersTab(box){
