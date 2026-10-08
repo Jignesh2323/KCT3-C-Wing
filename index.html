@@ -577,6 +577,11 @@ button.danger:active{box-shadow:inset 0 1px 0 var(--hl), 0 1px 0 rgba(220,38,38,
 .flat-entry[style*="flex-direction:column"] .flat-actions{
   flex:1 1 100%; justify-content:center; margin-left:0 !important; margin-top:4px;
 }
+/* Documents has a single 🗑️, so keep it on the file-chip line, at the
+   right, instead of a whole centred line of its own */
+.flat-entry[style*="flex-direction:column"] .flat-actions.doc-actions{
+  flex:0 0 auto; margin-left:auto !important; margin-top:0;
+}
 
 /* Existing-bill chips in the Expense / KIRAN 3 edit forms. They live
    inside .form-row, whose phone rule stretches every button to 100%
@@ -4176,7 +4181,7 @@ async function renderDocumentsTab(box){
         ${d.remarks?`<div class="config-note" style="margin:0;">${d.remarks}</div>`:''}
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           ${paths.map((p,i)=>`<button type="button" class="bill-chip view" onclick="openSocietyDoc('${p}')" title="${names[i] ? names[i] : ''}">📎 ${names[i] ? names[i] : 'ફાઈલ '+(i+1)}</button>`).join('')}
-          <span class="flat-actions" style="margin-left:auto;"><button class="danger" onclick="deleteRow('documents','id',${d.id})" title="Delete">🗑️</button></span>
+          <span class="flat-actions doc-actions" style="margin-left:auto;"><button class="danger" onclick="deleteRow('documents','id',${d.id})" title="Delete">🗑️</button></span>
         </div>
       </div>`;}).join('') || `<p class="empty">હજુ કોઈ document નથી.</p>`}</div>
     </div>`;
