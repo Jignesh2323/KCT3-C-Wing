@@ -1404,12 +1404,16 @@ function showPinModal(action){
   const old = document.getElementById('pin-modal');
   if(old) old.remove();
   setTimeout(armBackIfNeeded, 0); // Back closes the PIN box instead of the app
+  // No autofocus anywhere: a popup shows in full first, and the keypad
+  // opens only when the user taps a box. Drop focus from whatever field
+  // was active so its keypad closes too.
+  document.activeElement && document.activeElement.blur && document.activeElement.blur();
   const overlay = el(`<div class="modal-backdrop" id="pin-modal">
     <div class="modal-box">
       <h3>Enter PIN</h3>
       <p class="config-note">ફેરફાર કરવા માટે જરૂરી છે. Lock ન દબાવો ત્યાં સુધી આ ડિવાઈસ પર અનલૉક રહેશે.</p>
       <div id="pin-modal-msg"></div>
-      <input id="pin-modal-input" type="password" inputmode="numeric" maxlength="6" style="width:100%; letter-spacing:.3em; text-align:center; font-size:20px" autofocus>
+      <input id="pin-modal-input" type="password" inputmode="numeric" maxlength="6" style="width:100%; letter-spacing:.3em; text-align:center; font-size:20px">
       <div class="modal-actions">
         <button onclick="document.getElementById('pin-modal').remove(); render();">Cancel</button>
         <button class="primary" id="pin-modal-submit">Unlock</button>
@@ -4026,6 +4030,7 @@ function showConfirmModal(message, onYes){
   const old = document.getElementById('confirm-modal');
   if(old) old.remove();
   setTimeout(armBackIfNeeded, 0); // Back = "No", not closing the app
+  document.activeElement && document.activeElement.blur && document.activeElement.blur(); // keypad stays closed
   const overlay = el(`<div class="modal-backdrop" id="confirm-modal">
     <div class="modal-box">
       <h3>Are you sure?</h3>
