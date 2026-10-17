@@ -1083,10 +1083,63 @@ function toggleWaSentPill(key, pillId){
     paintWaSentPill(pillId, now);
   });
 }
-function openWaLink(event, link, key, pillId){
+/* Share to WhatsApp. When the entry has bill photos and the phone
+   supports sharing files (Android Chrome, iPhone Safari), the photos are
+   downloaded and handed to the phone's share sheet together with the
+   message, which WhatsApp sends as the caption -- the user picks WhatsApp
+   and then the group. Otherwise (no bills, or a browser that can't share
+   files, e.g. desktop) it opens the old wa.me text link, now with the
+   bill links added at the end so they still reach the group. */
+function openWaLink(event, link, key, pillId, billsEnc){
   event.preventDefault();
+  const bills = decodeURIComponent(billsEnc || '').split('\n').filter(Boolean);
+  const text = decodeURIComponent((link.split('text=')[1] || ''));
   withPin(async ()=>{
-    window.open(link, '_blank');
+    let shared = false;
+    if(bills.length && navigator.canShare){
+      const files = await runBusy(async ()=>{
+        const out = [];
+        for(let i=0;i<bills.length;i++){
+          try{
+            const r = await fetch(bills[i]);
+            if(!r.ok) continue;
+            const b = await r.blob();
+            const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg','jpg');
+            out.push(new File([b], `bill-${i+1}.${ext}`, {type: b.type || 'image/jpeg'}));
+          }catch(e){}
+        }
+        return out;
+      }, 'બિલ ફોટા તૈયાર થઈ રહ્યા છે…');
+      if(files.length && navigator.canShare({files})){
+        const doShare = ()=>navigator.share({files, text});
+        try{ await doShare(); shared = true; }
+        catch(err){
+          if(err && err.name === 'AbortError') return; // user closed the share sheet: nothing sent
+          // The photo download took long enough that the browser no longer
+          // counts this as the user's tap -- ask for one more tap.
+          shared = await new Promise(res=>{
+            const o = el(`<div class="modal-backdrop" id="share-modal"><div class="modal-box">
+              <h3>📤 WhatsApp પર મોકલો</h3><p>${files.length} બિલ ફોટા અને મેસેજ તૈયાર છે.</p>
+              <div class="modal-actions"><button id="share-no">Cancel</button><button class="primary" id="share-yes">Share</button></div></div></div>`);
+            document.body.appendChild(o);
+            // closed some other way (phone Back removes any .modal-backdrop):
+            // settle anyway, or withPin's in-flight guard would stay stuck
+            // and block every later save
+            const watch = setInterval(()=>{ if(!o.isConnected){ clearInterval(watch); res(false); } }, 400);
+            document.getElementById('share-no').onclick = ()=>{ o.remove(); res(false); };
+            document.getElementById('share-yes').onclick = async ()=>{
+              o.remove();
+              try{ await doShare(); res(true); }catch(e){ res(false); }
+            };
+          });
+          if(!shared) return;
+        }
+      }
+    }
+    if(!shared){
+      const withLinks = bills.length ? text + '\n\n📎 બિલ:\n' + bills.join('\n') : text;
+      window.open(waShareLink(withLinks), '_blank');
+    }
     await setWaSent(key, true);
     paintWaSentPill(pillId, true);
   });
@@ -2275,7 +2328,7 @@ function collectionsRowsHtml(list, k3list){
           <span class="config-note" style="margin:0; color:${isExp?'var(--danger)':'#6d28d9'}; font-weight:700;">${c.mode||''}</span>
           ${billLinksHtml(c.bill_url)}
           <span class="flat-actions" style="margin-left:auto;">
-            <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share</a>${waSentPillHtml(waKey, pillId)}
+            <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}','${encodeURIComponent(c.bill_url||'')}')">${WA_ICON}Share</a>${waSentPillHtml(waKey, pillId)}
             <button onclick="editKiran3Income(${c.id})" title="Edit">✏️ Edit</button>
             <button class="danger" onclick="deleteRow('kiran3_income','id',${c.id})" title="Delete">🗑️</button>
           </span>
@@ -2608,7 +2661,7 @@ async function renderExpensesTab(box){
             ${e.paid_to?`<span class="config-note" style="margin:0;">ચૂકવ્યું: ${e.paid_to}</span>`:''}
             ${billLinksHtml(e.bill_url)}
             <span class="flat-actions" style="margin-left:auto;">
-              <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}')">${WA_ICON}Share</a>${waSentPillHtml(waKey, pillId)}
+              <a href="${waLinkHref}" target="_blank" class="btn" style="text-decoration:none; display:inline-flex; align-items:center" onclick="return openWaLink(event,'${waLinkHref}','${waKey}','${pillId}','${encodeURIComponent(e.bill_url||'')}')">${WA_ICON}Share</a>${waSentPillHtml(waKey, pillId)}
               <button onclick="editExpense(${e.id})">Edit</button>
               <button class="danger" onclick="deleteRow('expenses','id',${e.id})" title="Delete">🗑️</button>
             </span>
