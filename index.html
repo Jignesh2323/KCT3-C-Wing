@@ -694,6 +694,13 @@ input:focus, select:focus, textarea:focus{box-shadow:inset 0 2px 4px rgba(var(--
 .more-menu, .modal-box{box-shadow:inset 0 1px 0 var(--hl), 0 2px 4px rgba(var(--sh-rgb),.08), 0 22px 48px -12px rgba(var(--sh-rgb),.4);}
 
 /* Dashboard contact rows: lifted tiles (colours set inline per row) */
+/* Keep icon | name | call button on one line. With wrapping on, a long
+   number (CERA's toll-free "1800 258 5500") pushed its button onto a
+   second line and made that row twice as tall as the rest; now the name
+   column shrinks and wraps its own text instead. */
+.contact-row{flex-wrap:nowrap !important;}
+.contact-row > span:nth-child(2){flex:1 1 0 !important; min-width:0;}
+.contact-row .btn{flex:0 0 auto; padding:8px 10px; font-size:13px;}
 .contact-row{box-shadow:inset 0 1px 0 var(--hl-soft), 0 4px 10px -6px rgba(var(--sh-rgb),.3);}
 .contact-row .contact-icon{box-shadow:inset 0 1px 0 var(--hl), 0 3px 6px -2px rgba(var(--sh-rgb),.3);}
 
