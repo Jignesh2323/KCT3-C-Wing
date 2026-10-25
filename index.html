@@ -3447,6 +3447,13 @@ const APP_GUIDE_SECTIONS = [
     </table>
     </div>
     <p class="config-note" style="margin:6px 0 6px;">💡 જે ખર્ચો ફક્ત members નો હોય અને Builder પાસેથી ના લેવાનો હોય → <b>Flat Expense</b> પસંદ કરો. યાદ રાખો: એનાથી ખર્ચો ફક્ત <b>નોંધાય</b> છે — members પાસેથી <b>વસૂલવો</b> હોય તો Charges માં અલગ round બનાવો (Applies To: <b>Sold Flats Only</b>).</p>
+    <div style="margin:10px 0 8px; padding:10px 12px; border-radius:12px; background:var(--maroon-soft); border-left:4px solid var(--maroon);">
+      <p style="margin:0 0 6px; font-weight:800; color:var(--maroon-dark);">💸 C-Wing એ KIRAN 3 સોસાયટીને પૈસા આપ્યા — entry કેવી રીતે?</p>
+      <p class="config-note" style="margin:0 0 4px;">દા.ત. C-Wing એ ₹50,000 આપ્યા. <b>બે</b> entry કરવી:</p>
+      <p class="config-note" style="margin:0 0 4px;"><b>1️⃣ Expenses tab</b> → Add Expense → Category: <b>KIRAN 3 Society Advance</b> → Amount: <b>₹50,000</b> (C-Wing એ જેટલા આપ્યા એટલા જ) → Date: જે દિવસે આપ્યા → Paid To: જેને આપ્યા (દા.ત. પ્રમુખ) → Mode: Cash/Bank → Save. આનાથી C-Wing નું Cash/Bank ઘટશે.</p>
+      <p class="config-note" style="margin:0 0 4px;"><b>2️⃣ Collections tab → 🏢 KIRAN 3 Common Fund</b> → Type: <b>Income</b> → Amount: <b>ચારેય વિંગનો ભેગો ટોટલ</b> (દરેક વિંગે ₹50,000 આપ્યા હોય તો ₹2,00,000) → Save. App આને ÷4 કરીને KIRAN 3 Common Balance માં C-Wing નો ભાગ (+₹50,000) બતાવશે.</p>
+      <p class="config-note" style="margin:0;">⚠️ બીજી entry માં ફક્ત ₹50,000 નાખશો તો Balance માં ફક્ત ₹12,500 જ ઉમેરાશે. બધી વિંગના પૈસા હજુ ના આવ્યા હોય તો બીજી entry ત્યારે જ કરો જ્યારે ટોટલ ખબર પડે. મહિનાના અંતે થયેલા ખર્ચની entry "KIRAN 3 Society Expense" માં અલગથી થાય છે (Collections → KIRAN 3 ગાઈડ જુઓ).</p>
+    </div>
     <p class="config-note" style="margin:0;">🔒 ફોર્મ ફક્ત Unlock પછી; List બધાને દેખાય.</p>`},
   { id:'statement', icon:'📒', title:'Statement', body:`
     <p class="config-note" style="margin:0 0 6px;">બેંક પાસબુક જેવું — 💵 Cash, 🏦 Bank, 🏢 KIRAN 3 — ત્રણ views. દરેક એન્ટ્રી પહેલા/પછી કેટલું બેલેન્સ હતું એ સીધું દેખાય છે, entry delete કર્યા વગર.</p>
