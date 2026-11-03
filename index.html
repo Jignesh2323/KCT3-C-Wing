@@ -3847,7 +3847,7 @@ async function getBuilderReceiptData(){
     });
   }
 
-  return { unsoldCount, roundStatuses, todayISO, monthTotal };
+  return { unsoldCount, unsoldFlatNos: (unsoldFlats||[]).map(f=>f.flat_no), roundStatuses, todayISO, monthTotal };
 }
 async function renderBuilderReceiptTab(box){
   box.innerHTML = `<div class="card"><p class="empty">લોડ થઈ રહ્યું છે…</p></div>`;
@@ -3875,6 +3875,10 @@ async function renderBuilderReceiptTab(box){
         <div class="stat stat-good"><div class="num mono">${fmtMoney(r.amountPerFlat * data.unsoldCount)}</div><div class="lbl">કુલ મળ્યું (@ ${fmtMoney(r.amountPerFlat)}/ફ્લેટ)</div></div>
       </div>
       <p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${monthLabel} ના ${data.unsoldCount} Unsold ફ્લેટ્સની આખી મેન્ટેનન્સ રકમ Builder પાસેથી મળી ગઈ છે. કોઈ પણ રસીદ બાકી નથી.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+        <button class="primary" onclick="downloadMonthPdfBuilderReceipts('${r.roundName}', true)">📄 Month PDF (A4) Download</button>
+      </div>
+      <p class="config-note" style="margin-top:6px; margin-bottom:0;">પેમેન્ટ મળી ગયું હોય તો પણ આ મહિનાની બધી ${data.unsoldCount} રસીદો (એ જ રસીદ નંબર સાથે) એક A4 PDF માં ડાઉનલોડ કરી શકો છો.</p>
       ` : `
       <div class="grid-stats grid-stats-2col" style="margin-top:10px;">
         <div class="stat stat-warning"><div class="num mono">${r.pendingFlats.length}</div><div class="lbl">Baaki (Pending) Flats</div></div>
@@ -4124,10 +4128,16 @@ function makeA4ReceiptPdf(imgs){ // imgs: [{bytes:Uint8Array, w, h}]
   push(`trailer\n<</Size ${n}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF`);
   return new Blob(parts, {type:'application/pdf'});
 }
-async function downloadMonthPdfBuilderReceipts(roundName){
+// allFlats=true (fully paid months): every Unsold flat at the round's rate,
+// so receipts for money already received can still be printed/sent.
+async function downloadMonthPdfBuilderReceipts(roundName, allFlats){
   if(!builderReceiptCache) return;
-  const r = builderReceiptCache.roundStatuses.find(x=>x.roundName===roundName);
-  if(!r || !r.pendingFlats.length){ alert('Koi pending Unsold flat nahi mila — sabka payment ho chuka hai.'); return; }
+  const r0 = builderReceiptCache.roundStatuses.find(x=>x.roundName===roundName);
+  if(!r0) return;
+  const r = allFlats
+    ? {...r0, pendingFlats: (builderReceiptCache.unsoldFlatNos||[]).map(n=>({flat_no:n, amount:r0.amountPerFlat}))}
+    : r0;
+  if(!r.pendingFlats.length){ alert('Koi Unsold flat nahi mila.'); return; }
   await runBusy(async ()=>{
     await builderSignReady();
     const todayStr = fmtDate(new Date().toISOString().slice(0,10));
@@ -4135,7 +4145,7 @@ async function downloadMonthPdfBuilderReceipts(roundName){
     for(const f of r.pendingFlats){
       const receiptNo = await ensureBuilderReceiptNo(f.flat_no, roundName);
       if(receiptNo === null) return;
-      const canvas = drawBuilderReceiptCanvas(f.flat_no, builderReceiptAmountFor(f.flat_no, roundName), todayStr, fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
+      const canvas = drawBuilderReceiptCanvas(f.flat_no, f.amount, todayStr, fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
       const blob = await new Promise(res=>canvas.toBlob(res, 'image/jpeg', 0.92));
       imgs.push({bytes: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height});
     }
