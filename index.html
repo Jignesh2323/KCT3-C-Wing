@@ -3883,17 +3883,14 @@ async function renderBuilderReceiptTab(box){
       </div>
       ${paidCount>0 ? `<p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${paidCount} ફ્લેટ(સ)નું આ મહિનાનું પેમેન્ટ પહેલેથી જ મળી ગયું છે — તેમની રસીદ અહીં નહીં દેખાય.</p>` : ''}
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
-        <button class="primary" onclick="downloadAllBuilderReceipts('${r.roundName}')">⬇️ Sabhi Receipts Download Karo</button>
-        <button class="primary" onclick="downloadMonthPdfBuilderReceipts('${r.roundName}')">📄 Month PDF (A4)</button>
+        <button class="primary" onclick="downloadMonthPdfBuilderReceipts('${r.roundName}')">📄 Month PDF (A4) Download</button>
       </div>
-      <p class="config-note" style="margin-top:6px; margin-bottom:0;">📄 "Month PDF" — આ મહિનાની બધી રસીદો એક જ A4 PDF માં (એક પાના પર 8 રસીદ), પ્રિન્ટ અથવા Builder ને મોકલવા માટે.</p>
-      <p class="config-note" style="margin-top:8px; margin-bottom:0;">પહેલા "Sabhi Receipts Download Karo" દબાવો — બધાનો ફોટો એકસાથે સેવ થઈ જશે. અથવા નીચે દરેક ફ્લેટમાં "Preview" થી ચેક કરીને અલગથી "Download" પણ કરી શકો છો. Builder નું પેમેન્ટ જેવું જ "Bulk Builder Payment" (Collections tab, Purpose: "${r.roundName}") થી રેકોર્ડ કરશો, આ લિસ્ટ પોતાની મેળે અપડેટ થઈ જશે.</p>
+      <p class="config-note" style="margin-top:8px; margin-bottom:0;">આ મહિનાની બધી રસીદો એક જ A4 PDF માં (એક પાના પર 8 રસીદ) — પ્રિન્ટ અથવા Builder ને મોકલવા માટે. નીચે દરેક ફ્લેટની રસીદ 👁️ થી જોઈ શકો છો. Builder નું પેમેન્ટ જેવું જ "Bulk Builder Payment" (Collections tab, Purpose: "${r.roundName}") થી રેકોર્ડ કરશો, આ લિસ્ટ પોતાની મેળે અપડેટ થઈ જશે.</p>
       <div style="margin-top:10px;">
         ${r.pendingFlats.map(f=>`<div class="flat-entry">
           <span class="pill flat-chip" style="background:${flatBadgeColor(f.flat_no)}">${f.flat_no}</span>
           <span class="flat-actions">
-            <button onclick="previewBuilderReceipt(${f.flat_no}, '${r.roundName}')" title="Preview">👁️</button>
-            <button onclick="downloadOneBuilderReceipt(${f.flat_no}, '${r.roundName}')">⬇️ Download</button>
+            <button onclick="previewBuilderReceipt(${f.flat_no}, '${r.roundName}')" title="Preview">👁️ Preview</button>
           </span>
         </div>`).join('')}
       </div>
@@ -4061,7 +4058,6 @@ async function previewBuilderReceipt(flatNo, roundName){
       </div>
       <div class="modal-actions">
         <button onclick="document.getElementById('receipt-preview-modal').remove()">Band Karo</button>
-        <button class="primary" onclick="downloadOneBuilderReceipt(${flatNo}, '${roundName}'); document.getElementById('receipt-preview-modal').remove();">⬇️ Download</button>
       </div>
     </div>
   </div>`);
