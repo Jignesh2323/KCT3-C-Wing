@@ -3884,7 +3884,9 @@ async function renderBuilderReceiptTab(box){
       ${paidCount>0 ? `<p class="config-note" style="margin-top:8px; margin-bottom:0;">✅ ${paidCount} ફ્લેટ(સ)નું આ મહિનાનું પેમેન્ટ પહેલેથી જ મળી ગયું છે — તેમની રસીદ અહીં નહીં દેખાય.</p>` : ''}
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
         <button class="primary" onclick="downloadAllBuilderReceipts('${r.roundName}')">⬇️ Sabhi Receipts Download Karo</button>
+        <button class="primary" onclick="downloadMonthPdfBuilderReceipts('${r.roundName}')">📄 Month PDF (A4)</button>
       </div>
+      <p class="config-note" style="margin-top:6px; margin-bottom:0;">📄 "Month PDF" — આ મહિનાની બધી રસીદો એક જ A4 PDF માં (એક પાના પર 8 રસીદ), પ્રિન્ટ અથવા Builder ને મોકલવા માટે.</p>
       <p class="config-note" style="margin-top:8px; margin-bottom:0;">પહેલા "Sabhi Receipts Download Karo" દબાવો — બધાનો ફોટો એકસાથે સેવ થઈ જશે. અથવા નીચે દરેક ફ્લેટમાં "Preview" થી ચેક કરીને અલગથી "Download" પણ કરી શકો છો. Builder નું પેમેન્ટ જેવું જ "Bulk Builder Payment" (Collections tab, Purpose: "${r.roundName}") થી રેકોર્ડ કરશો, આ લિસ્ટ પોતાની મેળે અપડેટ થઈ જશે.</p>
       <div style="margin-top:10px;">
         ${r.pendingFlats.map(f=>`<div class="flat-entry">
@@ -4082,6 +4084,72 @@ async function downloadOneBuilderReceipt(flatNo, roundName){
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
   }, 'image/png');
+}
+/* ---- One A4 PDF per month with all of that month's receipts, 8 per page
+   (2 columns x 4 rows), laid out exactly like the society's own merged
+   sheet (Receipts_Merged_A4.pdf: 15pt margins, each receipt 279.1 x 198.5
+   pt). The receipt images themselves are the same canvases the single
+   Download button saves -- nothing about the receipt changes. The PDF is
+   written by hand (images embedded as JPEG/DCTDecode), so no PDF library
+   has to be downloaded. ---- */
+const A4_RECEIPT_SLOTS = [
+  [15.269, 628.4175], [300.909, 628.4175],
+  [15.269, 423.945],  [300.909, 423.945],
+  [15.269, 219.4725], [300.909, 219.4725],
+  [15.269, 15],       [300.909, 15],
+];
+function makeA4ReceiptPdf(imgs){ // imgs: [{bytes:Uint8Array, w, h}]
+  const enc = s=>{ const a = new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i] = s.charCodeAt(i) & 255; return a; };
+  const parts = []; let len = 0; const offs = [];
+  const push = x=>{ const b = typeof x === 'string' ? enc(x) : x; parts.push(b); len += b.length; };
+  const pageCount = Math.max(1, Math.ceil(imgs.length / 8));
+  let n = 3; const pageIds = [], contentIds = [];
+  for(let p=0;p<pageCount;p++){ pageIds.push(n++); contentIds.push(n++); }
+  const imgIds = imgs.map(()=>n++);
+  const obj = (id, body)=>{ offs[id] = len; push(`${id} 0 obj\n`); body(); push('\nendobj\n'); };
+  push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1, ()=>push('<</Type/Catalog/Pages 2 0 R>>'));
+  obj(2, ()=>push(`<</Type/Pages/Count ${pageCount}/Kids[${pageIds.map(i=>i+' 0 R').join(' ')}]>>`));
+  const W = 279.102, H = 198.4725;
+  for(let p=0;p<pageCount;p++){
+    const onPage = imgs.map((_,i)=>i).slice(p*8, p*8+8);
+    const xobj = onPage.map((i,k)=>`/Im${k} ${imgIds[i]} 0 R`).join('');
+    const content = onPage.map((i,k)=>`q\n${W} 0 0 ${H} ${A4_RECEIPT_SLOTS[k][0]} ${A4_RECEIPT_SLOTS[k][1]} cm\n/Im${k} Do\nQ\n`).join('');
+    obj(pageIds[p], ()=>push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 595.28 841.89]/Resources<</XObject<<${xobj}>>>>/Contents ${contentIds[p]} 0 R>>`));
+    obj(contentIds[p], ()=>{ push(`<</Length ${content.length}>>\nstream\n`); push(content); push('\nendstream'); });
+  }
+  imgs.forEach((im,i)=>obj(imgIds[i], ()=>{
+    push(`<</Type/XObject/Subtype/Image/Width ${im.w}/Height ${im.h}/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ${im.bytes.length}>>\nstream\n`);
+    push(im.bytes); push('\nendstream');
+  }));
+  const xref = len;
+  push(`xref\n0 ${n}\n0000000000 65535 f \n`);
+  for(let id=1; id<n; id++) push(String(offs[id]).padStart(10,'0') + ' 00000 n \n');
+  push(`trailer\n<</Size ${n}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts, {type:'application/pdf'});
+}
+async function downloadMonthPdfBuilderReceipts(roundName){
+  if(!builderReceiptCache) return;
+  const r = builderReceiptCache.roundStatuses.find(x=>x.roundName===roundName);
+  if(!r || !r.pendingFlats.length){ alert('Koi pending Unsold flat nahi mila — sabka payment ho chuka hai.'); return; }
+  await runBusy(async ()=>{
+    await builderSignReady();
+    const todayStr = fmtDate(new Date().toISOString().slice(0,10));
+    const imgs = [];
+    for(const f of r.pendingFlats){
+      const receiptNo = await ensureBuilderReceiptNo(f.flat_no, roundName);
+      if(receiptNo === null) return;
+      const canvas = drawBuilderReceiptCanvas(f.flat_no, builderReceiptAmountFor(f.flat_no, roundName), todayStr, fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
+      const blob = await new Promise(res=>canvas.toBlob(res, 'image/jpeg', 0.92));
+      imgs.push({bytes: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height});
+    }
+    const pdf = makeA4ReceiptPdf(imgs);
+    const url = URL.createObjectURL(pdf);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Builder_Receipts_${r.startDate.slice(0,7)}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 8000);
+  }, 'PDF બની રહી છે…');
 }
 async function downloadAllBuilderReceipts(roundName){
   if(!builderReceiptCache) return;
