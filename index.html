@@ -4026,18 +4026,32 @@ function builderReceiptAmountFor(flatNo, roundName){
    table (entity_key "brno|<no>|<roundName>|<flatNo>") so it survives
    phone/browser changes. Re-previewing the same flat's receipt for the
    same month reuses its already-assigned number. */
+/* Receipt date: the day the receipt was FIRST issued (when its number was
+   assigned -- that row's timestamp), not the day it is re-downloaded. So a
+   July receipt keeps saying 24/08/2026 even when reprinted in November,
+   and a month PDF shows each receipt's own issue date. */
+const builderReceiptDates = {};
+function localDateStr(iso){
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function builderReceiptDate(flatNo, roundName){
+  return builderReceiptDates[roundName+'|'+flatNo] || localDateStr(new Date().toISOString());
+}
 async function ensureBuilderReceiptNo(flatNo, roundName){
-  const {data, error} = await sb.from('wa_sent').select('entity_key').like('entity_key','brno|%');
+  const {data, error} = await sb.from('wa_sent').select('entity_key, updated_at').like('entity_key','brno|%');
   if(error){ alert(friendlyDbError(error)); return null; }
   const rows = (data||[]).map(r=>{
     const p = String(r.entity_key).split('|');
-    return {no:Number(p[1]), round:p[2], flat:Number(p[3])};
+    return {no:Number(p[1]), round:p[2], flat:Number(p[3]), at:r.updated_at};
   }).filter(r=>Number.isFinite(r.no));
   const existing = rows.find(r=>r.round===roundName && r.flat===flatNo);
-  if(existing) return existing.no;
+  if(existing){ if(existing.at) builderReceiptDates[roundName+'|'+flatNo] = localDateStr(existing.at); return existing.no; }
   const next = rows.reduce((m,r)=>Math.max(m,r.no),0) + 1;
-  const {error:insErr} = await sb.from('wa_sent').insert({entity_key:`brno|${next}|${roundName}|${flatNo}`, sent:true, updated_at:new Date().toISOString()});
+  const nowIso = new Date().toISOString();
+  const {error:insErr} = await sb.from('wa_sent').insert({entity_key:`brno|${next}|${roundName}|${flatNo}`, sent:true, updated_at:nowIso});
   if(insErr){ alert('Receipt number save nahi hua — PIN unlock check kar ke dobara try karo.\n' + friendlyDbError(insErr)); return null; }
+  builderReceiptDates[roundName+'|'+flatNo] = localDateStr(nowIso);
   return next;
 }
 async function previewBuilderReceipt(flatNo, roundName){
@@ -4050,7 +4064,7 @@ async function previewBuilderReceipt(flatNo, roundName){
   // receipt date = the day this receipt is actually generated/sent,
   // not the day the tab was first opened
   const todayStr = fmtDate(new Date().toISOString().slice(0,10));
-  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo, roundName), todayStr, fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
+  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo, roundName), builderReceiptDate(flatNo, roundName), fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
   const dataUrl = canvas.toDataURL('image/png');
   const old = document.getElementById('receipt-preview-modal');
   if(old) old.remove();
@@ -4075,7 +4089,7 @@ async function downloadOneBuilderReceipt(flatNo, roundName){
   if(receiptNo === null) return;
   await builderSignReady();
   const todayStr = fmtDate(new Date().toISOString().slice(0,10));
-  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo, roundName), todayStr, fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
+  const canvas = drawBuilderReceiptCanvas(flatNo, builderReceiptAmountFor(flatNo, roundName), builderReceiptDate(flatNo, roundName), fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
   canvas.toBlob((blob)=>{
     if(!blob) return;
     const url = URL.createObjectURL(blob);
@@ -4145,7 +4159,7 @@ async function downloadMonthPdfBuilderReceipts(roundName, allFlats){
     for(const f of r.pendingFlats){
       const receiptNo = await ensureBuilderReceiptNo(f.flat_no, roundName);
       if(receiptNo === null) return;
-      const canvas = drawBuilderReceiptCanvas(f.flat_no, f.amount, todayStr, fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
+      const canvas = drawBuilderReceiptCanvas(f.flat_no, f.amount, builderReceiptDate(f.flat_no, roundName), fmtDate(r.startDate), fmtDate(r.endDateDisplay), receiptNo);
       const blob = await new Promise(res=>canvas.toBlob(res, 'image/jpeg', 0.92));
       imgs.push({bytes: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height});
     }
