@@ -2812,6 +2812,7 @@ async function renderTransfersTab(box){
         <div class="field"><label>Date</label><input id="tr_date" type="date"></div>
         <div class="field"><label>Amount</label><input id="tr_amount" type="number"></div>
         <div class="field"><label>Remarks</label><input id="tr_remarks" placeholder="e.g. Cash deposit slip no."></div>
+        <div class="field"><label>Slip / Photo (optional — multiple select kar sakte ho)</label><input id="tr_bill" type="file" accept="image/*" multiple></div>
         <div class="field" style="flex:0"><button class="primary" onclick="addFundTransfer()">Add</button></div>
       </div>
       ${error?`<div class="msg error">${friendlyDbError(error)}</div>`:''}
@@ -2823,6 +2824,7 @@ async function renderTransfersTab(box){
         <span class="mono" style="font-weight:800; font-size:16px; color:var(--info);">${fmtMoney(t.amount)}</span>
         <span style="flex:1 1 100px; min-width:0;">${t.remarks||''}</span>
         <span class="config-note" style="margin:0;">${fmtDate(t.transfer_date)}</span>
+        ${billLinksHtml(t.bill_url)}
         <span class="flat-actions"><button class="danger" onclick="deleteRow('fund_transfers','id',${t.id})" title="Delete">🗑️</button></span>
       </div>`).join('') || `<p class="empty">હજુ કોઈ ટ્રાન્સફર નથી.</p>`}</div>
     </div>`;
@@ -2830,15 +2832,24 @@ async function renderTransfersTab(box){
 async function addFundTransfer(){
   const amountVal = Number(document.getElementById('tr_amount').value);
   if(!(amountVal > 0)){ alert('Rakam 0 se zyada honi chahiye.'); return; }
-  await withPin(async ()=>{
+  await withPin(()=>withBusyButton(document.querySelector('[onclick="addFundTransfer()"]'), async ()=>{
     const payload = {
       transfer_date: document.getElementById('tr_date').value || new Date().toISOString().slice(0,10),
       amount: amountVal,
       remarks: document.getElementById('tr_remarks').value || null,
     };
+    // deposit slip photos: same shared bucket/helper as expense bills,
+    // stored "\n"-joined in fund_transfers.bill_url
+    const files = document.getElementById('tr_bill')?.files;
+    if(files && files.length){
+      const urls = await uploadExpenseBills([...files]);
+      if(!urls) return;
+      payload.bill_url = urls.join('\n');
+    }
     const {error} = await sb.from('fund_transfers').insert(payload);
-    if(error) alert(friendlyDbError(error)); else refreshTab();
-  });
+    if(error && /bill_url/.test(error.message||'')) alert('Photo save karne ke liye database me ek baar setup chahiye (bill_url column). Bina photo ke entry abhi bhi ho sakti hai.');
+    else if(error) alert(friendlyDbError(error)); else refreshTab();
+  }));
 }
 
 /* ---- Vehicles tab ---- */
