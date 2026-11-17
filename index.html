@@ -1231,6 +1231,32 @@ async function syncBuilderRoundRate(roundName, livePerFlat, allowAnonWrite){
   }
   return stored;
 }
+/* Society bank details card -- Dashboard, unlocked only. The details live
+   in the Supabase table bank_details (RLS: signed-in only), NOT in this
+   file: the repo is public on GitHub. Tap a value to copy it. */
+async function renderBankCard(){
+  const slot = document.getElementById('bank-card-slot');
+  if(!slot) return;
+  const {data, error} = await sb.from('bank_details').select('*').order('id').limit(1);
+  const b = data && data[0];
+  if(error || !b){ slot.innerHTML = ''; return; }
+  const row = (label, val, copy)=> val ? `<div class="flat-entry" style="padding:9px 12px;">
+      <span class="config-note" style="margin:0; min-width:96px;">${label}</span>
+      <span class="mono" style="flex:1 1 140px; min-width:0; font-weight:700; ${copy?'cursor:pointer;':''}" ${copy?`onclick="navigator.clipboard&&navigator.clipboard.writeText('${String(val).replace(/'/g,'')}').then(()=>alert('${label} કૉપિ થયું'))"`:''}>${val}${copy?' 📋':''}</span>
+    </div>` : '';
+  slot.innerHTML = `<div class="card">
+    <h3>🏦 સોસાયટી બેંક વિગત</h3>
+    <p class="config-note" style="margin-top:-4px;">🔒 ફક્ત Unlock પછી દેખાય. 📋 વાળી વિગત પર દબાવો એટલે કૉપિ થશે.</p>
+    ${row('ખાતાનું નામ', b.account_name)}
+    ${row('બેંક', b.bank_name)}
+    ${row('શાખા', b.branch)}
+    ${row('ખાતા નં.', b.account_no, true)}
+    ${row('ખાતાનો પ્રકાર', b.account_type)}
+    ${row('IFSC', b.ifsc, true)}
+    ${row('MICR', b.micr, true)}
+    ${row('સરનામું', b.branch_address)}
+  </div>`;
+}
 async function renderCommonExpenseSplit(){
   const resultBox = document.getElementById('cx_result');
   if(!resultBox) return;
@@ -1943,6 +1969,7 @@ async function renderDashboardTab(box){
       </div>
       <p class="config-note" style="margin-top:10px">રોકડ હાથમાં = રોકડ જમા − રોકડ ખર્ચ. બેંક બેલેન્સ = બાકીનું બધું (UPI/બેંક ટ્રાન્સફર/ચેક) જમા − ખર્ચ ભેગું.</p>
     </div>
+    ${unlocked ? `<div id="bank-card-slot"></div>` : ``}
     <div class="card">
       <h3>Monthly Common Expense Split</h3>
       <div class="form-row form-row-pair">
@@ -1979,6 +2006,7 @@ async function renderDashboardTab(box){
       </tbody></table>
     </div>`;
   await renderCommonExpenseSplit();
+  if(unlocked) await renderBankCard();
   // Remember this fully rendered Dashboard for the next open (see top).
   // Skipped if the split card itself failed, so an error is never cached.
   if(box.isConnected && state.tab==='dashboard' && !box.querySelector('.msg.error')){
