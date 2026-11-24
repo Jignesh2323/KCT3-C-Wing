@@ -2151,7 +2151,7 @@ async function renderCollectionsTab(box){
   const unlocked = pinStillValid() && state.user;
   const [{data, error}, {data:charges}, {data:flats}, {data:pending}, {data:flatStatuses}, {data:k3income}] = await Promise.all([
     sb.from('collections').select('*, flats(owner_name, contact_no)').order('collection_date',{ascending:false}).order('id',{ascending:false}),
-    sb.from('charges').select('round_name, amount_per_flat, applies_to'),
+    sb.from('charges').select('*'),
     sb.from('flats').select('flat_no, owner_name').order('flat_no'),
     sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').gt('pending_amount', 0),
     sb.from('v_flats').select('flat_no, status'),
@@ -2175,9 +2175,12 @@ async function renderCollectionsTab(box){
   const unsoldFlatsCount = (flatStatuses||[]).filter(f=>f.status==='Unsold').length;
   const appliesToCountByRound = {};
   (charges||[]).forEach(c=>{
-    appliesToCountByRound[c.round_name] = c.applies_to==='Sold Flats Only' ? soldFlatsCount
+    const base = c.applies_to==='Sold Flats Only' ? soldFlatsCount
       : c.applies_to==='Unsold Flats Only' ? unsoldFlatsCount
       : totalFlatsCount;
+    // only_flats = round charged to just these flats; exclude_flats = flats skipped
+    appliesToCountByRound[c.round_name] = (c.only_flats && c.only_flats.length) ? c.only_flats.length
+      : base - ((c.exclude_flats || []).length);
   });
   const pendingByRound = {};
   (pending||[]).forEach(r=>{
@@ -3001,7 +3004,8 @@ async function renderChargesTab(box){
       <div class="mono" style="font-size:26px; font-weight:800; color:var(--maroon);">${fmtMoney(c.amount_per_flat)}</div>
       <p class="config-note" style="margin-top:2px;">ફ્લેટ દીઠ</p>
       <div style="display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px;">
-        <span class="pill ${c.applies_to==='All Flats'?'unsold':'sold'}">${c.applies_to}</span>
+        <span class="pill ${c.applies_to==='All Flats'?'unsold':'sold'}">${(c.only_flats && c.only_flats.length) ? ('Only Flats: ' + c.only_flats.join(', ')) : c.applies_to}</span>
+        ${(c.exclude_flats && c.exclude_flats.length) ? `<span class="pill unsold">Excluded: ${c.exclude_flats.join(', ')}</span>` : ''}
         <span class="config-note mono" style="margin:0;">શરૂઆત ${fmtDate(c.date_started)}</span>
       </div>
       <div style="display:flex; justify-content:center; gap:8px; margin-top:12px;">
