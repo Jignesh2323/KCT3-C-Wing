@@ -2039,15 +2039,209 @@ async function refreshTab(){ renderTabContent(); }
 
 /* ---- Flats tab ---- */
 let flatsCache = [];
+/* ---------- New Flat Joining (Unsold -> Sold with balance-based joining share) ---------- */
+const GU_MONTHS = ['જાન્યુઆરી','ફેબ્રુઆરી','માર્ચ','એપ્રિલ','મે','જૂન','જુલાઈ','ઓગસ્ટ','સપ્ટેમ્બર','ઓક્ટોબર','નવેમ્બર','ડિસેમ્બર'];
+const EN_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const GU_DIGITS = ['૧','૨','૩','૪','૫','૬','૭','૮','૯'];
+let joinCalc = null;
+let joinMsgText = '';
+function joinCardHtml(flats){
+  const unsold = (flats||[]).filter(f=>f.status==='Unsold');
+  return `<div class="card">
+    <div class="accordion-header" onclick="toggleAccordion('acc_join')">
+      <h3>🆕 New Flat Joining (Builder ફ્લેટ વેચાયો)</h3>
+      <span class="accordion-caret" id="acc_join_caret">▾</span>
+    </div>
+    <div class="accordion-body" id="acc_join_body" style="display:none; margin-top:12px;">
+      <p class="config-note" style="margin-top:0;">Builder નો Unsold ફ્લેટ વેચાય ત્યારે અહીં ફ્લેટ પસંદ કરો. App આજના બેલેન્સ પ્રમાણે જોડાણ રકમ ગણશે, ફ્લેટ Sold કરશે, જૂનું ₹10,000 SF-MNTC હટાવશે અને ગુજરાતી WhatsApp મેસેજ બનાવશે.</p>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:6px 0 10px;">
+        ${unsold.length ? unsold.map(f=>`<label class="flat-entry" style="padding:6px 12px; cursor:pointer; gap:6px;"><input type="checkbox" class="join-flat-cb" value="${f.flat_no}"> <b class="mono">${f.flat_no}</b></label>`).join('') : '<span class="config-note">કોઈ Unsold ફ્લેટ નથી.</span>'}
+      </div>
+      <div class="form-row">
+        <div class="field"><label id="join_extra_lbl">છેલ્લા મહિનાનું મેન્ટેનન્સ (Builder ન આપે તો)</label><input id="join_extra" type="number" step="0.01" inputmode="decimal"></div>
+        <div class="field" style="flex:0"><button class="primary" onclick="calcJoining()">🧮 હિસાબ જુઓ</button></div>
+      </div>
+      <p class="config-note" style="margin:4px 0 0;">Builder એ છેલ્લા મહિનાનું મેન્ટેનન્સ આપ્યું હોય તો અહીં 0 કરો.</p>
+      <div id="join_result"></div>
+    </div>
+  </div>`;
+}
+async function prefillJoinExtra(){
+  const inp = document.getElementById('join_extra');
+  if(!inp) return;
+  const {month, year} = getPrevMonthYear();
+  inp.dataset.month = month; inp.dataset.year = year;
+  const lbl = document.getElementById('join_extra_lbl');
+  if(lbl) lbl.textContent = `${GU_MONTHS[month-1]} ${year} મેન્ટેનન્સ (Builder ન આપે તો)`;
+  const start = `${year}-${String(month).padStart(2,'0')}-01`;
+  const end = month===12 ? `${year+1}-01-01` : `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const {data} = await sb.from('expenses').select('amount').in('category', COMMON_EXPENSE_CATEGORIES).gte('expense_date', start).lt('expense_date', end);
+  const total = (data||[]).reduce((s,e)=>s+Number(e.amount||0),0);
+  inp.value = roundPaisa(total / TOTAL_FLATS_FIXED).toFixed(2);
+}
+async function calcJoining(){
+  const box = document.getElementById('join_result');
+  const flatNos = Array.from(document.querySelectorAll('.join-flat-cb:checked')).map(x=>Number(x.value));
+  if(!flatNos.length){ box.innerHTML = `<div class="msg error">ફ્લેટ પસંદ કરો.</div>`; return; }
+  box.innerHTML = 'Loading...';
+  const [{data:col, error:e1}, {data:exp, error:e2}, {data:k3, error:e3}, {data:fl, error:e4}] = await Promise.all([
+    sb.from('collections').select('amount'),
+    sb.from('expenses').select('amount, category'),
+    sb.from('kiran3_income').select('amount, kind'),
+    sb.from('v_flats').select('flat_no, status'),
+  ]);
+  if(e1||e2||e3||e4){ box.innerHTML = `<div class="msg error">${friendlyDbError(e1||e2||e3||e4)}</div>`; return; }
+  // Same figures as the Dashboard: Total Balance = all collections - real expenses
+  // (KIRAN 3 Society Expense is only consumption of an advance, not new cash out).
+  const totalBalance = roundPaisa((col||[]).reduce((s,c)=>s+Number(c.amount||0),0)
+    - (exp||[]).filter(e=>e.category!=='KIRAN 3 Society Expense').reduce((s,e)=>s+Number(e.amount||0),0));
+  const k3All = roundPaisa((k3||[]).reduce((s,k)=>s+(k.kind==='expense'?-1:1)*Number(k.amount||0),0));
+  const k3Share = roundPaisa(k3All / 4);
+  const fund = roundPaisa(totalBalance + k3Share);
+  const soldCount = (fl||[]).filter(f=>f.status==='Sold').length;
+  const share = roundPaisa(fund / soldCount);
+  const extraInp = document.getElementById('join_extra');
+  const extra = roundPaisa(Number(extraInp.value||0));
+  const totalRounded = Math.round(share + extra);
+  const now = new Date();
+  const asOn = fmtDate(now.toISOString().slice(0,10));
+  const roundName = `Joining Share - ${flatNos.join(',')} (${EN_MONTHS_SHORT[now.getMonth()]} ${now.getFullYear()})`;
+  joinCalc = {flatNos, totalBalance, k3All, k3Share, fund, soldCount, share, extra, totalRounded, asOn, roundName,
+    extraMonth: Number(extraInp.dataset.month), extraYear: Number(extraInp.dataset.year)};
+  box.innerHTML = `<div class="flat-entry" style="display:block; margin-top:12px; padding:12px; line-height:1.8; text-align:left;">
+      <div>⚖️ C-Wing Total Balance: <b class="mono">${fmtMoney(totalBalance)}</b></div>
+      <div>🏢 KIRAN 3 ભાગ (${fmtMoney(k3All)} ÷ 4): <b class="mono">${fmtMoney(k3Share)}</b></div>
+      <div>💰 કુલ ફંડ ${fmtMoney(fund)} ÷ ${soldCount} Sold ફ્લેટ = <b class="mono">${fmtMoney(share)}</b></div>
+      ${extra ? `<div>📅 ${GU_MONTHS[joinCalc.extraMonth-1]} મેન્ટેનન્સ: <b class="mono">${fmtMoney(extra)}</b></div>` : ''}
+      <div style="font-size:18px; margin-top:4px;">👉 જોડાણ રકમ / ફ્લેટ: <b class="mono">₹${totalRounded.toLocaleString('en-IN')}</b></div>
+      <p class="config-note" style="margin:6px 0 0;">ફ્લેટ ${flatNos.join(', ')} • નવો રાઉન્ડ: "${roundName}"</p>
+    </div>
+    <div style="display:flex; justify-content:center; margin-top:10px;">
+      <button class="primary" onclick="withPin(confirmJoining)">✅ Confirm — Sold કરો અને Dues બનાવો</button>
+    </div>`;
+}
+async function confirmJoining(){
+  const c = joinCalc;
+  if(!c) return;
+  if(!confirm(`ફ્લેટ ${c.flatNos.join(', ')} ને Sold કરીને દરેક પર ₹${c.totalRounded} જોડાણ રકમ લગાવવી છે?`)) return;
+  const box = document.getElementById('join_result');
+  try{
+    const {data:charges, error:ce} = await sb.from('charges').select('round_name, applies_to, exclude_flats');
+    if(ce) throw ce;
+    if((charges||[]).some(x=>x.round_name===c.roundName)) throw new Error('આ રાઉન્ડ પહેલેથી બનેલો છે.');
+    // Old one-time "Sold Flats Only" funds (e.g. Rs 10,000 SF-MNTC) don't apply to late joiners --
+    // the joining share already covers their part of what's left of that money.
+    for(const ch of (charges||[]).filter(x=>x.applies_to==='Sold Flats Only')){
+      const ex = Array.from(new Set([...(ch.exclude_flats||[]), ...c.flatNos]));
+      const {error} = await sb.from('charges').update({exclude_flats: ex}).eq('round_name', ch.round_name);
+      if(error) throw error;
+    }
+    const remarks = `Balance ${c.fund} (C-Wing ${c.totalBalance} + K3 ${c.k3Share}) / ${c.soldCount} = ${c.share}`
+      + (c.extra ? ` + ${EN_MONTHS_SHORT[c.extraMonth-1]} ${c.extraYear} maintenance ${c.extra}` : '') + ` | as on ${c.asOn}`;
+    const {error:ie} = await sb.from('charges').insert({round_name: c.roundName, amount_per_flat: c.totalRounded,
+      applies_to: 'All Flats', date_started: new Date().toISOString().slice(0,10), remarks, only_flats: c.flatNos});
+    if(ie) throw ie;
+    const {error:fe} = await sb.from('flats').update({status_override: 'Sold'}).in('flat_no', c.flatNos);
+    if(fe) throw fe;
+    const {data:dues} = await sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').in('flat_no', c.flatNos).gt('pending_amount', 0);
+    joinMsgText = buildJoinMessage(c, dues||[]);
+    try{ localStorage.removeItem(DASH_CACHE_LOCKED_KEY); localStorage.removeItem(DASH_CACHE_UNLOCKED_KEY); }catch(_){}
+    box.innerHTML = `<div class="msg ok">✅ થઈ ગયું! ફ્લેટ ${c.flatNos.join(', ')} હવે Sold છે.</div>
+      ${joinMessageBoxHtml()}`;
+  }catch(err){
+    box.insertAdjacentHTML('beforeend', `<div class="msg error">${friendlyDbError(err)}</div>`);
+  }
+}
+function joinMessageBoxHtml(){
+  return `<div class="mono" style="white-space:pre-wrap; text-align:left; padding:12px; border-radius:12px; background:var(--maroon-tint,#f5f3ff); margin-top:8px; line-height:1.6; word-break:break-word;">${escapeBankHtml(joinMsgText)}</div>
+    <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:10px;">
+      <button class="primary" onclick="copyJoinMessage(this)">📋 Copy Message</button>
+      <a class="btn" style="text-decoration:none;" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(joinMsgText)}">🟢 WhatsApp</a>
+    </div>`;
+}
+function buildJoinMessage(c, dues){
+  const m = n=>'₹' + Number(n).toLocaleString('en-IN', {minimumFractionDigits: (Math.round(Number(n)*100)%100)?2:0, maximumFractionDigits:2});
+  // Other dues still pending (e.g. Pigeon Net) -- same for each flat, so use the first flat's list.
+  const others = dues.filter(d=>d.flat_no===c.flatNos[0] && d.round_name!==c.roundName);
+  let n = 0;
+  const L = [];
+  L.push('🏢 *કિરણ-૩, સી-વિંગ મેન્ટેનન્સ ફંડ*', '', 'નમસ્તે 🙏');
+  L.push(`ફ્લેટ નં. *${c.flatNos.join(', ')}* ના નવા સભ્યોનું સ્વાગત છે. 🎉`);
+  L.push('સોસાયટી ફંડમાં જોડાવા માટેની રકમની ગણતરી નીચે મુજબ છે:', '');
+  L.push(`*${GU_DIGITS[n++]}) હાલના બેલેન્સમાં ભાગ (${c.asOn} મુજબ)*`);
+  L.push(`• સી-વિંગ કુલ બેલેન્સ: ${m(c.totalBalance)}`);
+  L.push(`• કિરણ-૩ કોમન બેલેન્સમાં સી-વિંગનો ભાગ: ${m(c.k3Share)}`);
+  L.push(`  _(ચારેય વિંગ કુલ ${m(c.k3All)} ÷ 4)_`);
+  L.push(`• કુલ ફંડ: ${m(c.fund)} ÷ ${c.soldCount} ફ્લેટ = *${m(c.share)}*`, '');
+  const parts = [m(c.share)];
+  if(c.extra){
+    L.push(`*${GU_DIGITS[n++]}) ${GU_MONTHS[c.extraMonth-1]} ${c.extraYear} મેન્ટેનન્સ* = *${m(c.extra)}*`, '');
+    parts.push(m(c.extra));
+  }
+  others.forEach(d=>{
+    const pigeon = /pigeon/i.test(d.round_name);
+    L.push(`*${GU_DIGITS[n++] || n}) ${pigeon ? 'પીજન નેટ (કબૂતર જાળી)' : d.round_name}* = *${m(d.pending_amount)}*`);
+    if(pigeon) L.push('_(બધા ફ્લેટ પાસેથી લીધેલ છે)_');
+    L.push('');
+    parts.push(m(d.pending_amount));
+  });
+  const grand = roundPaisa(c.totalRounded + others.reduce((s,d)=>s+Number(d.pending_amount||0),0));
+  L.push('━━━━━━━━━━━━', '*કુલ ભરવાની રકમ (પ્રતિ ફ્લેટ)*', parts.join(' + '), `👉 *${m(grand)} /-*`, '━━━━━━━━━━━━', '');
+  L.push('📌 જૂના ₹10,000 ફંડની જગ્યાએ હાલના બેલેન્સ પ્રમાણે ગણતરી કરી છે, જેથી બધા સભ્યોનો ભાગ સરખો રહે.');
+  const now = c.startDate ? new Date(c.startDate) : new Date();
+  L.push(`📌 ${GU_MONTHS[now.getMonth()]} ${now.getFullYear()} થી દર મહિને બધા ફ્લેટ જેટલું જ મેન્ટેનન્સ ભરવાનું રહેશે.`, '');
+  L.push('🙏 સેક્રેટરી, સી-વિંગ');
+  return L.join('\n');
+}
+async function copyJoinMessage(btn){
+  let ok = false;
+  try{ await navigator.clipboard.writeText(joinMsgText); ok = true; }catch(e){
+    const ta = document.createElement('textarea'); ta.value = joinMsgText; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); try{ ok = document.execCommand('copy'); }catch(_){} ta.remove();
+  }
+  btn.textContent = ok ? '✅ Copied!' : '❌ Copy નથી થયું';
+  setTimeout(()=>{ btn.textContent = '📋 Copy Message'; }, 1800);
+}
+const JOIN_REMARKS_RE = /Balance ([\d.]+) \(C-Wing ([\d.-]+) \+ K3 ([\d.-]+)\) \/ (\d+) = ([\d.]+)(?: \+ (\w{3}) (\d{4}) maintenance ([\d.]+))? \| as on (.+)$/;
+function joinedRoundsHtml(charges){
+  const rounds = (charges||[]).filter(c=>c.only_flats && c.only_flats.length && /^Joining Share/.test(c.round_name) && JOIN_REMARKS_RE.test(c.remarks||''));
+  if(!rounds.length) return '';
+  return `<div style="margin-top:14px;"><p class="config-note" style="margin:0 0 6px;">📩 પહેલાં જોડાયેલા ફ્લેટનો મેસેજ ફરી બનાવો:</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
+    ${rounds.map(r=>`<button onclick="resendJoinMessage('${r.round_name.replace(/'/g,'')}')">📩 ${r.only_flats.join(', ')}</button>`).join('')}
+    </div><div id="join_resend"></div></div>`;
+}
+async function resendJoinMessage(roundName){
+  const out = document.getElementById('join_resend');
+  out.innerHTML = 'Loading...';
+  const {data:rows, error} = await sb.from('charges').select('*').eq('round_name', roundName).limit(1);
+  const r = rows && rows[0];
+  const mm = r && JOIN_REMARKS_RE.exec(r.remarks||'');
+  if(error || !mm){ out.innerHTML = `<div class="msg error">${error ? friendlyDbError(error) : 'હિસાબ મળ્યો નહીં.'}</div>`; return; }
+  const k3Share = Number(mm[3]);
+  const c = {flatNos: r.only_flats, fund: Number(mm[1]), totalBalance: Number(mm[2]), k3Share, k3All: roundPaisa(k3Share*4),
+    soldCount: Number(mm[4]), share: Number(mm[5]), extra: mm[8] ? Number(mm[8]) : 0,
+    extraMonth: mm[6] ? EN_MONTHS_SHORT.indexOf(mm[6]) + 1 : 0, extraYear: mm[7] ? Number(mm[7]) : 0,
+    totalRounded: Number(r.amount_per_flat), asOn: mm[9], roundName, startDate: r.date_started};
+  const {data:dues} = await sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').in('flat_no', c.flatNos).gt('pending_amount', 0);
+  // Show the original (full) dues so the message matches what was asked for, not what is left today.
+  const {data:all} = await sb.from('charges').select('round_name, amount_per_flat');
+  const pendingRounds = new Set((dues||[]).filter(d=>d.flat_no===c.flatNos[0]).map(d=>d.round_name));
+  const others = (all||[]).filter(x=>pendingRounds.has(x.round_name)).map(x=>({flat_no:c.flatNos[0], round_name:x.round_name, pending_amount:x.amount_per_flat}));
+  joinMsgText = buildJoinMessage(c, others);
+  out.innerHTML = joinMessageBoxHtml();
+}
 async function renderFlatsTab(box){
   const unlocked = pinStillValid() && state.user;
-  const [{data, error}] = await Promise.all([
+  const [{data, error}, {data:joinCharges}] = await Promise.all([
     sb.from('v_flats').select('*').order('flat_no'),
+    unlocked ? sb.from('charges').select('*') : Promise.resolve({data:[]}),
     loadWaSentCache(),
   ]);
   flatsCache = data || [];
   box.innerHTML = `
     ${!unlocked ? `<p class="config-note">🔒 Add / Update Flat ફોર્મ ફક્ત Unlock કર્યા પછી જ દેખાય છે.</p>` : `
+    ${joinCardHtml(data).replace('<div id="join_result"></div>', '<div id="join_result"></div>' + joinedRoundsHtml(joinCharges))}
     <div class="card">
       <div class="accordion-header" onclick="toggleAccordion('acc_flats')">
         <h3 id="flats-form-title">Add / Update Flat</h3>
@@ -2071,6 +2265,7 @@ async function renderFlatsTab(box){
     ${error?`<div class="card"><div class="msg error">${friendlyDbError(error)}</div></div>`:''}
     <p class="config-note" style="text-align:center; margin-top:2px;">📋 નંબર પર દબાવી રાખો તો કૉપિ થઈ જશે</p>
     ${flatsByFloorHtml(data||[])}`;
+  if(unlocked) prefillJoinExtra();
 }
 function flatsByFloorHtml(data){
   if(!data.length) return `<div class="card"><p class="empty">હજુ કોઈ ફ્લેટ નથી.</p></div>`;
