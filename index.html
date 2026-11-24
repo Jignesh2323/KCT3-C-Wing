@@ -2187,7 +2187,8 @@ function buildJoinMessage(c, dues, person){
   L.push(`• કુલ ફંડ: ${m(c.fund)} ÷ ${c.soldCount} ફ્લેટ = *${m(c.share)}*`, '');
   const parts = [m(c.share)];
   if(c.extra){
-    L.push(`*${GU_DIGITS[n++]}) ${GU_MONTHS[c.extraMonth-1]} ${c.extraYear} મેન્ટેનન્સ* = *${m(c.extra)}*`, '');
+    L.push(`*${GU_DIGITS[n++]}) ${GU_MONTHS[c.extraMonth-1]} ${c.extraYear} મેન્ટેનન્સ* = *${m(c.extra)}*`);
+    L.push(`_(બિલ્ડરે ${GU_MONTHS[c.extraMonth-1]} ${c.extraYear} થી આ ફ્લેટનું મેન્ટેનન્સ આપવાનું બંધ કર્યું છે, હવેથી આ મેન્ટેનન્સ આપે ભરવાનું રહેશે.)_`, '');
     parts.push(m(c.extra));
   }
   others.forEach(d=>{
