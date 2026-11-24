@@ -2044,7 +2044,7 @@ const GU_MONTHS = ['જાન્યુઆરી','ફેબ્રુઆરી','
 const EN_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const GU_DIGITS = ['૧','૨','૩','૪','૫','૬','૭','૮','૯'];
 let joinCalc = null;
-let joinMsgText = '';
+let joinMsgs = [];
 function joinCardHtml(flats){
   const unsold = (flats||[]).filter(f=>f.status==='Unsold');
   return `<div class="card">
@@ -2144,30 +2144,42 @@ async function confirmJoining(){
     const {error:fe} = await sb.from('flats').update({status_override: 'Sold'}).in('flat_no', c.flatNos);
     if(fe) throw fe;
     const {data:dues} = await sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').in('flat_no', c.flatNos).gt('pending_amount', 0);
-    joinMsgText = buildJoinMessage(c, dues||[]);
+    const {data:people} = await sb.from('flats').select('flat_no, owner_name, contact_no').in('flat_no', c.flatNos);
+    joinMsgs = c.flatNos.map(f=>{ const p = (people||[]).find(x=>x.flat_no===f) || {flat_no:f}; return {...p, text: buildJoinMessage(c, (dues||[]).filter(d=>d.flat_no===f), p)}; });
     try{ localStorage.removeItem(DASH_CACHE_LOCKED_KEY); localStorage.removeItem(DASH_CACHE_UNLOCKED_KEY); }catch(_){}
     box.innerHTML = `<div class="msg ok">✅ થઈ ગયું! ફ્લેટ ${c.flatNos.join(', ')} હવે Sold છે.</div>
-      ${joinMessageBoxHtml()}`;
+      ${joinMessagesHtml()}`;
   }catch(err){
     box.insertAdjacentHTML('beforeend', `<div class="msg error">${friendlyDbError(err)}</div>`);
   }
 }
-function joinMessageBoxHtml(){
-  return `<div class="mono" style="white-space:pre-wrap; text-align:left; padding:12px; border-radius:12px; background:var(--maroon-tint,#f5f3ff); margin-top:8px; line-height:1.6; word-break:break-word;">${escapeBankHtml(joinMsgText)}</div>
-    <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:10px;">
-      <button class="primary" onclick="copyJoinMessage(this)">📋 Copy Message</button>
-      <a class="btn" style="text-decoration:none;" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(joinMsgText)}">🟢 WhatsApp</a>
-    </div>`;
+function joinWaNumber(p){
+  const d = String((p && p.contact_no) || '').replace(/\D/g,'');
+  return d.length===10 ? '91'+d : (d.length===12 && d.startsWith('91') ? d : '');
 }
-function buildJoinMessage(c, dues){
+function joinMessagesHtml(){
+  return joinMsgs.map((p,i)=>{
+    const wa = joinWaNumber(p);
+    return `<div class="card" style="margin-top:10px; padding:12px;">
+      <h3 style="margin:0 0 6px;">🏠 C-${p.flat_no}${p.owner_name ? ' — '+escapeBankHtml(String(p.owner_name).trim()) : ''}</h3>
+      <div class="mono" style="white-space:pre-wrap; text-align:left; padding:12px; border-radius:12px; background:var(--maroon-tint,#f5f3ff); line-height:1.6; word-break:break-word;">${escapeBankHtml(p.text)}</div>
+      <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <button class="primary" onclick="copyJoinMessage(this, ${i})">📋 Copy Message</button>
+        <a class="btn" style="text-decoration:none;" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(p.text)}">🟢 WhatsApp${wa ? ' '+escapeBankHtml(p.contact_no) : ''}</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+function buildJoinMessage(c, dues, person){
   const m = n=>'₹' + Number(n).toLocaleString('en-IN', {minimumFractionDigits: (Math.round(Number(n)*100)%100)?2:0, maximumFractionDigits:2});
-  // Other dues still pending (e.g. Pigeon Net) -- same for each flat, so use the first flat's list.
-  const others = dues.filter(d=>d.flat_no===c.flatNos[0] && d.round_name!==c.roundName);
+  // dues = this flat's other pending rounds (e.g. Pigeon Net)
+  const others = dues.filter(d=>d.round_name!==c.roundName);
+  const name = person && person.owner_name ? String(person.owner_name).trim() : '';
   let n = 0;
   const L = [];
-  L.push('🏢 *કિરણ-૩, સી-વિંગ મેન્ટેનન્સ ફંડ*', '', 'નમસ્તે 🙏');
-  L.push(`ફ્લેટ નં. *${c.flatNos.join(', ')}* ના નવા સભ્યોનું સ્વાગત છે. 🎉`);
-  L.push('સોસાયટી ફંડમાં જોડાવા માટેની રકમની ગણતરી નીચે મુજબ છે:', '');
+  L.push('🏢 *કિરણ-૩, સી-વિંગ મેન્ટેનન્સ ફંડ*', '', name ? `નમસ્તે *${name}* 🙏` : 'નમસ્તે 🙏');
+  L.push(`ફ્લેટ નં. *C-${person ? person.flat_no : c.flatNos.join(', ')}* — કિરણ-૩ સી-વિંગ પરિવારમાં આપનું હાર્દિક સ્વાગત છે. 🎉`);
+  L.push('સોસાયટી ફંડમાં જોડાવા માટે આપની રકમની ગણતરી નીચે મુજબ છે:', '');
   L.push(`*${GU_DIGITS[n++]}) હાલના બેલેન્સમાં ભાગ (${c.asOn} મુજબ)*`);
   L.push(`• સી-વિંગ કુલ બેલેન્સ: ${m(c.totalBalance)}`);
   L.push(`• કિરણ-૩ કોમન બેલેન્સમાં સી-વિંગનો ભાગ: ${m(c.k3Share)}`);
@@ -2186,17 +2198,18 @@ function buildJoinMessage(c, dues){
     parts.push(m(d.pending_amount));
   });
   const grand = roundPaisa(c.totalRounded + others.reduce((s,d)=>s+Number(d.pending_amount||0),0));
-  L.push('━━━━━━━━━━━━', '*કુલ ભરવાની રકમ (પ્રતિ ફ્લેટ)*', parts.join(' + '), `👉 *${m(grand)} /-*`, '━━━━━━━━━━━━', '');
+  L.push('━━━━━━━━━━━━', '*આપની કુલ ભરવાની રકમ*', parts.join(' + '), `👉 *${m(grand)} /-*`, '━━━━━━━━━━━━', '');
   L.push('📌 જૂના ₹10,000 ફંડની જગ્યાએ હાલના બેલેન્સ પ્રમાણે ગણતરી કરી છે, જેથી બધા સભ્યોનો ભાગ સરખો રહે.');
   const now = c.startDate ? new Date(c.startDate) : new Date();
   L.push(`📌 ${GU_MONTHS[now.getMonth()]} ${now.getFullYear()} થી દર મહિને બધા ફ્લેટ જેટલું જ મેન્ટેનન્સ ભરવાનું રહેશે.`, '');
   L.push('🙏 સેક્રેટરી, સી-વિંગ');
   return L.join('\n');
 }
-async function copyJoinMessage(btn){
+async function copyJoinMessage(btn, i){
+  const text = (joinMsgs[i]||{}).text || '';
   let ok = false;
-  try{ await navigator.clipboard.writeText(joinMsgText); ok = true; }catch(e){
-    const ta = document.createElement('textarea'); ta.value = joinMsgText; ta.style.position='fixed'; ta.style.opacity='0';
+  try{ await navigator.clipboard.writeText(text); ok = true; }catch(e){
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
     document.body.appendChild(ta); ta.select(); try{ ok = document.execCommand('copy'); }catch(_){} ta.remove();
   }
   btn.textContent = ok ? '✅ Copied!' : '❌ Copy નથી થયું';
@@ -2226,10 +2239,14 @@ async function resendJoinMessage(roundName){
   const {data:dues} = await sb.from('v_dues_summary').select('flat_no, round_name, pending_amount').in('flat_no', c.flatNos).gt('pending_amount', 0);
   // Show the original (full) dues so the message matches what was asked for, not what is left today.
   const {data:all} = await sb.from('charges').select('round_name, amount_per_flat');
-  const pendingRounds = new Set((dues||[]).filter(d=>d.flat_no===c.flatNos[0]).map(d=>d.round_name));
-  const others = (all||[]).filter(x=>pendingRounds.has(x.round_name)).map(x=>({flat_no:c.flatNos[0], round_name:x.round_name, pending_amount:x.amount_per_flat}));
-  joinMsgText = buildJoinMessage(c, others);
-  out.innerHTML = joinMessageBoxHtml();
+  const {data:people} = await sb.from('flats').select('flat_no, owner_name, contact_no').in('flat_no', c.flatNos);
+  const fullAmt = Object.fromEntries((all||[]).map(x=>[x.round_name, x.amount_per_flat]));
+  joinMsgs = c.flatNos.map(f=>{
+    const p = (people||[]).find(x=>x.flat_no===f) || {flat_no:f};
+    const others = (dues||[]).filter(d=>d.flat_no===f).map(d=>({...d, pending_amount: fullAmt[d.round_name] ?? d.pending_amount}));
+    return {...p, text: buildJoinMessage(c, others, p)};
+  });
+  out.innerHTML = joinMessagesHtml();
 }
 async function renderFlatsTab(box){
   const unlocked = pinStillValid() && state.user;
