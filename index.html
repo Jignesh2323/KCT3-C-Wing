@@ -1234,28 +1234,48 @@ async function syncBuilderRoundRate(roundName, livePerFlat, allowAnonWrite){
 /* Society bank details card -- Dashboard, unlocked only. The details live
    in the Supabase table bank_details (RLS: signed-in only), NOT in this
    file: the repo is public on GitHub. Tap a value to copy it. */
+let bankDetailsText = '';
 async function renderBankCard(){
   const slot = document.getElementById('bank-card-slot');
   if(!slot) return;
   const {data, error} = await sb.from('bank_details').select('*').order('id').limit(1);
   const b = data && data[0];
   if(error || !b){ slot.innerHTML = ''; return; }
-  const row = (label, val, copy)=> val ? `<div class="flat-entry" style="padding:9px 12px;">
-      <span class="config-note" style="margin:0; min-width:96px;">${label}</span>
-      <span class="mono" style="flex:1 1 140px; min-width:0; font-weight:700; ${copy?'cursor:pointer;':''}" ${copy?`onclick="navigator.clipboard&&navigator.clipboard.writeText('${String(val).replace(/'/g,'')}').then(()=>alert('${label} કૉપિ થયું'))"`:''}>${val}${copy?' 📋':''}</span>
-    </div>` : '';
+  // One plain-text block -- the same text is shown and copied, so it can be
+  // pasted straight into WhatsApp for anyone paying via Google Pay / NEFT.
+  const lines = [
+    ['Account Name', b.account_name],
+    ['Bank', b.bank_name],
+    ['Branch', b.branch],
+    ['A/c No.', b.account_no],
+    ['A/c Type', b.account_type],
+    ['IFSC', b.ifsc],
+    ['MICR', b.micr],
+  ].filter(([,v])=>v);
+  bankDetailsText = lines.map(([k,v])=>`${k}: ${v}`).join('\n');
   slot.innerHTML = `<div class="card">
     <h3>🏦 સોસાયટી બેંક વિગત</h3>
-    <p class="config-note" style="margin-top:-4px;">🔒 ફક્ત Unlock પછી દેખાય. 📋 વાળી વિગત પર દબાવો એટલે કૉપિ થશે.</p>
-    ${row('ખાતાનું નામ', b.account_name)}
-    ${row('બેંક', b.bank_name)}
-    ${row('શાખા', b.branch)}
-    ${row('ખાતા નં.', b.account_no, true)}
-    ${row('ખાતાનો પ્રકાર', b.account_type)}
-    ${row('IFSC', b.ifsc, true)}
-    ${row('MICR', b.micr, true)}
-    ${row('સરનામું', b.branch_address)}
+    <p class="config-note" style="margin-top:-4px;">🔒 ફક્ત Unlock પછી દેખાય. Google Pay / NEFT માટે કૉપિ કરીને મોકલો.</p>
+    <div class="mono" style="white-space:pre-wrap; text-align:left; font-weight:600; line-height:1.7; padding:12px 14px; border-radius:12px; background:var(--maroon-tint, #f5f3ff); border:1px solid rgba(0,0,0,.08); word-break:break-word;">${escapeBankHtml(bankDetailsText)}</div>
+    <div style="display:flex; justify-content:center; margin-top:10px;">
+      <button type="button" class="btn" id="bank-copy-btn" onclick="copyBankDetails()">📋 Copy Bank Details</button>
+    </div>
   </div>`;
+}
+function escapeBankHtml(s){
+  return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+async function copyBankDetails(){
+  const btn = document.getElementById('bank-copy-btn');
+  let ok = false;
+  try{ await navigator.clipboard.writeText(bankDetailsText); ok = true; }catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = bankDetailsText; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ ok = document.execCommand('copy'); }catch(_){}
+    ta.remove();
+  }
+  if(btn){ btn.textContent = ok ? '✅ Copied!' : '❌ Copy નથી થયું'; setTimeout(()=>{ btn.textContent='📋 Copy Bank Details'; }, 1800); }
 }
 async function renderCommonExpenseSplit(){
   const resultBox = document.getElementById('cx_result');
